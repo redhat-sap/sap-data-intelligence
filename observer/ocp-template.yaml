@@ -204,14 +204,20 @@ objects:
   status:
     dockerImageRepository: ""
 
-- apiVersion: v1
+- apiVersion: image.openshift.io/v1
   kind: ImageStream
   metadata:
     name: ubi8
   spec:
-  status:
-    dockerImageRepository: ""
-
+    lookupPolicy:
+      local: false
+    tags:
+    - from:
+        kind: DockerImage
+        name: registry.redhat.io/ubi8/ubi:latest
+      name: latest
+      referencePolicy:
+        type: Source
 
 - kind: BuildConfig
   apiVersion: build.openshift.io/v1
@@ -244,7 +250,6 @@ objects:
         from:
           kind: "ImageStreamTag"
           name: "ubi8:latest"
-          namespace: openshift
         pullSecret:
           name: ${REGISTRY_SECRET_NAME}
     output: 
@@ -360,7 +365,6 @@ parameters:
     required: false
   - name: REGISTRY_SECRET_NAME
     required: true
-
   - name: REGISTRY
     description: >
       The registry to mark as insecure. If not given, it will be determined from

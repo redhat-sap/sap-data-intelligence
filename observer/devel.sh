@@ -83,7 +83,7 @@ fi
 
 newDeployment=0
 if ! oc get dc/sdi-observer >/dev/null; then
-    oc process REGISTRY_SECRET_NAME="${REGISTRY_SECRET_NAME}" NAMESPACE="${NAMESPACE}" \
+    oc process REGISTRY_SECRET_NAME="${SECRET_NAME}" NAMESPACE="${NAMESPACE}" \
             -f ocp-template.yaml -o json | \
         oc create -f -
     newDeployment=1
