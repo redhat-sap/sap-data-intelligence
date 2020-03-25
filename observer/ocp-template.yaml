@@ -1,0 +1,348 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: sdi-observer
+  annotations:
+    openshift.io/display-name: "OpenShift enabler and observer for SAP Data Hub"
+    description: >
+      On Red Hat Enterprise Linux CoreOS, SAP Data Hub's vsystem-vrep
+      statefulset needs to be patched to mount `emptyDir` volume at `/exports`
+      directory in order to enable NFS exports in the container running on top
+      of overlayfs which is the default filesystem in RHCOS.
+
+      The template spawns a pod that observes the particular namespace where
+      SAP Data Hub runs modifies the vsystem-vrep statefulset as soon as it
+      appears to enable the NFS exports.
+
+      The observer also allows to patch `vflow` pods to mark registry as insecure.
+      Unless kaniko builds are enabled, it will also patch `vflow` pods to run as
+      Super Privileged Containers in order to access Docker sockets on nodes.
+
+      Additionally, it patches diagnostics-fluentd daemonset to allow its pods
+      to access log files on the host system. On OCP 4, it also modifies it to
+      parse plain text log files instead of preconfigured json.
+
+      On Red Hat Enterprise Linux CoreOS, "vsystem-iptables" containers need to
+      be run as privileged in order to load iptables-related kernel modules.
+      SAP Data Hub containers named "vsystem-iptables" deployed as part of
+      every "vsystem-app" deployment attempt to modify iptables rules without
+      having the necessary permissions. The ideal solution is to pre-load these
+      modules during node's startup. When not feasable, this template can also
+      fix the permissions on-the-fly as the deployments are created.
+
+      The template must be instantiated before the installation of SAP Data Hub.
+      Also the namespace, where SAP Data Hub will be installed, must exist before
+      the instantiation.
+
+      Usage:
+        If running in the same namespace as Data Hub, instantiate the template
+        as is in the desired namespace:
+
+          oc project $SDI_NAMESPACE
+          oc process sdi-observer NAMESPACE=$SDI_NAMESPACE | oc create -f -
+
+        If running in a different/new namespace/project, instantiate the
+        template with parameters SDI_NAMESPACE and NAMESPACE, e.g.:
+
+          oc new-project $SDI_NAMESPACE
+          oc new-project sapdatahub-admin
+          oc process sdi-observer \
+              SDI_NAMESPACE=$SDI_NAMESPACE \
+              NAMESPACE=sapdatahub-admin | oc create -f -
+
+    openshift.io/provider-display-name: "Red Hat, Inc."
+    openshift.io/documentation-url: "https://access.redhat.com/articles/4324391"
+message: >-
+  The vsystem-app observer and patcher will be started. You can watch the progress
+  with the following command:
+
+    oc logs -f dc/sdi-observer
+objects:
+- apiVersion: v1
+  kind: ServiceAccount
+  metadata:
+    name: sdi-observer
+    namespace: ${NAMESPACE}
+    labels:
+      deploymentconfig: sdi-observer
+
+- apiVersion: rbac.authorization.k8s.io/v1
+  kind: Role
+  metadata:
+    name: sdi-observer
+    namespace: ${SDI_NAMESPACE}
+    labels:
+      deploymentconfig: sdi-observer
+  rules:
+  - apiGroups:
+    - apps
+    - extensions
+    resources:
+    - deployments
+    - deployments/scale
+    - jobs
+    - statefulsets
+    - statefulsets/scale
+    verbs:
+    - get
+    - list
+    - patch
+    - watch
+  - apiGroups:
+    - apps
+    - extensions
+    resources:
+    - daemonsets
+    verbs:
+    - get
+    - list
+    - patch
+    - update
+    - watch
+  - apiGroups:
+    - ""
+    resources:
+    # necessary to get the configured registry out of secrets/installer-config
+    - secrets
+    verbs:
+    - get
+  - apiGroups:
+    - ""
+    resources:
+    - configmaps
+    verbs:
+    - get
+    - list
+    - watch
+    - patch
+  - apiGroups:
+    - ""
+    resources:
+    - pods
+    verbs:
+    - delete
+    - get
+    - list
+    - watch
+  # mandatory permissions if running in a different namespace
+  - apiGroups:
+    - ""
+    resources:
+    - namespaces
+    - namespaces/status
+    verbs:
+    - get
+    - list
+    - watch
+  - apiGroups:
+    - ""
+    - project.openshift.io
+    resources:
+    - projects
+    verbs:
+    - get
+  # necessary to cleanup obsolete sdi helpers
+  - apiGroups:
+    - apps
+    - deploymentconfigs.apps.openshift.io
+    resources:
+    - deploymentconfigs
+    verbs:
+    - get
+    - list
+    - delete
+  - apiGroups:
+    - ""
+    - authorization.openshift.io
+    - rbac.authorization.k8s.io
+    resources:
+    - roles
+    - rolebindings
+    - serviceaccounts
+    verbs:
+    - get
+    - list
+    - delete
+
+- apiVersion: rbac.authorization.k8s.io/v1
+  kind: RoleBinding
+  metadata:
+    namespace: ${SDI_NAMESPACE}
+    name: sdi-observer-${ROLE_BINDING_SUFFIX}
+    labels:
+      deploymentconfig: sdi-observer
+  roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: Role
+    name: sdi-observer
+    namespace: ${SDI_NAMESPACE}
+  subjects:
+  - kind: ServiceAccount
+    name: sdi-observer
+    namespace: ${NAMESPACE}
+
+- apiVersion: rbac.authorization.k8s.io/v1
+  kind: ClusterRoleBinding
+  metadata:
+    name: sdi-observer-2-node-reader-${ROLE_BINDING_SUFFIX}
+    labels:
+      deploymentconfig: sdi-observer
+  roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: system:node-reader
+  subjects:
+  - kind: ServiceAccount
+    name: sdi-observer
+    namespace: ${NAMESPACE}
+
+  - apiVersion: v1
+    kind: ImageStream
+    metadata:
+      name: sdi-observer
+    spec:
+    status:
+      dockerImageRepository: ""
+
+  - kind: BuildConfig
+    apiVersion: build.openshift.io/v1
+    metadata:
+      name: "sdi-observer" 
+    spec:
+      runPolicy: "Serial" 
+      triggers: 
+        - type: "ImageChange"
+      source: 
+        dockerfile: |
+          FROM openshift/cli:latest
+          RUN dnf update -y
+          RUN dnf clean all 
+          RUN git clone https://github.com/stedolan/jq.git; cd jq; autoreconf -i; ./configure --disable-maintainer-mode; make; sudo make install
+          # TODO: determine OCP version from environment
+          #COPY https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest-${BASE_IMAGE_TAG}/openshift-client-linux.tar.gz /tmp/
+          #COPY https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest-${BASE_IMAGE_TAG}/sha256sum.txt /tmp/
+          #RUN cd /tmp && grep "openshift-client-linux.* $(awk '{print 1}' <(sha256sum openshift-client-linux.tar.gz))" /tmp/sha256sum.txt
+          #RUN tar -xzvf openshift-client-linux.tar.gz -T <(printf oc) -C /usr/local/bin
+          COPY https://raw.githubusercontent.com/redhat-sap/sap-datahub/master/observer/observer.sh /observer.sh
+          RUN chmod +x /observer.sh
+      strategy: 
+        dockerStrategy:
+          from:
+            kind: "ImageStreamTag"
+            name: "cli:latest"
+            namespace: openshift
+      output: 
+        to:
+          kind: "ImageStreamTag"
+          name: "sdi-observer:${BASE_IMAGE_TAG}"
+
+- apiVersion: v1
+  kind: DeploymentConfig
+  metadata:
+    name: sdi-observer
+    namespace: ${NAMESPACE}
+    labels:
+      deploymentconfig: sdi-observer
+  spec:
+    selector:
+      deploymentconfig: sdi-observer
+    replicas: 1
+    strategy:
+      type: Rolling
+    triggers:
+    - type: "ConfigChange"
+    - type: ImageChange
+      imageChangeParams:
+        automatic: true
+        containerNames:
+          - sdi-observer
+        from:
+          kind: ImageStreamTag
+          name: 'sdi-observer:${BASE_IMAGE_TAG}'
+    template:
+      metadata:
+        labels:
+          deploymentconfig: sdi-observer
+          target: "vsystem-app.datahub.sap.com"
+      spec:
+        containers:
+        - env:
+          - name: SDI_NAMESPACE
+            value: ${SDI_NAMESPACE}
+          - name: DRY_RUN
+            value: ${DRY_RUN}
+          - name: REGISTRY
+            value: ${REGISTRY}
+          - name: MARK_REGISTRY_INSECURE
+            value: ${MARK_REGISTRY_INSECURE}
+          - name: MAKE_VSYSTEM_IPTABLES_PODS_PRIVILEGED
+            value: ${MAKE_VSYSTEM_IPTABLES_PODS_PRIVILEGED}
+          - name: NODE_LOG_FORMAT
+            value: ${NODE_LOG_FORMAT}
+          image: " "
+          name: sdi-observer
+          command:
+          - /observer.sh
+        restartPolicy: Always
+        serviceAccount: sdi-observer
+        serviceAccountName: sdi-observer
+
+parameters:
+  - name: BASE_IMAGE
+    required: true
+    value: quay.io/openshift/origin-cli
+    description: >
+      Base image containing the command line utilities suitable for interaction
+      with the OpenShift cluster. It must contain at least oc and bash
+      binaries.
+  - name: BASE_IMAGE_TAG
+    description: >
+      The tag of BASE_IMAGE to pull. The tag shall correspond to the OpenShift release of the cluster.
+    required: true
+    value: "4.2"
+  - name: DRY_RUN
+    description: >
+      If set to true, no action will be performed. The pod will just print what would have been
+      executed.
+    required: false
+    value: "false"
+  - name: SDI_NAMESPACE
+    description: >
+      The name of the SAP Data Hub namespace to manage. Defaults to the current
+      one. It must be set only in case the observer is running in a differnt
+      namespace (see NAMESPACE).
+  - name: NAMESPACE
+    description: >
+      The desired namespace, where the vsystem-app observer shall run. Defaults to
+      the current one. Needs to be set only if running the observer outside of
+      SDI_NAMESPACE.
+    required: true
+  - name: ROLE_BINDING_SUFFIX
+    description: >
+      A random suffix for the new RoleBinding's name. No need to edit.
+    generate: expression
+    from: '[a-z0-9]{5}'
+  - name: MARK_REGISTRY_INSECURE
+    description: >
+      Set to true if the given or configured VFLOW_REGISTRY shall be marked as insecure
+      in all instances of Pipeline Modeler.
+    required: true
+    value: "false"
+  - name: MAKE_VSYSTEM_IPTABLES_PODS_PRIVILEGED
+    description: >
+      Patch deployments with vsystem-iptables container to make them privileged
+      in order to load kernel modules they need. Unless true, it is assumed
+      that the modules have been pre-loaded on the worker nodes.
+      This will make also vsystem-vrep-* pod privileged.
+    required: true
+    value: "false"
+  - name: NODE_LOG_FORMAT
+    description: >
+      Format of the logging files on the nodes. Allowed values are "json" and "text".
+      If not given, the default is "json" for OpenShift 3 cluster and "text" for OpenShift 4.
+      By default, the SDI fluentd pods are configured to parse "json".
+    required: false
+  - name: REGISTRY
+    description: >
+      The registry to mark as insecure. If not given, it will be determined from
+      the installer-config secret in the SDI_NAMESPACE.
