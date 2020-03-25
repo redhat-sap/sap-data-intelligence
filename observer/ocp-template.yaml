@@ -196,45 +196,61 @@ objects:
     name: sdi-observer
     namespace: ${NAMESPACE}
 
-  - apiVersion: v1
-    kind: ImageStream
-    metadata:
-      name: sdi-observer
-    spec:
-    status:
-      dockerImageRepository: ""
+- apiVersion: v1
+  kind: ImageStream
+  metadata:
+    name: sdi-observer
+  spec:
+  status:
+    dockerImageRepository: ""
 
-  - kind: BuildConfig
-    apiVersion: build.openshift.io/v1
-    metadata:
-      name: "sdi-observer" 
-    spec:
-      runPolicy: "Serial" 
-      triggers: 
-        - type: "ImageChange"
-      source: 
-        dockerfile: |
-          FROM openshift/cli:latest
-          RUN dnf update -y
-          RUN dnf clean all 
-          RUN git clone https://github.com/stedolan/jq.git; cd jq; autoreconf -i; ./configure --disable-maintainer-mode; make; sudo make install
-          # TODO: determine OCP version from environment
-          #COPY https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest-${BASE_IMAGE_TAG}/openshift-client-linux.tar.gz /tmp/
-          #COPY https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest-${BASE_IMAGE_TAG}/sha256sum.txt /tmp/
-          #RUN cd /tmp && grep "openshift-client-linux.* $(awk '{print 1}' <(sha256sum openshift-client-linux.tar.gz))" /tmp/sha256sum.txt
-          #RUN tar -xzvf openshift-client-linux.tar.gz -T <(printf oc) -C /usr/local/bin
-          COPY https://raw.githubusercontent.com/redhat-sap/sap-datahub/master/observer/observer.sh /observer.sh
-          RUN chmod +x /observer.sh
-      strategy: 
-        dockerStrategy:
-          from:
-            kind: "ImageStreamTag"
-            name: "cli:latest"
-            namespace: openshift
-      output: 
-        to:
+- apiVersion: v1
+  kind: ImageStream
+  metadata:
+    name: ubi8
+  spec:
+  status:
+    dockerImageRepository: ""
+
+
+- kind: BuildConfig
+  apiVersion: build.openshift.io/v1
+  metadata:
+    name: "sdi-observer" 
+  spec:
+    runPolicy: "Serial" 
+    triggers: 
+    - type: "ImageChange"
+    - type: "ConfigChange"
+    source: 
+      dockerfile: |
+        FROM openshift/cli:latest
+        RUN dnf update -y
+        # TODO: jq is not yet available in EPEL-8
+        #RUN dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm
+        RUN dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm && dnf install -y jq
+        RUN dnf clean all 
+        # TODO: determine OCP version from environment
+        COPY https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest-${BASE_IMAGE_TAG}/openshift-client-linux.tar.gz /tmp/
+        COPY https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest-${BASE_IMAGE_TAG}/sha256sum.txt /tmp/
+        # verify the downloaded tar
+        RUN /bin/bash -c 'grep "$(awk '"'"'{print $1}'"'"' <(sha256sum /tmp/openshift-client-linux.tar.gz))[[:space:]]\+openshift-client-linux-." /tmp/sha256sum.txt'
+        RUN /bin/bash -c 'tar  -C /usr/local/bin/ -xzvf /tmp/openshift-client-linux.tar.gz -T <(printf oc)'
+        # TODO: verify signatures as well
+        COPY https://raw.githubusercontent.com/redhat-sap/sap-datahub/master/observer/observer.sh /observer.sh
+        RUN chmod a+rx /observer.sh
+    strategy: 
+      dockerStrategy:
+        from:
           kind: "ImageStreamTag"
-          name: "sdi-observer:${BASE_IMAGE_TAG}"
+          name: "ubi8:latest"
+          namespace: openshift
+        pullSecret:
+          name: ${REGISTRY_SECRET_NAME}
+    output: 
+      to:
+        kind: "ImageStreamTag"
+        name: "sdi-observer:${BASE_IMAGE_TAG}"
 
 - apiVersion: v1
   kind: DeploymentConfig
@@ -342,6 +358,9 @@ parameters:
       If not given, the default is "json" for OpenShift 3 cluster and "text" for OpenShift 4.
       By default, the SDI fluentd pods are configured to parse "json".
     required: false
+  - name: REGISTRY_SECRET_NAME
+    required: true
+
   - name: REGISTRY
     description: >
       The registry to mark as insecure. If not given, it will be determined from

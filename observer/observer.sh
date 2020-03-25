@@ -13,8 +13,8 @@ fi
 # support both 3.x and 4.x output formats
 version="$(oc version --short 2>/dev/null || oc version)"
 serverVersion="$(sed -n 's/^\(\([sS]erver\|[kK]ubernetes\).*:\|[oO]pen[sS]hift\) v\?\([0-9]\+\.[0-9]\+\).*/\3/p' \
-                    <<<"$version" | head -n 1)"; echo "serverVersion: $serverVersion"
-clientVersion="$(sed -n 's/^\([cC]lient.*:\|oc\) v\([0-9]\+\.[0-9]\+\).*/\2/p' \
+                    <<<"$version" | head -n 1)"
+clientVersion="$(sed -n 's/^\([cC]lient.*:\|oc\) \(openshift-clients-\|v\)\([0-9]\+\.[0-9]\+\).*/\3/p' \
                     <<<"$version" | head -n 1)"
 # translate k8s 1.13 to ocp 4.1
 if [[ "${serverVersion:-}" =~ ^1\.([0-9]+)$ && "${BASH_REMATCH[1]}" -gt 12 ]]; then
@@ -28,6 +28,8 @@ elif [[ "${serverVersion}" != "${clientVersion}" ]]; then
     printf 'WARNING: Client version != Server version (%s != %s).\n' "$clientVersion" "$serverVersion" >&2
     printf '                 Please reinstantiate this template with the correct BASE_IMAGE_TAG parameter (e.g. v%s)."\n' >&2 \
         "$serverVersion"
+else
+    printf "Server and client version: $serverVersion"
 fi
 
 if [[ ! "${NODE_LOG_FORMAT:-}" =~ ^(text|json|)$ ]]; then
@@ -81,7 +83,6 @@ function terminate() {
 
 function observe() {
     oc observe --listen-addr=:11256 pod        &
-    oc observe --listen-addr=:11255 job        &
     oc observe --listen-addr=:11254 configmap  &
     oc observe --listen-addr=:11253 daemonset  &
     oc observe --listen-addr=:11252 statefulset&
@@ -144,7 +145,7 @@ function mkPasswdSecret() {
 }
 
 # maps secretname to timestamp of the last check
-declare -A secretCache()
+declare -A secretCache=()
 
 function doesPasswdSecretExist() {
     local key="$1"
@@ -550,10 +551,10 @@ while IFS=' ' read -u 4 -r _ _ _ _ _ name; do
                         log 'Could not read /etc/passwd file in container %s in pod %s' "${cname}" "${name}"
                         continue
                     fi
-                    username="$(head -n 1            <<<"$rawData")"
-                    homeDir="$(sed     -n '2p'     <<<"$rawData")"
-                    data="$(sed            -n '3,$p' <<<"$rawData")"
-                    secretName="$(mkPasswdSecret "$imageID" "$jobName" "$cname" "${csecretKey} "${data:-}")"
+                    username="$(head -n 1      <<<"$rawData")"
+                    homeDir="$(sed   -n '2p'   <<<"$rawData")"
+                    data="$(sed      -n '3,$p' <<<"$rawData")"
+                    secretName="$(mkPasswdSecret "$imageID" "$jobName" "$cname" "${csecretKey}" "${data:-}")"
                     if [[ -z "${secretName:-}" ]]; then
                         log 'Could not create secret for container %s of job %s with key %s!' "${cname}" "${jobName}"
                         continue
@@ -586,5 +587,5 @@ while IFS=' ' read -u 4 -r _ _ _ _ _ name; do
 
         esac
     done 3< <(oc get deploy/"$name" statefulset/"$name" daemonset/"$name" \
-                configmap/"$name" job/"$name" -o go-template="${gotmpl}" 2>/dev/null ||: )
+                configmap/"$name" -o go-template="${gotmpl}" 2>/dev/null ||: )
 done 4< <(observe)
