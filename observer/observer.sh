@@ -66,7 +66,11 @@ function log() {
     local reenableDebug
     reenableDebug="$([[ "$-" =~ x ]] && printf '1' || printf '0')"
     { set +x; } >/dev/null 2>&1
-    date -R | tr '\n' ' ' >&2
+    if [[ "$1" == -d ]]; then
+        shift   # do not print date
+    else
+        date -R | tr '\n' ' ' >&2
+    fi
     # no new line
     if [[ "$1" == -n ]]; then
         shift
@@ -261,14 +265,14 @@ function checkPermissions() {
     local perm
     local rc=0
     readarray -t lackingPermissions <<<"$(parallel checkPerm ::: get/nodes get/projects get/secrets \
-        get/configmaps watch/pods watch/deployments get/deployments watch/statefulsets \
-        get/statefulsets watch/configmaps \ patch/deployments patch/statefulsets patch/daemonsets \
+        get/configmaps watch/deployments get/deployments watch/statefulsets \
+        get/statefulsets watch/configmaps patch/deployments patch/statefulsets patch/daemonsets \
         patch/configmaps update/daemonsets delete/pods)"
     if [[ "${#lackingPermissions[@]}" -gt 0 ]]; then
         for perm in "${lackingPermissions[@]}"; do
             [[ -z "$perm" ]] && continue
             log -n 'Cannot "%s" "%s", please grant the needed permissions' "${perm%%/*}" "${perm##*/}"
-            log ' to sdi-observer service account!'
+            log -L ' to sdi-observer service account!'
             rc=1
         done
         return "$rc"
