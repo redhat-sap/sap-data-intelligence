@@ -264,10 +264,26 @@ function checkPermissions() {
     declare -a lackingPermissions
     local perm
     local rc=0
-    readarray -t lackingPermissions <<<"$(parallel checkPerm ::: get/nodes get/projects get/secrets \
-        get/configmaps watch/deployments get/deployments watch/statefulsets \
-        get/statefulsets watch/configmaps patch/deployments patch/statefulsets patch/daemonsets \
-        patch/configmaps update/daemonsets delete/pods)"
+    readarray -t lackingPermissions <<<"$(parallel checkPerm :::
+            get/configmaps \
+            get/deployments \
+            get/nodes \
+            get/projects \
+            get/secrets \
+            get/statefulsets \
+
+            patch/configmaps \
+            patch/daemonsets \
+            patch/deployments \
+            patch/statefulsets \
+
+            update/daemonsets \
+
+            watch/configmaps \
+            watch/daemonsets \
+            watch/deployments \
+            watch/statefulsets)"
+
     if [[ "${#lackingPermissions[@]}" -gt 0 ]]; then
         for perm in "${lackingPermissions[@]}"; do
             [[ -z "$perm" ]] && continue
