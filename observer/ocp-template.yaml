@@ -42,7 +42,8 @@ metadata:
         template as is in the desired namespace:
 
           oc project $SDI_NAMESPACE
-          oc process sdi-observer NAMESPACE=$SDI_NAMESPACE | oc create -f -
+          oc process -n $SDI_NAMESPACE sdi-observer NAMESPACE=$SDI_NAMESPACE | \
+            oc create -f -
 
         If running in a different/new namespace/project, instantiate the
         template with parameters SDI_NAMESPACE and NAMESPACE, e.g.:
@@ -191,6 +192,7 @@ objects:
     kind: ImageStream
     metadata:
       name: sdi-observer
+      namespace: ${NAMESPACE}
     spec:
     status:
       dockerImageRepository: ""
@@ -199,6 +201,7 @@ objects:
     kind: ImageStream
     metadata:
       name: ubi8
+      namespace: ${NAMESPACE}
     spec:
       lookupPolicy:
         local: false
@@ -213,7 +216,8 @@ objects:
   - kind: BuildConfig
     apiVersion: build.openshift.io/v1
     metadata:
-      name: "sdi-observer"
+      name: sdi-observer
+      namespace: ${NAMESPACE}
       labels:
         deploymentconfig: sdi-observer
     spec:
@@ -232,7 +236,6 @@ objects:
           RUN dnf install -y \
             https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm && \
             dnf install -y parallel procps-ng bc && dnf clean all -y
-          RUN mkdir -p $HOME/.parallel && touch $HOME/.parallel/will-cite
           # TODO: determine OCP version from environment
           COPY https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest-${OCP_MINOR_RELEASE}/openshift-client-linux.tar.gz /tmp/
           COPY https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest-${OCP_MINOR_RELEASE}/sha256sum.txt /tmp/
@@ -240,7 +243,7 @@ objects:
           RUN /bin/bash -c 'grep "$(awk '"'"'{print $1}'"'"' <(sha256sum /tmp/openshift-client-linux.tar.gz))[[:space:]]\+openshift-client-linux-." /tmp/sha256sum.txt'
           RUN /bin/bash -c 'tar -C /usr/local/bin/ -xzvf /tmp/openshift-client-linux.tar.gz -T <(printf oc)'
           # TODO: verify signatures as well
-          COPY https://raw.githubusercontent.com/redhat-sap/sap-datahub/${SDI_OBSERVER_GIT_REVISION}/observer/observer.sh /observer.sh
+          COPY https://raw.githubusercontent.com/redhat-sap/sap-data-intelligence/${SDI_OBSERVER_GIT_REVISION}/observer/observer.sh /observer.sh
           RUN chmod a+rx /observer.sh
       strategy:
         dockerStrategy:
