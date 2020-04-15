@@ -37,6 +37,8 @@ metadata:
       Hub. Also the namespace, where SAP Data Hub will be installed, must exist
       before the instantiation.
 
+      TODO: document admin project role requirement.
+
       Usage:
         If running in the same namespace as Data Intelligence, instantiate the
         template as is in the desired namespace:
@@ -235,7 +237,7 @@ objects:
             dnf install -y jq
           RUN dnf install -y \
             https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm && \
-            dnf install -y parallel procps-ng bc && dnf clean all -y
+            dnf install -y parallel procps-ng bc git && dnf clean all -y
           # TODO: determine OCP version from environment
           COPY https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest-${OCP_MINOR_RELEASE}/openshift-client-linux.tar.gz /tmp/
           COPY https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest-${OCP_MINOR_RELEASE}/sha256sum.txt /tmp/
@@ -243,8 +245,22 @@ objects:
           RUN /bin/bash -c 'grep "$(awk '"'"'{print $1}'"'"' <(sha256sum /tmp/openshift-client-linux.tar.gz))[[:space:]]\+openshift-client-linux-." /tmp/sha256sum.txt'
           RUN /bin/bash -c 'tar -C /usr/local/bin/ -xzvf /tmp/openshift-client-linux.tar.gz -T <(printf oc)'
           # TODO: verify signatures as well
-          COPY https://raw.githubusercontent.com/redhat-sap/sap-data-intelligence/${SDI_OBSERVER_GIT_REVISION}/observer/observer.sh /observer.sh
-          RUN chmod a+rx /observer.sh
+          RUN mkdir -p /usr/local/bin \
+            /usr/local/share/{sdi-observer,openshift-acme}
+          RUN git clone --depth 5 --single-branch \
+            --branch ${LETSENCRYPT_REVISION} \
+            ${LETSENCRYPT_REPOSITORY} /usr/local/share/openshift-acme
+          RUN git clone --depth 5 --single-branch \
+            --branch ${SDI_OBSERVER_GIT_REVISION} \
+            ${SDI_OBSERVER_REPOSITORY} /usr/local/share/sap-data-intelligence
+          RUN for bin in observer.sh deploy-registry.sh; do \
+              cp -lv /usr/local/share/sap-data-intelligence/$bin \
+                /usr/local/bin/$bin; \
+              chmod a+rx /usr/local/bin/$bin; \
+            done
+          RUN ln -s /usr/local/share/sap-data-intelligence/observer \
+            /usr/local/share/sdi-observer
+          WORKDIR /usr/local/share/sdi-observer
       strategy:
         dockerStrategy:
           from:
@@ -296,14 +312,36 @@ objects:
                   value: ${REGISTRY}
                 - name: MARK_REGISTRY_INSECURE
                   value: ${MARK_REGISTRY_INSECURE}
-                - name: MAKE_VSYSTEM_IPTABLES_PODS_PRIVILEGED
-                  value: ${MAKE_VSYSTEM_IPTABLES_PODS_PRIVILEGED}
                 - name: NODE_LOG_FORMAT
                   value: ${NODE_LOG_FORMAT}
+                - name: DEPLOY_SDI_REGISTRY
+                  value: ${DEPLOY_SDI_REGISTRY}
+                - name: DEPLOY_LETSENCRYPT
+                  value: ${DEPLOY_LETSENCRYPT}
+                - name: EXPOSE_WITH_LETSENCRYPT
+                  value: ${EXPOSE_WITH_LETSENCRYPT}
+                - name: LETSENCRYPT_ENVIRONMENT
+                  value: ${LETSENCRYPT_ENVIRONMENT}
+                - name: SDI_REGISTRY_STORAGE_CLASS_NAME
+                  value: ${SDI_REGISTRY_STORAGE_CLASS_NAME}
+                - name: SDI_REGISTRY_HTPASSWD_SECRET_NAME
+                  value: ${SDI_REGISTRY_HTPASSWD_SECRET_NAME}
+                - name: SDI_REGISTRY_USERNAME
+                  value: ${SDI_REGISTRY_USERNAME}
+                - name: SDI_REGISTRY_PASSWORD
+                  value: ${SDI_REGISTRY_PASSWORD}
+                - name: FORCE_REDEPLOY
+                  value: ${FORCE_REDEPLOY}
+                - name: RECREATE_SECRETS
+                  value: ${RECREATE_SECRETS}
+                - name: SDI_REGISTRY_NAMESPACE
+                  value: ${SDI_REGISTRY_NAMESPACE}
+                - name: REDHAT_REGISTRY_SECRET_NAMESPACE
+                  value: ${REDHAT_REGISTRY_SECRET_NAMESPACE}
               image: " "
               name: sdi-observer
               command:
-                - /observer.sh
+                - /usr/local/bin/observer.sh
           restartPolicy: Always
           serviceAccount: sdi-observer
           serviceAccountName: sdi-observer
@@ -333,6 +371,17 @@ parameters:
       to the current one. Needs to be set only if running the observer outside
       of SDI_NAMESPACE.
     required: true
+  - name: SDI_OBSERVER_REPOSITORY
+    description: >
+      TODO
+    value: https://github.com/redhat-sap/sap-data-intelligence
+    required: true
+  - name: SDI_OBSERVER_GIT_REVISION
+    description: >
+      Revision (e.g. tag, commit or branch) of git repository where SDI
+      Observer's source reside.
+    required: true
+    value: master
   - name: ROLE_BINDING_SUFFIX
     description: >
       A random suffix for the new RoleBinding's name. No need to edit.
@@ -367,11 +416,95 @@ parameters:
       OpenShift secret.
   - name: REGISTRY
     description: >
-      The registry to mark as insecure. If not given, it will be determined from
-      the installer-config secret in the SDI_NAMESPACE.
-  - name: SDI_OBSERVER_GIT_REVISION
+      The registry to mark as insecure. If not given, it will be determined
+      from the installer-config secret in the SDI_NAMESPACE. If
+      DEPLOY_SDI_REGISTRY is set to "true", this variable will be used as the
+      container image registry's hostname when creating the corresponding
+      route.
+  - name: SDI_REGISTRY_NAMESPACE
     description: >
-      Revision (e.g. tag, commit or branch) of git repository where SDI
-      Observer's source reside.
+      Target namespace where to deploy container image registry.
+    required: false
+  - name: DEPLOY_SDI_REGISTRY
+    description: >
+      Whether to deploy container image registry for the purpose of SAP Data
+      Intelligence. Requires project admin role attached to the sdi-observer
+      service account. If enabled, REDHAT_REGISTRY_SECRET_NAME must be
+      provided.
+    required: false
+    value: "false"
+  - name: DEPLOY_LETSENCRYPT
+    description: >
+      Whether to deploy letsencrypt controller. Requires project admin role
+      attached to the sdi-observer service account.
+    required: false
+    value: "false"
+  - name: EXPOSE_WITH_LETSENCRYPT
+    description: >
+      Whether to expose routes annotated for letsencrypt controller. Requires
+      project admin role attached to the sdi-observer service account.
+      Letsencrypt controller must be deployed either via this observer or
+      cluster-wide for this to have an effect. Defaults to DEPLOY_LETSENCRYPT.
+  - name: LETSENCRYPT_REPOSITORY
+    description: >
+      Unless given, a local copy will be used.
+    value: https://github.com/tnozicka/openshift-acme
+    required: false
+  - name: LETSENCRYPT_REVISION
+    description: >
+      Revision of letsencrypt repository to check out.
+    value: 2cfefc7388102408a334ada90933531c7e5e11c2
+    required: false
+  - name: LETSENCRYPT_ENVIRONMENT
+    description: >
+      Either "live" or "staging". Use the latter when debugging SDI Observer's
+      deployment.
     required: true
-    value: master
+    value: "live"
+  - name: FORCE_REDEPLOY
+    description: >
+      Whether to forcefully replace existing registry and/or letsencrypt
+      deployments and configuration files.
+    required: false
+    value: "false"
+  - name: RECREATE_SECRETS
+    description: >
+      Whether to replace secrets like SDI Registry's htpasswd file if they
+      exist already.
+    required: false
+    value: "false"
+  - name: SDI_REGISTRY_VOLUME_CAPACITY
+    description: Volume space available for container images (e.g. 75Gi).
+    required: true
+    value: 75Gi
+  - name: SDI_REGISTRY_STORAGE_CLASS_NAME
+    description: >
+      Unless given, the default storage class will be used.
+    required: false
+  - name: SDI_REGISTRY_HTPASSWD_SECRET_NAME
+    required: false
+    description: >
+      A secret with htpasswd file with authentication data for the sdi image
+      container If given and the secret exists, it will be used instead of
+      SDI_REGISTRY_USERNAME and SDI_REGISTRY_PASSWORD.
+  - name: SDI_REGISTRY_USERNAME
+    from: "user-[a-z0-9]{6}"
+    generage: expression
+    required: false
+  - name: SDI_REGISTRY_PASSWORD
+    from: "user-[a-zA-Z0-9]{32}"
+    generage: expression
+    required: false
+  - name: REDHAT_REGISTRY_SECRET_NAME
+    description: >-
+      Name of the secret with credentials for registry.redhat.io registry.
+      Please visit https://access.redhat.com/terms-based-registry/ to obtain
+      the OpenShift secret. For more details, please refer to
+      https://access.redhat.com/RegistryAuthentication. Required if
+      DEPLOY_SDI_REGISTRY is enabled.
+    required: false
+  - name: REDHAT_REGISTRY_SECRET_NAMESPACE
+    description: >-
+      Namespace where the secret with credentials for registry.redhat.io
+      registry resides.
+    require: false

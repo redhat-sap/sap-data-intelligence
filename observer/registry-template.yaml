@@ -1,0 +1,255 @@
+---
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: container-image-registry
+  annotations:
+    openshift.io/display-name: "TODO"
+    description: >
+      TODO
+    openshift.io/provider-display-name: "Red Hat, Inc."
+    openshift.io/documentation-url: "https://access.redhat.com/articles/4324391"
+message: >-
+  TODO
+objects:
+  - apiVersion: v1
+    kind: ServiceAccount
+    metadata:
+      name: container-image-registry
+      namespace: ${NAMESPACE}
+
+  - apiVersion: v1
+    kind: ImageStream
+    metadata:
+      name: container-image-registry
+      namespace: ${NAMESPACE}
+    spec:
+    status:
+      dockerImageRepository: ""
+
+  - apiVersion: image.openshift.io/v1
+    kind: ImageStream
+    metadata:
+      name: ubi8
+      namespace: ${NAMESPACE}
+    spec:
+      lookupPolicy:
+        local: false
+      tags:
+        - from:
+            kind: DockerImage
+            name: registry.redhat.io/ubi8/ubi:latest
+          name: latest
+          referencePolicy:
+            type: Source
+
+  - kind: BuildConfig
+    apiVersion: build.openshift.io/v1
+    metadata:
+      name: "container-image-registry"
+      namespace: ${NAMESPACE}
+      labels:
+        deploymentconfig: container-image-registry
+    spec:
+      runPolicy: "Serial"
+      triggers:
+        - type: "ImageChange"
+        - type: "ConfigChange"
+      source:
+        dockerfile: |
+          FROM openshift/ubi8:latest
+          # docker-distribution is not yet available on UBI - install from fedora repo
+          # RHEL8 / UBI8 is based on fedora 28
+          ENV FEDORA_BASE_RELEASE=28
+          RUN curl -L -o /etc/pki/rpms-fedora.gpg \
+            https://getfedora.org/static/fedora.gpg
+          RUN /bin/bash -c 'for repo in base updates; do printf "%s\n" \
+              "[fedora-$repo]" \
+              "name=Fedora $FEDORA_BASE_RELEASE - $(uname -m) - ${repo^}" \
+              "metalink=https://mirrors.fedoraproject.org/metalink?repo=fedora-$FEDORA_BASE_RELEASE&arch=$(uname -m)" \
+              "enabled=0" \
+              "countme=1" \
+              "type=rpm" \
+              "gpgcheck=0" \
+              "priority=99" \
+              "gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-$FEDORA_BASE_RELEASE-$(uname -m)" \
+              "skip_if_unavailable=False" >/etc/yum.repos.d/fedora-$repo.repo; \
+            done'
+          RUN dnf update -y
+          # install the GPG keys first, so we can enable GPG keys checking for
+          # the package in question
+          RUN dnf install -y \
+            --enablerepo=fedora-base \
+            --enablerepo=fedora-updates \
+            fedora-gpg-keys
+          RUN sed -i 's/^\(gpgcheck=\)0/\11/' /etc/yum.repos.d/fedora-*.repo
+          RUN dnf install -y \
+            --enablerepo=fedora-base \
+            --enablerepo=fedora-updates \
+            docker-distribution
+          RUN dnf clean all -y
+          EXPOSE 5000
+          ENTRYPOINT [ \
+            "/usr/bin/registry", \
+            "serve", "/etc/docker-distribution/registry/config.yml"]
+      strategy:
+        dockerStrategy:
+          from:
+            kind: "ImageStreamTag"
+            name: "ubi8:latest"
+          pullSecret:
+            name: ${REDHAT_REGISTRY_SECRET_NAME}
+      output:
+        to:
+          kind: "ImageStreamTag"
+          name: "container-image-registry:latest"
+
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      annotations:
+        template.openshift.io/expose-uri: >-
+          "https://{.spec.clusterIP}:{.spec.ports[?(.name==\"registry\")].port)}"
+      name: container-image-registry
+      namespace: ${NAMESPACE}
+    spec:
+      ports:
+        - name: registry
+          port: 5000
+      selector:
+        deploymentconfig: container-image-registry
+      # in case there are multiple replicas, make sure the same client talks to
+      # the same replica each time
+      sessionAffinity: ClientIP
+      type: ClusterIP
+
+  - apiVersion: route.openshift.io/v1
+    kind: Route
+    metadata:
+      annotations:
+        template.openshift.io/expose-uri: "https://{.spec.host}{.spec.path}"
+      name: container-image-registry
+      namespace: ${NAMESPACE}
+    spec:
+      host: ${HOSTNAME}
+      port:
+        targetPort: registry
+      subdomain: ""
+      tls:
+        termination: edge
+        insecureEdgeTerminationPolicy: Redirect
+      to:
+        kind: Service
+        name: container-image-registry
+
+  - apiVersion: v1
+    kind: DeploymentConfig
+    metadata:
+      name: container-image-registry
+      namespace: ${NAMESPACE}
+      labels:
+        deploymentconfig: container-image-registry
+    spec:
+      selector:
+        deploymentconfig: container-image-registry
+      replicas: 1
+      strategy:
+        type: Rolling
+      triggers:
+        - type: "ConfigChange"
+        - type: ImageChange
+          imageChangeParams:
+            automatic: true
+            containerNames:
+              - container-image-registry
+            from:
+              kind: ImageStreamTag
+              name: "container-image-registry:latest"
+      template:
+        metadata:
+          labels:
+            deploymentconfig: container-image-registry
+        spec:
+          containers:
+            - env:
+                - name: REGISTRY_AUTH_HTPASSWD_REALM
+                  value: basic-realm
+                - name: REGISTRY_AUTH_HTPASSWD_PATH
+                  value: /etc/docker-distribution/htpasswd
+                - name: REGISTRY_HTTP_SECRET
+                  value: "${REGISTRY_HTTP_SECRET}"
+              # will be replaced by URL to the built image once it is built
+              image: " "
+              name: container-image-registry
+              volumeMounts:
+                - name: storage
+                  mountPath: /var/lib/registry
+                - name: htpasswd
+                  mountPath: /etc/docker-distribution/htpasswd
+                  readonly: true
+                  subPath: htpasswd
+          livenessProbe:
+            httpGet:
+              path: /v2/
+              port: 5000
+              scheme: HTTPS
+          readinessProbe:
+            httpGet:
+              path: /v2/
+              port: 5000
+              scheme: HTTPS
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 512Mi
+          restartPolicy: Always
+          serviceAccount: container-image-registry
+          serviceAccountName: container-image-registry
+          volumes:
+            - name: storage
+              persistentVolumeClaim:
+                claimName: container-image-registry
+            - name: htpasswd
+              secret:
+                secretName: "${HTPASSWD_SECRET_NAME}"
+              readonly: true
+
+  - apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: container-image-registry
+      namespace: ${NAMESPACE}
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: "${VOLUME_CAPACITY}"
+
+parameters:
+  - name: VOLUME_CAPACITY
+    description: Volume space available for container images (e.g. 75Gi).
+    required: true
+    value: 75Gi
+  - name: REDHAT_REGISTRY_SECRET_NAME
+    description: >-
+      Name of the secret with credentials for registry.redhat.io registry.
+      Please visit https://access.redhat.com/terms-based-registry/ to obtain
+      the OpenShift secret. For more details, please refer to
+      https://access.redhat.com/RegistryAuthentication.
+    required: true
+  - name: HTPASSWD_SECRET_NAME
+    required: true
+    value: container-image-registry-htpasswd
+  - name: REGISTRY_HTTP_SECRET
+    from: "[a-zA-Z0-9]{32}"
+    generage: expression
+  - name: HOSTNAME
+    required: false
+    description: >
+      Desired domain name of the exposed registry service.
+  - name: NAMESPACE
+    description: >
+      Target namespace where to deploy the registry.

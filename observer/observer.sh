@@ -3,89 +3,18 @@
 set -euo pipefail
 IFS=$'\n\t'
 
-function join() { local IFS="${1:-}"; shift; echo "$*"; }
-if [[ -n "${SDI_NAMESPACE:-}" ]]; then
-    HOME="$(mktemp -d)"    # so that oc can create $HOME/.kube/ directory
-    export HOME
-    oc project "$SDI_NAMESPACE"
-else
-    SDI_NAMESPACE="$(oc project -q 2>/dev/null|| :)"
-fi
-# support both 3.x and 4.x output formats
-version="$(oc version --short 2>/dev/null || oc version)"
-serverVersion="$(sed -n 's/^\(\([sS]erver\|[kK]ubernetes\).*:\|[oO]pen[sS]hift\) v\?\([0-9]\+\.[0-9]\+\).*/\3/p' \
-                    <<<"$version" | head -n 1)"
-clientVersion="$(sed -n 's/^\([cC]lient.*:\|oc\) \(openshift-clients-\|v\)\([0-9]\+\.[0-9]\+\).*/\3/p' \
-                    <<<"$version" | head -n 1)"
-# translate k8s 1.13 to ocp 4.1
-if [[ "${serverVersion:-}" =~ ^1\.([0-9]+)$ && "${BASH_REMATCH[1]}" -gt 12 ]]; then
-    serverVersion="4.$((BASH_REMATCH[1] - 12))"
-fi
-if [[ -z "${clientVersion:-}" ]]; then
-    printf 'WARNING: Failed to determine oc client version!\n' >&2
-elif [[ -z "${serverVersion}" ]]; then 
-    printf 'WARNING: Failed to determine k8s server version!\n' >&2
-elif [[ "${serverVersion}" != "${clientVersion}" ]]; then
-    printf 'WARNING: Client version != Server version (%s != %s).\n' "$clientVersion" "$serverVersion" >&2
-    printf '                 Please reinstantiate this template with the correct BASE_IMAGE_TAG parameter (e.g. v%s)."\n' >&2 \
-        "$serverVersion"
-
-    serverMinor="$(cut -d . -f 2 <<<"$serverVersion")"
-    clientMinor="$(cut -d . -f 2 <<<"$clientVersion")"
-    if [[ "$(bc <<<"define abs(i) { if (i < 0) return (-i); return (i); };
-                abs($serverMinor - $clientMinor)")" -gt 1 ]];
-    then
-        printf 'FATAL: The difference between minor versions of client and server is too big.\n' >&2
-        printf 'Refusing to continue. Please reinstantiate the template with the correct' >&2
-        printf ' OCP_MINOR_RELEASE!\n' >&2
-        exit 1
+for d in "$(dirname "${BASH_SOURCE[0]}")" . /usr/local/share/sdi-observer; do
+    if [[ -e "$d/lib/common.sh" ]]; then
+        eval "source '$d/lib/common.sh'"
     fi
-else
-    printf "Server and client version: %s\n" "$serverVersion"
-fi
-if [[ ! "${serverVersion:-}" =~ ^4\. ]]; then
-    printf 'FATAL: OpenShift server version other then 4.* is not supported!\n' >&2
+done
+if [[ "${_SDI_LIB_SOURCED:-0}" == 1 ]]; then
+    printf 'FATAL: failed to source lib/common.sh!\n' >&2
     exit 1
 fi
-
-if [[ ! "${NODE_LOG_FORMAT:-}" =~ ^(text|json|)$ ]]; then
-    printf 'FATAL: unrecognized NODE_LOG_FORMAT; "%s" is not one of "json" or "text"!' \
-        "$NODE_LOG_FORMAT"
-    exit 1
-fi
-if [[ -z "${NODE_LOG_FORMAT:-}" ]]; then
-    if [[ "${serverVersion}" =~ ^3 ]]; then
-        NODE_LOG_FORMAT=json
-    else
-        NODE_LOG_FORMAT=text
-    fi
-
-fi
-
-function log() {
-    local reenableDebug
-    reenableDebug="$([[ "$-" =~ x ]] && printf '1' || printf '0')"
-    { set +x; } >/dev/null 2>&1
-    if [[ "$1" == -d ]]; then
-        shift   # do not print date
-    else
-        date -R | tr '\n' ' ' >&2
-    fi
-    # no new line
-    if [[ "$1" == -n ]]; then
-        shift
-    elif [[ "${1: -1}" != $'\n' ]]; then
-        local fmt="${1:-}\n"
-        shift
-        printf "$fmt" "$@" >&2
-        return 0
-    fi
-    printf "$@" >&2
-    [[ "${reenableDebug}" == 1 ]] && set -x
-}
 
 registry="${REGISTRY:-}"
-function get_registry() {
+function getRegistry() {
     if [[ -z "${registry:-}" ]]; then
         registry="$(oc get secret -o go-template='{{index .data "installer-config.yaml"}}' installer-config | \
              base64 -d | sed -n 's/^\s*\(DOCKER\|VFLOW\)_REGISTRY:\s*\(...\+\)/\2/p' | \
@@ -115,24 +44,6 @@ function observe() {
         parallel --halt now,done=1 --line-buffer -J "$#" \
             oc observe --no-headers --listen-addr=":1125{#}" '{}' \
                 --output=gotemplate --argument '{{.kind}}/{{.metadata.name}}' -- echo
-}
-
-function evalBool() {
-    local varName="$1"
-    local default="${2:-}"
-    eval 'local value="${'"$varName"':-}"'
-    if [[ -z "${value:-}" ]]; then
-        value="${default:-}"
-    fi
-    grep -q -i '^\s*\(y\(es\)\?\|true\|1\)\s*$' <<<"${value:-}"
-}
-
-function runOrLog() {
-    if evalBool DRY_RUN; then
-        echo "$@"
-    else
-        "$@"
-    fi
 }
 
 function mkVsystemIptablesPatchFor() {
@@ -264,25 +175,48 @@ function checkPermissions() {
     declare -a lackingPermissions
     local perm
     local rc=0
-    readarray -t lackingPermissions <<<"$(parallel checkPerm :::
-            get/configmaps \
-            get/deployments \
-            get/nodes \
-            get/projects \
-            get/secrets \
-            get/statefulsets \
+    local toCheck=(
+        get/configmaps \
+        get/deployments \
+        get/nodes \
+        get/projects \
+        get/secrets \
+        get/statefulsets \
+        patch/configmaps \
+        patch/daemonsets \
+        patch/deployments \
+        patch/statefulsets \
+        update/daemonsets \
+        watch/configmaps \
+        watch/daemonsets \
+        watch/deployments \
+        watch/statefulsets
+    )
+    if evalBool DEPLOY_SDI_REGISTRY; then
+        declare -a registryKinds=()
+        readarray -t registryKinds <<<"$(oc process --local \
+            REDHAT_REGISTRY_SECRET_NAME=foo \
+            -f "$(getRegistryTemplatePath)" \
+                    -o jsonpath=$'{range .items[*]}{.kind}\n{end}')"
+        for kind in "${registryKinds[@]}"; do
+            toCheck+=( create/"$kind" )
+        done
+    fi
+    if evalBool DEPLOY_LETSENCRYPT; then
+        declare -a letsencryptKinds=()
+        local prefix="${LETSENCRYPT_REPOSITORY:-$DEFAULT_LETSENCRYPT_REPOSITORY}"
+        for fn in "${LETSENCRYPT_DEPLOY_FILES[@]}"; do
+            readarray -t letsencryptKinds <<<"$(oc create --local \
+                -f "$prefix/$fn" -o jsonpath=$'{.kind}\n')"
+            for kind in "${letsencryptKinds[@]}"; do
+                toCheck+=( create/"$kind" )
+            done
+        done
+    fi
 
-            patch/configmaps \
-            patch/daemonsets \
-            patch/deployments \
-            patch/statefulsets \
-
-            update/daemonsets \
-
-            watch/configmaps \
-            watch/daemonsets \
-            watch/deployments \
-            watch/statefulsets)"
+    set -x
+    readarray -t lackingPermissions <<<"$(parallel checkPerm ::: "${toCheck[@]}")"
+    set +x
 
     if [[ "${#lackingPermissions[@]}" -gt 0 ]]; then
         for perm in "${lackingPermissions[@]}"; do
@@ -295,12 +229,37 @@ function checkPermissions() {
     fi
 }
 
+function deployRegistry() {
+    local dirs=(
+        .
+        ""
+        "$(dirname "${BASH_SOURCE[@]}")"
+        /usr/local/share/sdi-observer
+    )
+    local scriptName=deploy-registry.sh
+    local d
+    for d in "${dirs[@]}"; do
+        if [[ -z "${d:-}" ]] && command -v "$scriptName"; then
+            "$scriptName" &
+            return 0
+        elif [[ -n "${d:-}" && -x "${d}/$scriptName" ]]; then
+            "$d/$scriptName" &
+            return 0
+        fi
+    done
+    log 'WARNING: Cannot find %s script' "$scriptName"
+    return 1
+}
+
 checkPermissions
+
+if evalBool DEPLOY_SDI_REGISTRY || evalBool DEPLOY_LETSENCRYPT; then
+    deployRegistry
+fi
 
 if [[ -n "${SDI_NAMESPACE:-}" ]]; then
     log 'Monitoring namespace "%s" for SAP Data Intelligence objects...' "$SDI_NAMESPACE"
 fi
-mkiptabsprivileged="$(evalBool MAKE_VSYSTEM_IPTABLES_PODS_PRIVILEGED && printf 1 || printf 0)"
 
 # delete obsolete deploymentconfigs
 function deleteResource() {
@@ -337,7 +296,7 @@ while IFS=' ' read -u 3 -r _ name resource; do
     resource="${resource,,}"
 
     case "${resource}" in
-    deployment/vflow)
+    deployment/vflow* | deployment/pipeline-modeler*)
         patches=()
         IFS=: read -r pkgversion <<<"${rest:-}"
         pkgversion="${pkgversion#v}"
@@ -347,10 +306,10 @@ while IFS=' ' read -u 3 -r _ name resource; do
 
         # -insecure-registry flag is supported starting from 2.5; earlier releases need no patching
         if evalBool MARK_REGISTRY_INSECURE && \
-                    [[ -n "$(get_registry)" ]] && \
+                    [[ -n "$(getRegistry)" ]] && \
                     [[ "${pkgmajor:-0}" == 2 && "${pkgminor:-0}" -ge 5 ]];
         then
-            registry="$(get_registry)"
+            registry="$(getRegistry)"
             readarray -t vflowargs <<<"$(oc get deploy -o go-template="${gotmplvflow}" "$name")"
             if ! grep -q -F -- "-insecure-registry=${registry}" <<<"${vflowargs[@]}"; then
                 vflowargs+=( "-insecure-registry=${registry}" )
@@ -373,9 +332,6 @@ while IFS=' ' read -u 3 -r _ name resource; do
         ;;
 
     deployment/*)
-        if [[ "${mkiptabsprivileged}" == 0 ]]; then
-            continue
-        fi
         IFS='#' read -r cs ics <<<"${rest:-}"
         IFS=: read -r cindex cunprivileged <<<"${cs:-}"
         IFS=: read -r icindex icunprivileged <<<"${ics:-}"
