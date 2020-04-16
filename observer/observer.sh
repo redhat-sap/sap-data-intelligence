@@ -205,7 +205,7 @@ function checkPermissions() {
     if evalBool DEPLOY_LETSENCRYPT; then
         declare -a letsencryptKinds=()
         local prefix="${LETSENCRYPT_REPOSITORY:-$DEFAULT_LETSENCRYPT_REPOSITORY}"
-        for fn in "${LETSENCRYPT_DEPLOY_FILES[@]}"; do
+        for fn in "${LETSENCRYPT_DEPLOY_FILES[@]//@environment@/live}"; do
             readarray -t letsencryptKinds <<<"$(oc create --local \
                 -f "$prefix/$fn" -o jsonpath=$'{.kind}\n')"
             for kind in "${letsencryptKinds[@]}"; do

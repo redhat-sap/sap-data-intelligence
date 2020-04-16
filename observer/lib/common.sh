@@ -6,7 +6,9 @@ fi
 readonly DEFAULT_LETSENCRYPT_REPOSITORY=file:///usr/local/share/openshift-acme
 # shellcheck disable=SC2034
 readonly LETSENCRYPT_DEPLOY_FILES=(
-    deploy/specific-namespaces/{role,serviceaccount,issuer-letsencrypt-live,deployment}.yaml
+    deploy/specific-namespaces/{role,serviceaccount,deployment}.yaml
+    # @environment@ shall be replaced by desired environment (either "live" or "staging")
+    deploy/specific-namespaces/issuer-letsencrypt-@environment@.yaml
 )
 # shellcheck disable=SC2034
 readonly DEFAULT_SDI_REGISTRY_HTPASSWD_SECRET_NAME="container-image-registry-htpasswd"
@@ -82,6 +84,7 @@ function doesResourceExist() {
     fi
     $cmd "${args[@]}" "$@" >/dev/null 2>&1
 }
+export -f doesResourceExist
 
 function log() {
     local reenableDebug
@@ -104,6 +107,7 @@ function log() {
     printf "$@" >&2
     [[ "${reenableDebug}" == 1 ]] && set -x
 }
+export -f log
 
 function evalBool() {
     local varName="$1"
@@ -123,6 +127,7 @@ function runOrLog() {
         "$@"
     fi
 }
+export -f runOrLog
 
 TMP=""
 _common_init_performed=0
@@ -145,10 +150,24 @@ function common_init() {
 }
 
 function convertObjectToJSON() {
-    local object
-    object="$(cat /dev/fd/0)"
+    local input=/dev/fd/0
+    while [[ $# -gt 0 ]]; do
+        case "${1:-}" in
+        -i)
+            input="$2"
+            shift 2
+            ;;
+        *)
+            break
+            ;;
+        esac
+    done
+    local object arr=()
+    mapfile -d $'\0' arr <"$input"
+    object="${arr[0]:-}"
     if ! jq empty <<<"${object}" 2>/dev/null; then
         oc create --dry-run -f - -o json <<<"$object"
+        return 0
     fi
     printf '%s' "$object"
 }
@@ -160,8 +179,9 @@ function createOrReplace() {
     local err
     local force
     local namespace
+    set -x
+    local input=/dev/fd/0
     force="$(evalBool FORCE_REDEPLOY && printf true || printf false)"
-    object="$(convertObjectToJSON /dev/fd/0)"
     while [[ $# -gt 0 ]]; do
         case "${1:-}" in
         -f)
@@ -173,11 +193,17 @@ function createOrReplace() {
             namespace="$2"
             shift 2
             ;;
+        -i)
+            input="$2"
+            shift 2
+            ;;
         *)
             break
             ;;
         esac
     done
+
+    object="$(convertObjectToJSON -i "$input")"
 
     if [[ -n "${namespace:-}" ]]; then
         object="$(jq '.metadata.namespace |= "'"$namespace"'"' <<<"$object")"
@@ -186,7 +212,7 @@ function createOrReplace() {
     err="$(oc create -f - <<<"$object" 2>&1 >/dev/null)" || rc=$?
     if [[ $rc == 0 ]]; then
         IFS=: read -r namespace kind name <<<"$(oc create --dry-run -f - -o \
-            jsonpath=$'{.metadata.namespace}:{.kind}:{.metadata.name}\n')"
+            jsonpath=$'{.metadata.namespace}:{.kind}:{.metadata.name}\n' <<<"$object")"
         if [[ -n "${kind:-}" && -n "${name:-}" ]]; then
             log 'Created %s/%s in namespace %s' "$kind" "$name" "${namespace:-UNKNOWN}"
         fi
@@ -200,7 +226,7 @@ function createOrReplace() {
     fi
     err="$(oc replace "${args[@]}" <<<"$object" 2>&1)" && rc=0 || rc=$?
     printf '%s\n' "$err" >&2
-    if [[ $rc == 0 ]] || evalBool force || ! grep -q 'Conflict\|Forbidden\|field is immutable' <<<"${err:-}"; then
+    if [[ $rc == 0 ]] || ! grep -q 'Conflict\|Forbidden\|field is immutable' <<<"${err:-}"; then
         return $rc
     fi
     return 0
@@ -220,6 +246,12 @@ function trustfullyExposeService() {
     fi
     oc create route "$routeType" --service "$serviceName" --dry-run "$@"
 }
+
+function isPathLocal() {
+    [[ "${1:-}" =~ ^(file://|\./|/|~) ]]
+}
+export -f isPathLocal
+    
 
 function common_cleanup() {
     rm -rf "$TMP"

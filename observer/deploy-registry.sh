@@ -22,7 +22,7 @@ Deploy container image registry for SAP Data Intelligence.
 
 Options:
   -h | --help    Show this message and exit.
-  (-o | --output-dir) OUTDIR 
+ (-o | --output-dir) OUTDIR 
                  Output directory where to put htpasswd and .htpasswd.raw files. Defaults to
                  the working directory.
   -n | --noout   Cleanup temporary htpasswd files.
@@ -43,7 +43,7 @@ Options:
                  Defaults to the target NAMESPACE.
 "
 
-long_options=(
+readonly longOptions=(
     help output-dir: noout secret-name: hostname: wait namespace: rht-registry-secret-name:
     rht-registry-secret-namespace:
 )
@@ -62,6 +62,7 @@ function cleanup() {
         rm -rf "$OUTPUT_DIR"
     fi
 }
+trap cleanup EXIT
 
 function getRegistryTemplatePath() {
     local dirs=(
@@ -281,13 +282,9 @@ function waitForRegistry() {
     fi
 }
 
-function deployLetsencrypt() {
-    printf 'TODO\n'
-}
-
 NOOUT=0
 
-TMPARGS="$(getopt -o ho:nw -l "$(join , "${long_options[@]}")" -n "${BASH_SOURCE[0]}" -- "$@")"
+TMPARGS="$(getopt -o ho:nw -l "$(join , "${longOptions[@]}")" -n "${BASH_SOURCE[0]}" -- "$@")"
 eval set -- "$TMPARGS"
 
 while true; do
@@ -345,8 +342,6 @@ if [[ -n "${NOOUT:-}" && -n "${OUTPUT_DIR:-}" ]]; then
     log 'FATAL: --noout and --output-dir are mutually exclusive options!'
     exit 1
 fi
-
-trap cleanup EXIT
 
 if [[ -z "${NOOUT:-}" && -z "${OUTPUT_DIR:-}" ]]; then
     OUTPUT_DIR="$(pwd)"
