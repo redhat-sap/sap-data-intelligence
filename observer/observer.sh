@@ -12,6 +12,7 @@ if [[ "${_SDI_LIB_SOURCED:-0}" == 1 ]]; then
     printf 'FATAL: failed to source lib/common.sh!\n' >&2
     exit 1
 fi
+common_init
 
 registry="${REGISTRY:-}"
 function getRegistry() {
@@ -67,6 +68,7 @@ function mkVsystemIptablesPatchFor() {
     fi
 }
 
+# shellcheck disable=SC2016
 gotmplDeployment=(
     '{{with $d := .}}'
         '{{with $appcomp := index $d.metadata.labels "datahub.sap.com/app-component"}}'
@@ -94,6 +96,7 @@ gotmplDeployment=(
     '{{end}}'
 )
 
+# shellcheck disable=SC2016
 gotmplDaemonSet=( 
     '{{with $ds := .}}'
         '{{if eq .metadata.name "diagnostics-fluentd"}}'
@@ -121,6 +124,7 @@ gotmplDaemonSet=(
     '{{end}}'
 )
 
+# shellcheck disable=SC2016
 gotmplStatefulSet=(
     '{{with $ss := .}}'
         '{{if eq $ss.metadata.name "vsystem-vrep"}}'
@@ -214,9 +218,7 @@ function checkPermissions() {
         done
     fi
 
-    set -x
     readarray -t lackingPermissions <<<"$(parallel checkPerm ::: "${toCheck[@]}")"
-    set +x
 
     if [[ "${#lackingPermissions[@]}" -gt 0 ]]; then
         for perm in "${lackingPermissions[@]}"; do
@@ -391,14 +393,13 @@ while IFS=' ' read -u 3 -r _ name resource; do
             patchType="${patchTypes[$i]}"
             dsSpec="$(oc patch -o json --local -f - --type "$patchType" -p "${patch}" <<<"${dsSpec}")"
         done
-        oc replace -f - <<<"${dsSpec}"
+        createOrReplace <<<"${dsSpec}"
         ;;
 
     statefulset/*)
         IFS=: read -r cindex vmName <<<"${rest:-}"
         if [[ -n "${cindex:-}" && -n "${vmName:-}" ]]; then
             log 'statefulset/vsystem-vrep already patched, skipping ...'
-            set +x
         else
             log 'Adding emptyDir volume to statefulset/vsystem-vrep ...'
             runOrLog oc set volume "$resource" --add --type emptyDir \
