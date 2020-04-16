@@ -23,7 +23,7 @@ Deploy container image registry for SAP Data Intelligence.
 Options:
   -h | --help    Show this message and exit.
   --dry-run      Only log the actions that would have been executed. Do not perform any changes to
-                 the cluster.
+                 the cluster. Overrides DRY_RUN environment variable.
  (-o | --output-dir) OUTDIR 
                  Output directory where to put htpasswd and .htpasswd.raw files. Defaults to
                  the working directory.
