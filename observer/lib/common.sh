@@ -105,7 +105,9 @@ function log() {
         return 0
     fi
     printf "$@" >&2
-    [[ "${reenableDebug}" == 1 ]] && set -x
+    if [[ "${reenableDebug}" == 1 ]]; then
+        set -x
+    fi
 }
 export -f log
 
@@ -120,8 +122,11 @@ function evalBool() {
 }
 export -f evalBool
 
+DRY_RUN="${DRY_RUN:-false}"
+export DRY_RUN
 function runOrLog() {
     if evalBool DRY_RUN; then
+        log -n 'Executing: '
         echo "$@"
     else
         "$@"
@@ -176,10 +181,7 @@ export -f convertObjectToJSON
 function createOrReplace() {
     local object
     local rc=0
-    local err
-    local force
-    local namespace
-    set -x
+    local err force namespace action args=()
     local input=/dev/fd/0
     force="$(evalBool FORCE_REDEPLOY && printf true || printf false)"
     while [[ $# -gt 0 ]]; do
@@ -208,17 +210,28 @@ function createOrReplace() {
     if [[ -n "${namespace:-}" ]]; then
         object="$(jq '.metadata.namespace |= "'"$namespace"'"' <<<"$object")"
     fi
+
+    IFS=: read -r namespace kind name <<<"$(oc create --dry-run -f - -o \
+        jsonpath=$'{.metadata.namespace}:{.kind}:{.metadata.name}\n' <<<"$object")"
+    namespace="${namespace:-NAMESPACE}"
+    [[ -z "${namespace:-}" ]] && namespace="$(oc project -q)"
+    if evalBool DRY_RUN; then
+        [[ -n "${namespace:-}" ]] && args=( -n "$namespace" )
+        args+=( "${kind,,}" "$name" )
+        action=Creating
+        doesResourceExist "${args[@]}" && action=Replacing
+        log '%s %s/%s in namespace %s' "$action" "${kind,,}" "$name" "${namespace:-UNKNOWN}"
+        return 0
+    fi
                 
     err="$(oc create -f - <<<"$object" 2>&1 >/dev/null)" || rc=$?
     if [[ $rc == 0 ]]; then
-        IFS=: read -r namespace kind name <<<"$(oc create --dry-run -f - -o \
-            jsonpath=$'{.metadata.namespace}:{.kind}:{.metadata.name}\n' <<<"$object")"
         if [[ -n "${kind:-}" && -n "${name:-}" ]]; then
-            log 'Created %s/%s in namespace %s' "$kind" "$name" "${namespace:-UNKNOWN}"
+            log 'Created %s/%s in namespace %s' "${kind,,}" "$name" "${namespace:-UNKNOWN}"
         fi
         return 0
     fi
-    local args=( -f - )
+    args=( -f - )
     if [[ $rc != 0 ]]; then
         if grep -q AlreadyExists <<<"${err:-}" && evalBool force; then
             args+=( --force )
@@ -244,7 +257,7 @@ function trustfullyExposeService() {
         log 'ERROR: unsupported route type "%s". Cannot create.' "$routeType"
         return 1
     fi
-    oc create route "$routeType" --service "$serviceName" --dry-run "$@"
+    runOrLog oc create route "$routeType" --service "$serviceName" --dry-run "$@"
 }
 
 function isPathLocal() {

@@ -22,6 +22,8 @@ Deploy container image registry for SAP Data Intelligence.
 
 Options:
   -h | --help    Show this message and exit.
+  --dry-run      Only log the actions that would have been executed. Do not perform any changes to
+                 the cluster.
  (-o | --output-dir) OUTDIR 
                  Output directory where to put htpasswd and .htpasswd.raw files. Defaults to
                  the working directory.
@@ -45,7 +47,7 @@ Options:
 
 readonly longOptions=(
     help output-dir: noout secret-name: hostname: wait namespace: rht-registry-secret-name:
-    rht-registry-secret-namespace:
+    rht-registry-secret-namespace: dry-run
 )
 
 NAMESPACE="${SDI_REGISTRY_NAMESPACE:-}"
@@ -117,20 +119,16 @@ function createHtpasswdSecret() {
     if [[ -z "${SDI_REGISTRY_PASSWORD:-}" ]]; then
         SDI_REGISTRY_PASSWORD="$(genSecret)"
     fi
-    cmd=create
-    if doesResourceExist "secret/$SECRET_NAME"; then
-        if evalBool force; then
-            cmd="replace --force"
-        else
-            cmd="replace"
-        fi
-    fi
+    local args=()
+    evalBool force && args+=( -f )
     mkHtpasswd "$SDI_REGISTRY_USERNAME" "$SDI_REGISTRY_PASSWORD" "$OUTPUT_DIR/htpasswd"
     printf "%s:%s\n" "$SDI_REGISTRY_USERNAME" "$SDI_REGISTRY_PASSWORD" >"$OUTPUT_DIR/.htpasswd.raw"
+
+    # shellcheck disable=SC2068
     oc create secret generic --dry-run -o yaml "$SECRET_NAME" \
         --from-file=htpasswd="$OUTPUT_DIR/htpasswd" \
         --from-file=.htpasswd.raw="$OUTPUT_DIR/.htpasswd.raw"  | \
-            oc "$cmd" -f - >/dev/null
+            createOrReplace ${args[@]}
     cat "$OUTPUT_DIR/.htpasswd.raw"
 }
 
@@ -215,11 +213,11 @@ function ensureRedHatRegistrySecret() {
             args+=( -f )
         fi
         # shellcheck disable=SC2086
-        oc -n "${REDHAT_REGISTRY_SECRET_NAMESPACE:-$NAMESPACE}" get -o json \
+        oc  get -n "${REDHAT_REGISTRY_SECRET_NAMESPACE:-$NAMESPACE}" -o json \
             "secret/$REDHAT_REGISTRY_SECRET_NAME" | \
             createOrReplace -n "$NAMESPACE" ${args:-}
     fi
-    oc secrets add default "$REDHAT_REGISTRY_SECRET_NAME" --for=pull
+    runOrLog oc secrets add default "$REDHAT_REGISTRY_SECRET_NAME" --for=pull
 }
 
 function deployRegistry() {
@@ -293,6 +291,11 @@ while true; do
             printf '%s' "$USAGE"
             exit 0
             ;;
+        --dry-run)
+            DRY_RUN=true
+            export DRY_RUN
+            shift
+            ;;
         -o | --output-dir)
             OUTPUT_DIR="$1"
             shift 2
@@ -357,7 +360,7 @@ if [[ -n "${NAMESPACE:-}" ]]; then
     if evalBool DEPLOY_SDI_REGISTRY; then
         log 'Deploying SDI registry to namespace "%s"...' "$NAMESPACE"
         if ! doesResourceExist "project/$NAMESPACE"; then
-            oc new-project --skip-config-write "$NAMESPACE"
+            runOrLog oc new-project --skip-config-write "$NAMESPACE"
         fi
     fi
     if [[ "$(oc project -q)" != "${NAMESPACE}" ]]; then

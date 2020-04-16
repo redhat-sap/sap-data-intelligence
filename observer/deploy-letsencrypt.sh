@@ -24,6 +24,8 @@ Deploy letsencrypt controller.
 Options:
   -h | --help    Show this message and exit.
   -w | --wait    Block until all resources are available.
+  --dry-run      Only log the actions that would have been executed. Do not perform any changes to
+                 the cluster.
   --namespace NAMESPACE
                  Desired k8s NAMESPACE where to deploy the letsencrypt. Defaults to the first
                  environment variable that is set:
@@ -54,11 +56,11 @@ Options:
 
 readonly longOptions=(
     help wait namespace: environment: repository: revision: projects:
-    dont-grant-project-permissions
+    dont-grant-project-permissions dry-run
 )
 
 function waitForReady() {
-     oc rollout status --timeout 300 -w deploy/openshift-acme
+     oc rollout status --timeout 300s -w deploy/openshift-acme
 }
 
 TMPREPODIR=""
@@ -82,6 +84,8 @@ function doesLocalRepositoryExist() {
 function ensureRemoteRepository() {
     local repo="${1}"
     TMPREPODIR="$(mktemp -d)"
+    log 'Cloning repository %s to temporary directory "%s" and checking out revision "%s" ...' \
+        "$repo" "$TMPREPODIR" "$REVISION"
     git clone --depth 5 --single-branch --branch "$REVISION" "$repo" "$TMPREPODIR"
     ORIGINAL_REPOSITORY="$repo"
     REPOSITORY="$TMPREPODIR"
@@ -130,12 +134,12 @@ export -f copyRoleToProject
 function ensureProject() {
     local cm
     if ! doesResourceExist "project/$NAMESPACE"; then
-        oc new-project "$NAMESPACE"
+        runOrLog oc new-project "$NAMESPACE"
     else
         # delete a conflicting ConfigMap if it exists
         while IFS='' read -r cm; do
             [[ "$cm" =~ -$ENVIRONMENT$ ]] && continue
-            oc delete "$cm"
+            runOrLog oc delete "$cm"
         done < <(oc get cm -o name | grep '/letsencrypt-\(live\|staging\)')
     fi
     if ! evalBool DONT_GRANT_PROJECT_PERMISSIONS; then
@@ -163,7 +167,7 @@ function deployLetsencrypt() {
     roleSpec="$(oc get -o json role openshift-acme)"
     export roleSpec
     parallel copyRoleToProject '{}' < \
-        <(printf '%s\n' "${PROJECTS[@]}" | grep -v '^'"$NAMESPACE"'\)$' | sort -u)
+        <(printf '%s\n' "${PROJECTS[@]}" | grep -v '^'"$NAMESPACE"'$')
     unset roleSpec
 }
 
@@ -208,6 +212,11 @@ while true; do
             printf '%s' "$USAGE"
             exit 0
             ;;
+        --dry-run)
+            DRY_RUN=true
+            export DRY_RUN
+            shift
+            ;;
         -w | --wait)
             # shellcheck disable=SC2034
             WAIT_UNTIL_ROLLEDOUT=1
@@ -237,7 +246,8 @@ while true; do
             done
             shift 2
             ;;
-        dont-grant-project-permissions)
+        --dont-grant-project-permissions)
+            # shellcheck disable=SC2034
             DONT_GRANT_PROJECT_PERMISSIONS=1
             shift
             ;;
@@ -268,7 +278,7 @@ if [[ -n "${NAMESPACE:-}" ]]; then
     if evalBool DEPLOY_LETSENCRYPT; then
         log 'Deploying SDI registry to namespace "%s"...' "$NAMESPACE"
         if ! doesResourceExist "project/$NAMESPACE"; then
-            oc new-project --skip-config-write "$NAMESPACE"
+            runOrLog oc new-project --skip-config-write "$NAMESPACE"
         fi
     fi
     if [[ "$(oc project -q)" != "${NAMESPACE}" ]]; then
