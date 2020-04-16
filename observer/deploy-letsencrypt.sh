@@ -25,7 +25,7 @@ Options:
   -h | --help    Show this message and exit.
   -w | --wait    Block until all resources are available.
   --dry-run      Only log the actions that would have been executed. Do not perform any changes to
-                 the cluster.
+                 the cluster. Overrides DRY_RUN environment variable.
   --namespace NAMESPACE
                  Desired k8s NAMESPACE where to deploy the letsencrypt. Defaults to the first
                  environment variable that is set:
