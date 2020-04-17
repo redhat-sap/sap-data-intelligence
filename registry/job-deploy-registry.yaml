@@ -1,0 +1,119 @@
+---
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: sdi-observer
+  annotations:
+    openshift.io/display-name: >
+      TODO
+    description: >
+      TODO
+message: >
+  TODO
+objects:
+  - apiVersion: batch/v1
+    kind: CronJob
+    metadata:
+      name: deploy-sdi-registry
+      namespace: ${NAMESPACE}
+    spec:
+      parallelism: 1
+      completions: 1
+      jobTemplate:
+        metadata:
+          labels:
+            job: deploy-sdi-registry
+        spec:
+          template:
+            spec:
+              containers:
+                - name: deploy-sdi-registry
+                  env:
+                    - name: DRY_RUN
+                      value: ${DRY_RUN}
+                    - name: NAMESPACE
+                      value: ${NAMESPACE}
+                    - name: FORCE_REDEPLOY
+                      value: ${FORCE_REDEPLOY}
+                    - name: RECREATE_SECRETS
+                      value: ${RECREATE_SECRETS}
+                    - name: FORCE_REDEPLOY
+                      value: ${FORCE_REDEPLOY}
+                    - name: RECREATE_SECRETS
+                      value: ${RECREATE_SECRETS}
+                    - name: EXPOSE_WITH_LETSENCRYPT
+                      value: ${EXPOSE_WITH_LETSENCRYPT}
+                    - name: SDI_REGISTRY_VOLUME_CAPACITY
+                      value: ${SDI_REGISTRY_VOLUME_CAPACITY}
+                    - name: SDI_REGISTRY_STORAGE_CLASS_NAME
+                      value: ${SDI_REGISTRY_STORAGE_CLASS_NAME}
+                    - name: SDI_REGISTRY_HTPASSWD_SECRET_NAME
+                      value: ${SDI_REGISTRY_HTPASSWD_SECRET_NAME}
+                    - name: SDI_REGISTRY_USERNAME
+                      value: ${SDI_REGISTRY_USERNAME}
+                    - name: SDI_REGISTRY_PASSWORD
+                      value: ${SDI_REGISTRY_PASSWORD}
+                  image: "${SDI_OBSERVER_IMAGE}"
+                  command:
+                    - "deploy-registry.sh"
+                  args: "${SCRIPT_ARGUMENTS}"
+              restartPolicy: OnFailure
+              serviceAccountName: sdi-observer
+
+parameters:
+  - name: DRY_RUN
+    description: >
+      If set to true, no action will be performed. The pod will just print what
+      would have been executed.
+    required: false
+    value: "false"
+  - name: NAMESPACE
+    description: >
+      The desired namespace, where the registry shall be deployed. Defaults to
+      the current one.
+    required: false
+  - name: SDI_OBSERVER_IMAGE
+    description: >
+      Pull specification of the built SDI Observer image.
+    required: true
+  - name: FORCE_REDEPLOY
+    description: >
+      Whether to forcefully replace existing registry and/or letsencrypt
+      deployments and configuration files.
+    required: false
+    value: "false"
+  - name: RECREATE_SECRETS
+    description: >
+      Whether to replace secrets like SDI Registry's htpasswd file if they
+      exist already.
+    required: false
+    value: "false"
+  - name: EXPOSE_WITH_LETSENCRYPT
+    description: >
+      Whether to expose routes annotated for letsencrypt controller. Requires
+      project admin role attached to the sdi-observer service account.
+      Letsencrypt controller must be deployed either via this observer or
+      cluster-wide for this to have an effect. Defaults to DEPLOY_LETSENCRYPT.
+    value: "false"
+  - name: SDI_REGISTRY_VOLUME_CAPACITY
+    description: Volume space available for container images (e.g. 75Gi).
+    required: true
+    value: 75Gi
+  - name: SDI_REGISTRY_STORAGE_CLASS_NAME
+    description: >
+      Unless given, the default storage class will be used.
+    required: false
+  - name: SDI_REGISTRY_HTPASSWD_SECRET_NAME
+    required: false
+    description: >
+      A secret with htpasswd file with authentication data for the sdi image
+      container If given and the secret exists, it will be used instead of
+      SDI_REGISTRY_USERNAME and SDI_REGISTRY_PASSWORD.
+  - name: SDI_REGISTRY_USERNAME
+    from: "user-[a-z0-9]{6}"
+    generage: expression
+    required: false
+  - name: SDI_REGISTRY_PASSWORD
+    from: "user-[a-zA-Z0-9]{32}"
+    generage: expression
+    required: false
