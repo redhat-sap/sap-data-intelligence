@@ -231,14 +231,14 @@ function checkPermissions() {
     fi
 }
 
-function deployRegistry() {
+function runDeployScript() {
+    local scriptName="$1"
     local dirs=(
         .
         ""
         "$(dirname "${BASH_SOURCE[@]}")"
         /usr/local/share/sdi-observer
     )
-    local scriptName=deploy-registry.sh
     local d
     for d in "${dirs[@]}"; do
         if [[ -z "${d:-}" ]] && command -v "$scriptName"; then
@@ -255,8 +255,15 @@ function deployRegistry() {
 
 checkPermissions
 
-if evalBool DEPLOY_SDI_REGISTRY || evalBool DEPLOY_LETSENCRYPT; then
-    deployRegistry
+if evalBool DEPLOY_SDI_REGISTRY; then
+    runDeployScript deploy-registry.sh
+fi
+if evalBool DEPLOY_LETSENCRYPT; then
+    if [[ -z "${LETSENCRYPT_NAMESPACE:-}" ]] && evalBool DEPLOY_SDI_REGISTRY; then
+        LETSENCRYPT_NAMESPACE="${SDI_REGISTRY_NAMESPACE:-}"
+    fi
+    LETSENCRYPT_NAMESPACE="${LETSENCRYPT_NAMESPACE:-$SDI_NAMESPACE}" \
+        runDeployScript deploy-letsencrypt.sh
 fi
 
 if [[ -n "${SDI_NAMESPACE:-}" ]]; then

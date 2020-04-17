@@ -1,3 +1,4 @@
+---
 apiVersion: template.openshift.io/v1
 kind: Template
 metadata:
@@ -253,11 +254,11 @@ objects:
           RUN git clone --depth 5 --single-branch \
             --branch ${SDI_OBSERVER_GIT_REVISION} \
             ${SDI_OBSERVER_REPOSITORY} /usr/local/share/sap-data-intelligence
-          RUN for bin in observer.sh deploy-registry.sh; do \
-              cp -lv /usr/local/share/sap-data-intelligence/$bin \
-                /usr/local/bin/$bin; \
-              chmod a+rx /usr/local/bin/$bin; \
-            done
+          RUN for bin in observer.sh deploy-registry.sh deploy-letsencrypt.sh; do \
+                cp -lv /usr/local/share/sap-data-intelligence/$bin \
+                  /usr/local/bin/$bin; \
+                chmod a+rx /usr/local/bin/$bin; \
+              done
           RUN ln -s /usr/local/share/sap-data-intelligence/observer \
             /usr/local/share/sdi-observer
           WORKDIR /usr/local/share/sdi-observer
@@ -300,7 +301,6 @@ objects:
         metadata:
           labels:
             deploymentconfig: sdi-observer
-            target: "vsystem-app.datahub.sap.com"
         spec:
           containers:
             - env:
@@ -408,12 +408,6 @@ parameters:
       OpenShift 4 uses "text" format by default. If not given, the default is
       "text".
     required: false
-  - name: REGISTRY_SECRET_NAME
-    required: true
-    description: >-
-      Name of the secret with credentials for registry.redhat.io registry.
-      Please visit https://access.redhat.com/terms-based-registry/ to obtain the
-      OpenShift secret.
   - name: REGISTRY
     description: >
       The registry to mark as insecure. If not given, it will be determined
