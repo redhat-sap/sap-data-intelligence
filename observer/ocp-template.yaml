@@ -61,7 +61,7 @@ metadata:
     openshift.io/documentation-url: "https://access.redhat.com/articles/4324391"
 message: >-
   The vsystem-app observer and patcher will be started. You can watch the
-progress with the following command: oc logs -f dc/sdi-observer
+  progress with the following command: oc logs -f dc/sdi-observer
 objects:
   - apiVersion: v1
     kind: ServiceAccount
