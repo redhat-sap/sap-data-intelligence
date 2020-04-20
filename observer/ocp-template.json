@@ -1,562 +1,509 @@
 {
-  "apiVersion": "template.openshift.io/v1",
-  "kind": "Template",
-  "message": "The vsystem-app observer and patcher will be started. You can watch the",
-  "metadata": {
-    "annotations": {
-      "description": "The template spawns the \"sdi-observer\" pod that observes the particular namespace where SAP Data Intelligence runs and modifies its deployments and configuration to enable its pods to run.\nOn Red Hat Enterprise Linux CoreOS, SAP Data Intelligence's vsystem-vrep statefulset needs to be patched to mount `emptyDir` volume at `/exports` directory in order to enable NFS exports in the container running on top of overlayfs which is the default filesystem in RHCOS.\nThe \"sdi-observer\" pod modifies vsystem-vrep statefulset as soon as it appears to enable the NFS exports.\nThe observer also allows to patch pipeline-modeler (aka \"vflow\") pods to mark registry as insecure.\nAdditionally, it patches diagnostics-fluentd daemonset to allow its pods to access log files on the host system. It also modifies it to parse plain text log files instead of preconfigured json.\nOn Red Hat Enterprise Linux CoreOS, \"vsystem-iptables\" containers need to be run as privileged in order to load iptables-related kernel modules. SAP Data Hub containers named \"vsystem-iptables\" deployed as part of every \"vsystem-app\" deployment attempt to modify iptables rules without having the necessary permissions. The ideal solution is to pre-load these modules during node's startup. When not feasable, this template can also fix the permissions on-the-fly as the deployments are created.\nThe template must be instantiated before the installation of SAP Data Hub. Also the namespace, where SAP Data Hub will be installed, must exist before the instantiation.\nTODO: document admin project role requirement.\nUsage:\n  If running in the same namespace as Data Intelligence, instantiate the\n  template as is in the desired namespace:\n\n    oc project $SDI_NAMESPACE\n    oc process -n $SDI_NAMESPACE sdi-observer NAMESPACE=$SDI_NAMESPACE | \\\n      oc create -f -\n\n  If running in a different/new namespace/project, instantiate the\n  template with parameters SDI_NAMESPACE and NAMESPACE, e.g.:\n\n    oc new-project $SDI_NAMESPACE\n    oc new-project sapdatahub-admin\n    oc process sdi-observer \\\n        SDI_NAMESPACE=$SDI_NAMESPACE \\\n        NAMESPACE=sapdatahub-admin | oc create -f -\n",
-      "openshift.io/display-name": "\"OpenShift enabler and observer for SAP Data intelligence\"\n",
-      "openshift.io/documentation-url": "https://access.redhat.com/articles/4324391",
-      "openshift.io/provider-display-name": "Red Hat, Inc."
-    },
-    "name": "sdi-observer"
-  },
-  "objects": [
-    {
-      "apiVersion": "v1",
-      "kind": "ServiceAccount",
-      "metadata": {
-        "labels": {
-          "deploymentconfig": "sdi-observer"
-        },
-        "name": "sdi-observer",
-        "namespace": "${NAMESPACE}"
-      }
-    },
-    {
-      "apiVersion": "rbac.authorization.k8s.io/v1",
-      "kind": "Role",
-      "metadata": {
-        "labels": {
-          "deploymentconfig": "sdi-observer"
-        },
-        "name": "sdi-observer",
-        "namespace": "${SDI_NAMESPACE}"
+   "apiVersion": "template.openshift.io/v1",
+   "kind": "Template",
+   "message": "The vsystem-app observer and patcher will be started. You can watch the progress with the\nfollowing command: oc logs -f dc/sdi-observer\n",
+   "metadata": {
+      "annotations": {
+         "description": "The template spawns the \"sdi-observer\" pod that observes the particular\nnamespace where SAP Data Intelligence runs and modifies its deployments\nand configuration to enable its pods to run.\n\nOn Red Hat Enterprise Linux CoreOS, SAP Data Intelligence's vsystem-vrep\nstatefulset needs to be patched to mount `emptyDir` volume at `/exports`\ndirectory in order to enable NFS exports in the container running on top\nof overlayfs which is the default filesystem in RHCOS.\n\nThe \"sdi-observer\" pod modifies vsystem-vrep statefulset as soon as it\nappears to enable the NFS exports.\n\nThe observer also allows to patch pipeline-modeler (aka \"vflow\") pods to\nmark registry as insecure.\n\nAdditionally, it patches diagnostics-fluentd daemonset to allow its pods\nto access log files on the host system. It also modifies it to parse\nplain text log files instead of preconfigured json.\n\nOn Red Hat Enterprise Linux CoreOS, \"vsystem-iptables\" containers need to\nbe run as privileged in order to load iptables-related kernel modules.\nSAP Data Hub containers named \"vsystem-iptables\" deployed as part of\nevery \"vsystem-app\" deployment attempt to modify iptables rules without\nhaving the necessary permissions. The ideal solution is to pre-load these\nmodules during node's startup. When not feasable, this template can also\nfix the permissions on-the-fly as the deployments are created.\n\nThe template must be instantiated before the installation of SAP Data\nHub. Also the namespace, where SAP Data Hub will be installed, must exist\nbefore the instantiation.\n\nTODO: document admin project role requirement.\n\nUsage:\n  If running in the same namespace as Data Intelligence, instantiate the\n  template as is in the desired namespace:\n\n    oc project $SDI_NAMESPACE\n    oc process -n $SDI_NAMESPACE sdi-observer NAMESPACE=$SDI_NAMESPACE | \\\n      oc create -f -\n\n  If running in a different/new namespace/project, instantiate the\n  template with parameters SDI_NAMESPACE and NAMESPACE, e.g.:\n\n    oc new-project $SDI_NAMESPACE\n    oc new-project sapdatahub-admin\n    oc process sdi-observer \\\n        SDI_NAMESPACE=$SDI_NAMESPACE \\\n        NAMESPACE=sapdatahub-admin | oc create -f -\n",
+         "openshift.io/display-name": "OpenShift enabler and observer for SAP Data intelligence\n",
+         "openshift.io/documentation-url": "https://access.redhat.com/articles/4324391",
+         "openshift.io/provider-display-name": "Red Hat, Inc."
       },
-      "rules": [
-        {
-          "apiGroups": [
-            "apps",
-            "extensions"
-          ],
-          "resources": [
-            "deployments",
-            "deployments/scale",
-            "statefulsets",
-            "statefulsets/scale"
-          ],
-          "verbs": [
-            "get",
-            "list",
-            "patch",
-            "watch"
-          ]
-        },
-        {
-          "apiGroups": [
-            "apps",
-            "extensions"
-          ],
-          "resources": [
-            "daemonsets"
-          ],
-          "verbs": [
-            "get",
-            "list",
-            "patch",
-            "update",
-            "watch"
-          ]
-        },
-        {
-          "apiGroups": [
-            ""
-          ],
-          "resources": [
-            "secrets"
-          ],
-          "verbs": [
-            "get"
-          ]
-        },
-        {
-          "apiGroups": [
-            ""
-          ],
-          "resources": [
-            "configmaps"
-          ],
-          "verbs": [
-            "get",
-            "list",
-            "watch",
-            "patch"
-          ]
-        },
-        {
-          "apiGroups": [
-            ""
-          ],
-          "resources": [
-            "namespaces",
-            "namespaces/status"
-          ],
-          "verbs": [
-            "get",
-            "list",
-            "watch"
-          ]
-        },
-        {
-          "apiGroups": [
-            "",
-            "project.openshift.io"
-          ],
-          "resources": [
-            "projects"
-          ],
-          "verbs": [
-            "get"
-          ]
-        },
-        {
-          "apiGroups": [
-            "apps",
-            "deploymentconfigs.apps.openshift.io"
-          ],
-          "resources": [
-            "deploymentconfigs"
-          ],
-          "verbs": [
-            "get",
-            "list",
-            "delete"
-          ]
-        },
-        {
-          "apiGroups": [
-            "",
-            "authorization.openshift.io",
-            "rbac.authorization.k8s.io"
-          ],
-          "resources": [
-            "roles",
-            "rolebindings",
-            "serviceaccounts"
-          ],
-          "verbs": [
-            "get",
-            "list",
-            "delete"
-          ]
-        }
-      ]
-    },
-    {
-      "apiVersion": "rbac.authorization.k8s.io/v1",
-      "kind": "RoleBinding",
-      "metadata": {
-        "labels": {
-          "deploymentconfig": "sdi-observer"
-        },
-        "name": "sdi-observer-${ROLE_BINDING_SUFFIX}",
-        "namespace": "${SDI_NAMESPACE}"
-      },
-      "roleRef": {
-        "apiGroup": "rbac.authorization.k8s.io",
-        "kind": "Role",
-        "name": "sdi-observer",
-        "namespace": "${SDI_NAMESPACE}"
-      },
-      "subjects": [
-        {
-          "kind": "ServiceAccount",
-          "name": "sdi-observer",
-          "namespace": "${NAMESPACE}"
-        }
-      ]
-    },
-    {
-      "apiVersion": "rbac.authorization.k8s.io/v1",
-      "kind": "ClusterRoleBinding",
-      "metadata": {
-        "labels": {
-          "deploymentconfig": "sdi-observer"
-        },
-        "name": "sdi-observer-2-node-reader-${ROLE_BINDING_SUFFIX}"
-      },
-      "roleRef": {
-        "apiGroup": "rbac.authorization.k8s.io",
-        "kind": "ClusterRole",
-        "name": "system:node-reader"
-      },
-      "subjects": [
-        {
-          "kind": "ServiceAccount",
-          "name": "sdi-observer",
-          "namespace": "${NAMESPACE}"
-        }
-      ]
-    },
-    {
-      "apiVersion": "v1",
-      "kind": "ImageStream",
-      "metadata": {
-        "name": "sdi-observer",
-        "namespace": "${NAMESPACE}"
-      },
-      "spec": null,
-      "status": {
-        "dockerImageRepository": ""
-      }
-    },
-    {
-      "apiVersion": "image.openshift.io/v1",
-      "kind": "ImageStream",
-      "metadata": {
-        "name": "ubi8",
-        "namespace": "${NAMESPACE}"
-      },
-      "spec": {
-        "lookupPolicy": {
-          "local": false
-        },
-        "tags": [
-          {
-            "from": {
-              "kind": "DockerImage",
-              "name": "registry.redhat.io/ubi8/ubi:latest"
-            },
-            "name": "latest",
-            "referencePolicy": {
-              "type": "Source"
-            }
-          }
-        ]
-      }
-    },
-    {
-      "apiVersion": "build.openshift.io/v1",
-      "kind": "BuildConfig",
-      "metadata": {
-        "labels": {
-          "deploymentconfig": "sdi-observer"
-        },
-        "name": "sdi-observer",
-        "namespace": "${NAMESPACE}"
-      },
-      "spec": {
-        "output": {
-          "to": {
-            "kind": "ImageStreamTag",
-            "name": "sdi-observer:${OCP_MINOR_RELEASE}"
-          }
-        },
-        "runPolicy": "Serial",
-        "source": {
-          "dockerfile": "FROM openshift/cli:latest\nRUN dnf update -y\n# TODO: jq is not yet available in EPEL-8\nRUN dnf install -y \\\n  https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm && \\\n  dnf install -y jq\nRUN dnf install -y \\\n  https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm && \\\n  dnf install -y parallel procps-ng bc git && dnf clean all -y\n# TODO: determine OCP version from environment\nCOPY https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest-${OCP_MINOR_RELEASE}/openshift-client-linux.tar.gz /tmp/\nCOPY https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest-${OCP_MINOR_RELEASE}/sha256sum.txt /tmp/\n# verify the downloaded tar\nRUN /bin/bash -c 'grep \"$(awk '\"'\"'{print $1}'\"'\"' <(sha256sum /tmp/openshift-client-linux.tar.gz))[[:space:]]\\+openshift-client-linux-.\" /tmp/sha256sum.txt'\nRUN /bin/bash -c 'tar -C /usr/local/bin/ -xzvf /tmp/openshift-client-linux.tar.gz -T <(printf oc)'\n# TODO: verify signatures as well\nRUN mkdir -p /usr/local/bin \\\n  /usr/local/share/{sdi-observer,openshift-acme}\nRUN git clone --depth 5 --single-branch \\\n  --branch ${LETSENCRYPT_REVISION} \\\n  ${LETSENCRYPT_REPOSITORY} /usr/local/share/openshift-acme\nRUN git clone --depth 5 --single-branch \\\n  --branch ${SDI_OBSERVER_GIT_REVISION} \\\n  ${SDI_OBSERVER_REPOSITORY} /usr/local/share/sap-data-intelligence\nRUN for bin in observer.sh deploy-registry.sh deploy-letsencrypt.sh; do \\\n      cp -lv /usr/local/share/sap-data-intelligence/$bin \\\n        /usr/local/bin/$bin; \\\n      chmod a+rx /usr/local/bin/$bin; \\\n    done\nRUN ln -s /usr/local/share/sap-data-intelligence/observer \\\n  /usr/local/share/sdi-observer\nWORKDIR /usr/local/share/sdi-observer\n"
-        },
-        "strategy": {
-          "dockerStrategy": {
-            "from": {
-              "kind": "ImageStreamTag",
-              "name": "ubi8:latest"
-            },
-            "pullSecret": {
-              "name": "${REGISTRY_SECRET_NAME}"
-            }
-          }
-        },
-        "triggers": [
-          {
-            "type": "ImageChange"
-          },
-          {
-            "type": "ConfigChange"
-          }
-        ]
-      }
-    },
-    {
-      "apiVersion": "v1",
-      "kind": "DeploymentConfig",
-      "metadata": {
-        "labels": {
-          "deploymentconfig": "sdi-observer"
-        },
-        "name": "sdi-observer",
-        "namespace": "${NAMESPACE}"
-      },
-      "spec": {
-        "replicas": 1,
-        "selector": {
-          "deploymentconfig": "sdi-observer"
-        },
-        "strategy": {
-          "type": "Rolling"
-        },
-        "template": {
-          "metadata": {
+      "name": "sdi-observer"
+   },
+   "objects": [
+      {
+         "apiVersion": "v1",
+         "kind": "DeploymentConfig",
+         "metadata": {
             "labels": {
-              "deploymentconfig": "sdi-observer"
-            }
-          },
-          "spec": {
-            "containers": [
-              {
-                "command": [
-                  "/usr/local/bin/observer.sh"
-                ],
-                "env": [
-                  {
-                    "name": "SDI_NAMESPACE",
-                    "value": "${SDI_NAMESPACE}"
-                  },
-                  {
-                    "name": "DRY_RUN",
-                    "value": "${DRY_RUN}"
-                  },
-                  {
-                    "name": "REGISTRY",
-                    "value": "${REGISTRY}"
-                  },
-                  {
-                    "name": "MARK_REGISTRY_INSECURE",
-                    "value": "${MARK_REGISTRY_INSECURE}"
-                  },
-                  {
-                    "name": "NODE_LOG_FORMAT",
-                    "value": "${NODE_LOG_FORMAT}"
-                  },
-                  {
-                    "name": "DEPLOY_SDI_REGISTRY",
-                    "value": "${DEPLOY_SDI_REGISTRY}"
-                  },
-                  {
-                    "name": "DEPLOY_LETSENCRYPT",
-                    "value": "${DEPLOY_LETSENCRYPT}"
-                  },
-                  {
-                    "name": "EXPOSE_WITH_LETSENCRYPT",
-                    "value": "${EXPOSE_WITH_LETSENCRYPT}"
-                  },
-                  {
-                    "name": "LETSENCRYPT_ENVIRONMENT",
-                    "value": "${LETSENCRYPT_ENVIRONMENT}"
-                  },
-                  {
-                    "name": "SDI_REGISTRY_STORAGE_CLASS_NAME",
-                    "value": "${SDI_REGISTRY_STORAGE_CLASS_NAME}"
-                  },
-                  {
-                    "name": "SDI_REGISTRY_HTPASSWD_SECRET_NAME",
-                    "value": "${SDI_REGISTRY_HTPASSWD_SECRET_NAME}"
-                  },
-                  {
-                    "name": "SDI_REGISTRY_USERNAME",
-                    "value": "${SDI_REGISTRY_USERNAME}"
-                  },
-                  {
-                    "name": "SDI_REGISTRY_PASSWORD",
-                    "value": "${SDI_REGISTRY_PASSWORD}"
-                  },
-                  {
-                    "name": "FORCE_REDEPLOY",
-                    "value": "${FORCE_REDEPLOY}"
-                  },
-                  {
-                    "name": "RECREATE_SECRETS",
-                    "value": "${RECREATE_SECRETS}"
-                  },
-                  {
-                    "name": "SDI_REGISTRY_NAMESPACE",
-                    "value": "${SDI_REGISTRY_NAMESPACE}"
-                  },
-                  {
-                    "name": "REDHAT_REGISTRY_SECRET_NAMESPACE",
-                    "value": "${REDHAT_REGISTRY_SECRET_NAMESPACE}"
-                  }
-                ],
-                "image": " ",
-                "name": "sdi-observer"
-              }
-            ],
-            "restartPolicy": "Always",
-            "serviceAccount": "sdi-observer",
-            "serviceAccountName": "sdi-observer"
-          }
-        },
-        "triggers": [
-          {
-            "type": "ConfigChange"
-          },
-          {
-            "imageChangeParams": {
-              "automatic": true,
-              "containerNames": [
-                "sdi-observer"
-              ],
-              "from": {
-                "kind": "ImageStreamTag",
-                "name": "sdi-observer:${OCP_MINOR_RELEASE}"
-              }
+               "deploymentconfig": "sdi-observer"
             },
-            "type": "ImageChange"
-          }
-        ]
+            "name": "sdi-observer",
+            "namespace": "${NAMESPACE}"
+         },
+         "spec": {
+            "replicas": 1,
+            "selector": {
+               "deploymentconfig": "sdi-observer"
+            },
+            "strategy": {
+               "type": "Rolling"
+            },
+            "template": {
+               "metadata": {
+                  "labels": {
+                     "deploymentconfig": "sdi-observer"
+                  }
+               },
+               "spec": {
+                  "containers": [
+                     {
+                        "env": [ ],
+                        "image": " ",
+                        "name": "sdi-observer"
+                     }
+                  ],
+                  "restartPolicy": "Always",
+                  "serviceAccount": "sdi-observer",
+                  "serviceAccountName": "sdi-observer"
+               }
+            },
+            "triggers": [
+               {
+                  "type": "ConfigChange"
+               },
+               {
+                  "imageChangeParams": {
+                     "automatic": true,
+                     "containerNames": [
+                        "sdi-observer"
+                     ],
+                     "from": {
+                        "kind": "ImageStreamTag",
+                        "name": "sdi-observer:${OCP_MINOR_RELEASE}"
+                     }
+                  },
+                  "type": "ImageChange"
+               }
+            ]
+         }
+      },
+      {
+         "apiVersion": "v1",
+         "kind": "ServiceAccount",
+         "metadata": {
+            "labels": {
+               "deploymentconfig": "sdi-observer"
+            },
+            "name": "sdi-observer",
+            "namespace": "${NAMESPACE}"
+         }
+      },
+      {
+         "apiVersion": "build.openshift.io/v1",
+         "kind": "BuildConfig",
+         "metadata": {
+            "labels": {
+               "deploymentconfig": "sdi-observer"
+            },
+            "name": "sdi-observer",
+            "namespace": "${NAMESPACE}"
+         },
+         "spec": {
+            "output": {
+               "to": {
+                  "kind": "ImageStreamTag",
+                  "name": "sdi-observer:${OCP_MINOR_RELEASE}"
+               }
+            },
+            "runPolicy": "Serial",
+            "source": {
+               "dockerfile": "FROM openshift/cli:latest\nRUN dnf update -y\n# TODO: jq is not yet available in EPEL-8\nRUN dnf install -y \\\n  https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm && \\\n  dnf install -y jq\nRUN dnf install -y \\\n  https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm && \\\n  dnf install -y parallel procps-ng bc git && dnf clean all -y\n# TODO: determine OCP version from environment\nCOPY https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest-${OCP_MINOR_RELEASE}/openshift-client-linux.tar.gz /tmp/\nCOPY https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest-${OCP_MINOR_RELEASE}/sha256sum.txt /tmp/\n# verify the downloaded tar\nRUN /bin/bash -c 'grep \"$(awk '\"'\"'{print $1}'\"'\"' \\\n  <(sha256sum /tmp/openshift-client-linux.tar.gz))[[:space:]]\\+openshift-client-linux-.\" \\\n  /tmp/sha256sum.txt'\nRUN /bin/bash -c 'tar -C /usr/local/bin/ -xzvf /tmp/openshift-client-linux.tar.gz -T <(printf oc)'\n# TODO: verify signatures as well\nRUN mkdir -p /usr/local/bin \\\n  /usr/local/share/{sdi-observer,openshift-acme}\nRUN git clone --depth 5 --single-branch \\\n  --branch ${LETSENCRYPT_REVISION} \\\n  ${LETSENCRYPT_REPOSITORY} /usr/local/share/openshift-acme\nRUN git clone --depth 5 --single-branch \\\n  --branch ${SDI_OBSERVER_GIT_REVISION} \\\n  ${SDI_OBSERVER_REPOSITORY} /usr/local/share/sap-data-intelligence\nRUN for bin in observer.sh deploy-registry.sh deploy-letsencrypt.sh; do \\\n      cp -lv /usr/local/share/sap-data-intelligence/$bin \\\n        /usr/local/bin/$bin; \\\n      chmod a+rx /usr/local/bin/$bin; \\\n    done\nRUN ln -s /usr/local/share/sap-data-intelligence/observer \\\n  /usr/local/share/sdi-observer\nWORKDIR /usr/local/share/sdi-observer\n"
+            },
+            "strategy": {
+               "dockerStrategy": {
+                  "from": {
+                     "kind": "ImageStreamTag",
+                     "name": "ubi8:latest"
+                  },
+                  "pullSecret": {
+                     "name": "${REDHAT_REGISTRY_SECRET_NAME}"
+                  }
+               }
+            },
+            "triggers": [
+               {
+                  "type": "ImageChange"
+               },
+               {
+                  "type": "ConfigChange"
+               }
+            ]
+         }
+      },
+      {
+         "apiVersion": "rbac.authorization.k8s.io/v1",
+         "kind": "Role",
+         "metadata": {
+            "labels": {
+               "deploymentconfig": "sdi-observer"
+            },
+            "name": "sdi-observer",
+            "namespace": "${SDI_NAMESPACE}"
+         },
+         "rules": [
+            {
+               "apiGroups": [
+                  "apps",
+                  "extensions"
+               ],
+               "resources": [
+                  "deployments",
+                  "deployments/scale",
+                  "statefulsets",
+                  "statefulsets/scale"
+               ],
+               "verbs": [
+                  "get",
+                  "list",
+                  "patch",
+                  "watch"
+               ]
+            },
+            {
+               "apiGroups": [
+                  "apps",
+                  "extensions"
+               ],
+               "resources": [
+                  "daemonsets"
+               ],
+               "verbs": [
+                  "get",
+                  "list",
+                  "patch",
+                  "update",
+                  "watch"
+               ]
+            },
+            {
+               "apiGroups": [
+                  ""
+               ],
+               "resources": [
+                  "secrets"
+               ],
+               "verbs": [
+                  "get"
+               ]
+            },
+            {
+               "apiGroups": [
+                  ""
+               ],
+               "resources": [
+                  "configmaps"
+               ],
+               "verbs": [
+                  "get",
+                  "list",
+                  "watch",
+                  "patch"
+               ]
+            },
+            {
+               "apiGroups": [
+                  ""
+               ],
+               "resources": [
+                  "namespaces",
+                  "namespaces/status"
+               ],
+               "verbs": [
+                  "get",
+                  "list",
+                  "watch"
+               ]
+            },
+            {
+               "apiGroups": [
+                  "",
+                  "project.openshift.io"
+               ],
+               "resources": [
+                  "projects"
+               ],
+               "verbs": [
+                  "get"
+               ]
+            },
+            {
+               "apiGroups": [
+                  "apps",
+                  "deploymentconfigs.apps.openshift.io"
+               ],
+               "resources": [
+                  "deploymentconfigs"
+               ],
+               "verbs": [
+                  "get",
+                  "list",
+                  "delete"
+               ]
+            },
+            {
+               "apiGroups": [
+                  "",
+                  "authorization.openshift.io",
+                  "rbac.authorization.k8s.io"
+               ],
+               "resources": [
+                  "roles",
+                  "rolebindings",
+                  "serviceaccounts"
+               ],
+               "verbs": [
+                  "get",
+                  "list",
+                  "delete"
+               ]
+            }
+         ]
+      },
+      {
+         "apiVersion": "rbac.authorization.k8s.io/v1",
+         "kind": "RoleBinding",
+         "metadata": {
+            "labels": {
+               "deploymentconfig": "sdi-observer"
+            },
+            "name": "sdi-observer-${ROLE_BINDING_SUFFIX}",
+            "namespace": "${SDI_NAMESPACE}"
+         },
+         "roleRef": {
+            "apiGroup": "rbac.authorization.k8s.io",
+            "kind": "Role",
+            "name": "sdi-observer",
+            "namespace": "${SDI_NAMESPACE}"
+         },
+         "subjects": [
+            {
+               "kind": "ServiceAccount",
+               "name": "sdi-observer",
+               "namespace": "${NAMESPACE}"
+            }
+         ]
+      },
+      {
+         "apiVersion": "rbac.authorization.k8s.io/v1",
+         "kind": "ClusterRoleBinding",
+         "metadata": {
+            "labels": {
+               "deploymentconfig": "sdi-observer"
+            },
+            "name": "sdi-observer-node-reader-${ROLE_BINDING_SUFFIX}"
+         },
+         "roleRef": {
+            "apiGroup": "rbac.authorization.k8s.io",
+            "kind": "ClusterRole",
+            "name": "system:node-reader"
+         },
+         "subjects": [
+            {
+               "kind": "ServiceAccount",
+               "name": "sdi-observer",
+               "namespace": "${NAMESPACE}"
+            }
+         ]
+      },
+      {
+         "apiVersion": "v1",
+         "kind": "ImageStream",
+         "metadata": {
+            "name": "sdi-observer",
+            "namespace": "${NAMESPACE}"
+         },
+         "spec": null,
+         "status": {
+            "dockerImageRepository": ""
+         }
+      },
+      {
+         "apiVersion": "v1",
+         "kind": "Service",
+         "metadata": {
+            "annotations": {
+               "template.openshift.io/expose-uri": "https://{.spec.clusterIP}:{.spec.ports[?(.name==\"registry\")].port}\n"
+            },
+            "name": "sdi-observer",
+            "namespace": "${NAMESPACE}"
+         },
+         "spec": {
+            "ports": [
+               {
+                  "name": "registry",
+                  "port": 5000
+               }
+            ],
+            "selector": {
+               "deploymentconfig": "sdi-observer"
+            },
+            "sessionAffinity": "ClientIP",
+            "type": "ClusterIP"
+         }
+      },
+      {
+         "apiVersion": "route.openshift.io/v1",
+         "kind": "Route",
+         "metadata": {
+            "annotations": {
+               "template.openshift.io/expose-uri": "https://{.spec.host}{.spec.path}"
+            },
+            "name": "sdi-observer",
+            "namespace": "${NAMESPACE}"
+         },
+         "spec": {
+            "host": "${HOSTNAME}",
+            "port": {
+               "targetPort": "registry"
+            },
+            "subdomain": "",
+            "tls": {
+               "insecureEdgeTerminationPolicy": "Redirect",
+               "termination": "edge"
+            },
+            "to": {
+               "kind": "Service",
+               "name": "sdi-observer"
+            }
+         }
       }
-    }
-  ],
-  "parameters": [
-    {
-      "description": "Minor release of OpenShift Container Platform (e.g. 4.2). This value must match the OCP server version. The biggest tolerated difference between the versions is 1 in the second digit.\n",
-      "name": "OCP_MINOR_RELEASE",
-      "required": true,
-      "value": "4.2"
-    },
-    {
-      "description": "If set to true, no action will be performed. The pod will just print what would have been executed.\n",
-      "name": "DRY_RUN",
-      "required": false,
-      "value": "false"
-    },
-    {
-      "description": "The name of the SAP Data Hub namespace to manage. Defaults to the current one. It must be set only in case the observer is running in a differnt namespace (see NAMESPACE).\n",
-      "name": "SDI_NAMESPACE"
-    },
-    {
-      "description": "The desired namespace, where the vsystem-app observer shall run. Defaults to the current one. Needs to be set only if running the observer outside of SDI_NAMESPACE.\n",
-      "name": "NAMESPACE",
-      "required": true
-    },
-    {
-      "description": "TODO\n",
-      "name": "SDI_OBSERVER_REPOSITORY",
-      "required": true,
-      "value": "https://github.com/redhat-sap/sap-data-intelligence"
-    },
-    {
-      "description": "Revision (e.g. tag, commit or branch) of git repository where SDI Observer's source reside.\n",
-      "name": "SDI_OBSERVER_GIT_REVISION",
-      "required": true,
-      "value": "master"
-    },
-    {
-      "description": "A random suffix for the new RoleBinding's name. No need to edit.\n",
-      "from": "[a-z0-9]{5}",
-      "generate": "expression",
-      "name": "ROLE_BINDING_SUFFIX"
-    },
-    {
-      "description": "Set to true if the given or configured VFLOW_REGISTRY shall be marked as insecure in all instances of Pipeline Modeler.\n",
-      "name": "MARK_REGISTRY_INSECURE",
-      "required": true,
-      "value": "false"
-    },
-    {
-      "description": "Patch deployments with vsystem-iptables container to make them privileged in order to load kernel modules they need. Unless true, it is assumed that the modules have been pre-loaded on the worker nodes. This will make also vsystem-vrep-* pod privileged.\n",
-      "name": "MAKE_VSYSTEM_IPTABLES_PODS_PRIVILEGED",
-      "required": true,
-      "value": "false"
-    },
-    {
-      "description": "Format of the logging files on the nodes. Allowed values are \"json\" and \"text\". Initially, SDI fluentd pods are configured to parse \"json\" while OpenShift 4 uses \"text\" format by default. If not given, the default is \"text\".\n",
-      "name": "NODE_LOG_FORMAT",
-      "required": false
-    },
-    {
-      "description": "The registry to mark as insecure. If not given, it will be determined from the installer-config secret in the SDI_NAMESPACE. If DEPLOY_SDI_REGISTRY is set to \"true\", this variable will be used as the container image registry's hostname when creating the corresponding route.\n",
-      "name": "REGISTRY"
-    },
-    {
-      "description": "Target namespace where to deploy container image registry.\n",
-      "name": "SDI_REGISTRY_NAMESPACE",
-      "required": false
-    },
-    {
-      "description": "Whether to deploy container image registry for the purpose of SAP Data Intelligence. Requires project admin role attached to the sdi-observer service account. If enabled, REDHAT_REGISTRY_SECRET_NAME must be provided.\n",
-      "name": "DEPLOY_SDI_REGISTRY",
-      "required": false,
-      "value": "false"
-    },
-    {
-      "description": "Whether to deploy letsencrypt controller. Requires project admin role attached to the sdi-observer service account.\n",
-      "name": "DEPLOY_LETSENCRYPT",
-      "required": false,
-      "value": "false"
-    },
-    {
-      "description": "Whether to expose routes annotated for letsencrypt controller. Requires project admin role attached to the sdi-observer service account. Letsencrypt controller must be deployed either via this observer or cluster-wide for this to have an effect. Defaults to DEPLOY_LETSENCRYPT.\n",
-      "name": "EXPOSE_WITH_LETSENCRYPT"
-    },
-    {
-      "description": "Unless given, a local copy will be used.\n",
-      "name": "LETSENCRYPT_REPOSITORY",
-      "required": false,
-      "value": "https://github.com/tnozicka/openshift-acme"
-    },
-    {
-      "description": "Revision of letsencrypt repository to check out.\n",
-      "name": "LETSENCRYPT_REVISION",
-      "required": false,
-      "value": "2cfefc7388102408a334ada90933531c7e5e11c2"
-    },
-    {
-      "description": "Either \"live\" or \"staging\". Use the latter when debugging SDI Observer's deployment.\n",
-      "name": "LETSENCRYPT_ENVIRONMENT",
-      "required": true,
-      "value": "live"
-    },
-    {
-      "description": "Whether to forcefully replace existing registry and/or letsencrypt deployments and configuration files.\n",
-      "name": "FORCE_REDEPLOY",
-      "required": false,
-      "value": "false"
-    },
-    {
-      "description": "Whether to replace secrets like SDI Registry's htpasswd file if they exist already.\n",
-      "name": "RECREATE_SECRETS",
-      "required": false,
-      "value": "false"
-    },
-    {
-      "description": "Volume space available for container images (e.g. 75Gi).",
-      "name": "SDI_REGISTRY_VOLUME_CAPACITY",
-      "required": true,
-      "value": "75Gi"
-    },
-    {
-      "description": "Unless given, the default storage class will be used.\n",
-      "name": "SDI_REGISTRY_STORAGE_CLASS_NAME",
-      "required": false
-    },
-    {
-      "description": "A secret with htpasswd file with authentication data for the sdi image container If given and the secret exists, it will be used instead of SDI_REGISTRY_USERNAME and SDI_REGISTRY_PASSWORD.\n",
-      "name": "SDI_REGISTRY_HTPASSWD_SECRET_NAME",
-      "required": false
-    },
-    {
-      "from": "user-[a-z0-9]{6}",
-      "generage": "expression",
-      "name": "SDI_REGISTRY_USERNAME",
-      "required": false
-    },
-    {
-      "from": "user-[a-zA-Z0-9]{32}",
-      "generage": "expression",
-      "name": "SDI_REGISTRY_PASSWORD",
-      "required": false
-    },
-    {
-      "description": "Name of the secret with credentials for registry.redhat.io registry. Please visit https://access.redhat.com/terms-based-registry/ to obtain the OpenShift secret. For more details, please refer to https://access.redhat.com/RegistryAuthentication. Required if DEPLOY_SDI_REGISTRY is enabled.",
-      "name": "REDHAT_REGISTRY_SECRET_NAME",
-      "required": false
-    },
-    {
-      "description": "Namespace where the secret with credentials for registry.redhat.io registry resides.",
-      "name": "REDHAT_REGISTRY_SECRET_NAMESPACE",
-      "require": false
-    }
-  ],
-  "progress with the following command": "oc logs -f dc/sdi-observer"
+   ],
+   "parameters": [
+      {
+         "description": "If set to true, no action will be performed. The pod will just print\nwhat would have been executed.\n",
+         "name": "DRY_RUN",
+         "required": false,
+         "value": "false"
+      },
+      {
+         "description": "The desired namespace to deploy resources to. Defaults to the current\none.\n",
+         "name": "NAMESPACE",
+         "required": true
+      },
+      {
+         "description": "Name of the secret with credentials for registry.redhat.io registry. Please visit\nhttps://access.redhat.com/terms-based-registry/ to obtain the OpenShift secret. For\nmore details, please refer to https://access.redhat.com/RegistryAuthentication.'\n",
+         "name": "REDHAT_REGISTRY_SECRET_NAME",
+         "required": true
+      },
+      {
+         "description": "Minor release of OpenShift Container Platform (e.g. 4.2). This value must match the OCP\nserver version. The biggest tolerated difference between the versions is 1 in the second\ndigit.\n",
+         "name": "OCP_MINOR_RELEASE",
+         "required": true,
+         "value": "4.2"
+      },
+      {
+         "description": "The name of the SAP Data Hub namespace to manage. Defaults to the current one. It must be\nset only in case the observer is running in a differnt namespace (see NAMESPACE).\n",
+         "name": "SDI_NAMESPACE"
+      },
+      {
+         "description": "TODO\n",
+         "name": "SDI_OBSERVER_REPOSITORY",
+         "required": true,
+         "value": "https://github.com/redhat-sap/sap-data-intelligence"
+      },
+      {
+         "description": "Revision (e.g. tag, commit or branch) of git repository where SDI Observer's source\nreside.\n",
+         "name": "SDI_OBSERVER_GIT_REVISION",
+         "required": true,
+         "value": "master"
+      },
+      {
+         "description": "A random suffix for the new RoleBinding's name. No need to edit.\n",
+         "from": "[a-z0-9]{5}",
+         "generate": "expression",
+         "name": "ROLE_BINDING_SUFFIX"
+      },
+      {
+         "description": "Set to true if the given or configured VFLOW_REGISTRY shall be marked as insecure in all\ninstances of Pipeline Modeler.\n",
+         "name": "MARK_REGISTRY_INSECURE",
+         "required": true,
+         "value": "false"
+      },
+      {
+         "description": "Patch deployments with vsystem-iptables container to make them privileged in order to load\nkernel modules they need. Unless true, it is assumed that the modules have been pre-loaded\non the worker nodes. This will make also vsystem-vrep-* pod privileged.\n",
+         "name": "MAKE_VSYSTEM_IPTABLES_PODS_PRIVILEGED",
+         "required": true,
+         "value": "false"
+      },
+      {
+         "description": "Format of the logging files on the nodes. Allowed values are \"json\" and \"text\".\nInitially, SDI fluentd pods are configured to parse \"json\" while OpenShift 4 uses\n\"text\" format by default. If not given, the default is \"text\".\n",
+         "name": "NODE_LOG_FORMAT",
+         "required": false
+      },
+      {
+         "description": "The registry to mark as insecure. If not given, it will be determined from the\ninstaller-config secret in the SDI_NAMESPACE. If DEPLOY_SDI_REGISTRY is set to \"true\",\nthis variable will be used as the container image registry's hostname when creating the\ncorresponding route.\n",
+         "name": "REGISTRY"
+      },
+      {
+         "description": "Whether to deploy container image registry for the purpose of SAP Data Intelligence.\nRequires project admin role attached to the sdi-observer service account. If enabled,\nREDHAT_REGISTRY_SECRET_NAME must be provided.\n",
+         "name": "DEPLOY_SDI_REGISTRY",
+         "required": false,
+         "value": "false"
+      },
+      {
+         "description": "Whether to deploy letsencrypt controller. Requires project admin role attached to the\nsdi-observer service account.\n",
+         "name": "DEPLOY_LETSENCRYPT",
+         "required": false,
+         "value": "false"
+      },
+      {
+         "description": "Whether to expose routes annotated for letsencrypt controller. Requires project admin role\nattached to the sdi-observer service account. Letsencrypt controller must be deployed\neither via this observer or cluster-wide for this to have an effect. Defaults to\nDEPLOY_LETSENCRYPT.\n",
+         "name": "EXPOSE_WITH_LETSENCRYPT"
+      },
+      {
+         "description": "Unless given, a local copy will be used.\n",
+         "name": "LETSENCRYPT_REPOSITORY",
+         "required": false,
+         "value": "https://github.com/tnozicka/openshift-acme"
+      },
+      {
+         "description": "Revision of letsencrypt repository to check out.\n",
+         "name": "LETSENCRYPT_REVISION",
+         "required": false,
+         "value": "2cfefc7388102408a334ada90933531c7e5e11c2"
+      },
+      {
+         "description": "Either \"live\" or \"staging\". Use the latter when debugging SDI Observer's deployment.\n",
+         "name": "LETSENCRYPT_ENVIRONMENT",
+         "required": true,
+         "value": "live"
+      },
+      {
+         "description": "Whether to forcefully replace existing registry and/or letsencrypt deployments and\nconfiguration files.\n",
+         "name": "FORCE_REDEPLOY",
+         "required": false,
+         "value": "false"
+      },
+      {
+         "description": "Whether to replace secrets like SDI Registry's htpasswd file if they exist already.\n",
+         "name": "RECREATE_SECRETS",
+         "required": false,
+         "value": "false"
+      },
+      {
+         "description": "Volume space available for container images (e.g. 75Gi).\n",
+         "name": "SDI_REGISTRY_VOLUME_CAPACITY",
+         "required": true,
+         "value": "75Gi"
+      },
+      {
+         "description": "Unless given, the default storage class will be used.\n",
+         "name": "SDI_REGISTRY_STORAGE_CLASS_NAME",
+         "required": false
+      },
+      {
+         "description": "A secret with htpasswd file with authentication data for the sdi image container If given\nand the secret exists, it will be used instead of SDI_REGISTRY_USERNAME and\nSDI_REGISTRY_PASSWORD.\n",
+         "name": "SDI_REGISTRY_HTPASSWD_SECRET_NAME",
+         "required": false
+      },
+      {
+         "from": "user-[a-z0-9]{6}",
+         "generage": "expression",
+         "name": "SDI_REGISTRY_USERNAME",
+         "required": false
+      },
+      {
+         "from": "user-[a-zA-Z0-9]{32}",
+         "generage": "expression",
+         "name": "SDI_REGISTRY_PASSWORD",
+         "required": false
+      },
+      {
+         "description": "Namespace where the secret with credentials for registry.redhat.io registry resides.\n",
+         "name": "REDHAT_REGISTRY_SECRET_NAMESPACE",
+         "require": false
+      }
+   ]
 }
