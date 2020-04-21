@@ -4,7 +4,7 @@ local base = import 'job-template.libsonnet';
 base.JobTemplate {
   local regjobtmpl = self,
   resourceName: 'deploy-registry',
-  jobImage: 'sdi-observer:${' + params.OCPMinorReleaseParam.name + '}',
+  jobImage: null,
   command: regjobtmpl.resourceName + '.sh',
 
   description: 'TODO',

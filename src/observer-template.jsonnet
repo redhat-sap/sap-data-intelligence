@@ -97,8 +97,7 @@ base.DCTemplate {
         /tmp/sha256sum.txt'
       RUN /bin/bash -c 'tar -C /usr/local/bin/ -xzvf /tmp/openshift-client-linux.tar.gz -T <(printf oc)'
       # TODO: verify signatures as well
-      RUN mkdir -p /usr/local/bin \
-        /usr/local/share/{sdi-observer,openshift-acme}
+      RUN mkdir -p /usr/local/bin /usr/local/share/{sdi,openshift-acme}
       RUN git clone --depth 5 --single-branch \
         --branch ${LETSENCRYPT_REVISION} \
         ${LETSENCRYPT_REPOSITORY} /usr/local/share/openshift-acme
@@ -106,13 +105,13 @@ base.DCTemplate {
         --branch ${SDI_OBSERVER_GIT_REVISION} \
         ${SDI_OBSERVER_REPOSITORY} /usr/local/share/sap-data-intelligence
       RUN for bin in observer.sh deploy-registry.sh deploy-letsencrypt.sh; do \
-            cp -lv /usr/local/share/sap-data-intelligence/$bin \
+            cp -lv $(find /usr/local/share/sap-data-intelligence \
+                      -type f -executable -name "$bin") \
               /usr/local/bin/$bin; \
             chmod a+rx /usr/local/bin/$bin; \
           done
-      RUN ln -s /usr/local/share/sap-data-intelligence/observer \
-        /usr/local/share/sdi-observer
-      WORKDIR /usr/local/share/sdi-observer
+      RUN ln -s /usr/local/share/sap-data-intelligence /usr/local/share/sdi
+      WORKDIR /usr/local/share/sdi
     |||,
   },
 

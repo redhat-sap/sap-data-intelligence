@@ -5,7 +5,7 @@ IFS=$'\n\t'
 
 readonly SDI_REGISTRY_TEMPLATE_FILE_NAME=registry-template.yaml
 
-for d in "$(dirname "${BASH_SOURCE[0]}")" . /usr/local/share/sdi-observer; do
+for d in "$(dirname "${BASH_SOURCE[0]}")" . /usr/local/share/sdi; do
     if [[ -e "$d/lib/common.sh" ]]; then
         eval "source '$d/lib/common.sh'"
     fi
@@ -34,7 +34,8 @@ Options:
                  $DEFAULT_SDI_REGISTRY_HTPASSWD_SECRET_NAME.
   -w | --wait    Block until all resources are available.
   --hostname REGISTRY_HOSTNAME
-                 Expose registry's service on the given HOSTNAME. The default is:
+                 Expose registry's service on the given hostname. Overrides
+                 SDI_REGISTRY_ROUTE_HOSTNAME environment variable. The default is:
                     container-image-registry-\$NAMESPACE.\$clustername.\$basedomain
   --namespace NAMESPACE
                  Desired k8s NAMESPACE where to deploy the registry.
@@ -69,8 +70,8 @@ trap cleanup EXIT
 function getRegistryTemplatePath() {
     local dirs=(
         .
-        /usr/local/share/sdi-observer
-        /usr/local/share/sap-data-intelligence/observer
+        /usr/local/share/sdi/registry
+        /usr/local/share/sap-data-intelligence/registry
     )
     for d in "${dirs[@]}"; do
         local pth="${d}/$SDI_REGISTRY_TEMPLATE_FILE_NAME"
@@ -149,7 +150,7 @@ function mkRegistryTemplateParams() {
         [[ -z "$value" ]] && continue
         printf '%s=%s\n' "$key" "$value"
     done < <(printf '%s\n' \
-        "HOSTNAME=${REGISTRY_HOSTNAME:-}" \
+        "SDI_REGISTRY_ROUTE_HOSTNAME=${REGISTRY_HOSTNAME:-}" \
         "HTPASSWD_SECRET_NAME=$SECRET_NAME" \
         "NAMESPACE=$NAMESPACE" \
         "VOLUME_CAPACITY=${SDI_REGISTRY_VOLUME_CAPACITY:-}" \
@@ -176,6 +177,11 @@ function createOrReplaceObjectFromTemplate() {
         if [[ -n "${SDI_REGISTRY_STORAGE_CLASS_NAME:-}" ]]; then
             spec="$(jq '.spec.storageClassName |= "'"$SDI_REGISTRY_STORAGE_CLASS_NAME"'"' \
                 <<<"$spec")"
+        fi
+        ;;
+    route)
+        if evalBool EXPOSE_WITH_LETSENCRYPT; then
+            spec="$(jq '.metadata.annotations["kubernetes.io/tls-acme"] |= "true"' <<<"$spec")"
         fi
         ;;
     esac
@@ -281,6 +287,7 @@ function waitForRegistry() {
 }
 
 NOOUT=0
+REGISTRY_HOSTNAME="${SDI_REGISTRY_ROUTE_HOSTNAME:-}"
 
 TMPARGS="$(getopt -o ho:nw -l "$(join , "${longOptions[@]}")" -n "${BASH_SOURCE[0]}" -- "$@")"
 eval set -- "$TMPARGS"

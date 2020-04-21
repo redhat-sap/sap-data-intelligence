@@ -3,7 +3,7 @@
 set -euo pipefail
 IFS=$'\n\t'
 
-for d in "$(dirname "${BASH_SOURCE[0]}")" . /usr/local/share/sdi-observer; do
+for d in "$(dirname "${BASH_SOURCE[0]}")" . /usr/local/share/sdi; do
     if [[ -e "$d/lib/common.sh" ]]; then
         eval "source '$d/lib/common.sh'"
     fi
@@ -46,7 +46,8 @@ Options:
  (-p | --projects) P1,P2,...
                  Additional projects that shall be monitored by letsencrypt controller.
                  The project names shall be separated with commas. Alternatively, the flag can
-                 be specified multiple times.
+                 be specified multiple times. Will be merged with PROJECTS_TO_MONITOR environment
+                 variable.
   --dont-grant-project-permissions
                  Do not create roles and role bindings in monitored projects in order for the
                  controller to manage routes. The act of granting letsencrypt's serviceaccount
@@ -192,6 +193,18 @@ function check() {
     parallel canSACreateRoutes "$token" '{}' ::: "${PROJECTS[@]}"
 }
 
+PROJECTS=()
+function addProjects() {
+    local values="${1:-}"
+    local ps=()
+    [[ -z "${values:-}" ]] && return 0
+    readarray -d , -t ps "${values:-}"
+    for p in "${ps[@]}"; do
+        [[ -z "${p:-}" ]] && continue
+        PROJECTS+=( "$p" )
+    done
+}
+
 NAMESPACE="${LETSENCRYPT_NAMESPACE:-}"
 if [[ -z "${NAMESPACE:-}" ]]; then
     NAMESPACE="$(oc project -q ||:)"
@@ -201,7 +214,8 @@ if [[ -z "${NAMESPACE:-}" ]]; then
 fi
 
 REVISION=master
-PROJECTS=()
+
+addProjects "${PROJECTS_TO_MONITOR:-}"
 
 TMPARGS="$(getopt -o he:wr:p: -l "$(join , "${longOptions[@]}")" -n "${BASH_SOURCE[0]}" -- "$@")"
 eval set -- "$TMPARGS"
@@ -239,11 +253,7 @@ while true; do
             shift 2
             ;;
         -p | --projects)
-            readarray -d , -t ps <<<"$2"
-            for p in "${ps[@]}"; do
-                [[ -z "${p:-}" ]] && continue
-                PROJECTS+=( "$p" )
-            done
+            addProjects "$2"
             shift 2
             ;;
         --dont-grant-project-permissions)

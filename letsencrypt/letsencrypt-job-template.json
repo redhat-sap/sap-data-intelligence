@@ -1,0 +1,148 @@
+{
+   "apiVersion": "template.openshift.io/v1",
+   "description": "TODO",
+   "kind": "Template",
+   "message": "TODO",
+   "metadata": {
+      "annotations": {
+         "description": "TODO",
+         "openshift.io/display-name": "Job to deploy a letsencrypt controller.\n",
+         "openshift.io/documentation-url": "https://access.redhat.com/articles/4324391",
+         "openshift.io/provider-display-name": "Red Hat, Inc."
+      },
+      "name": "deploy-letsencrypt"
+   },
+   "objects": [
+      {
+         "apiVersion": "batch/v1",
+         "kind": "CronJob",
+         "metadata": {
+            "name": "deploy-letsencrypt",
+            "namespace": "${NAMESPACE}"
+         },
+         "spec": {
+            "completions": 1,
+            "jobTemplate": {
+               "metadata": {
+                  "labels": {
+                     "job": "deploy-letsencrypt"
+                  }
+               },
+               "spec": {
+                  "template": {
+                     "spec": {
+                        "containers": [
+                           {
+                              "args": "${SCRIPT_ARGUMENTS}",
+                              "command": [
+                                 "deploy-letsencrypt.sh"
+                              ],
+                              "env": [
+                                 {
+                                    "name": "DRY_RUN",
+                                    "value": "${DRY_RUN}"
+                                 },
+                                 {
+                                    "name": "NAMESPACE",
+                                    "value": "${NAMESPACE}"
+                                 },
+                                 {
+                                    "name": "FORCE_REDEPLOY",
+                                    "value": "${FORCE_REDEPLOY}"
+                                 },
+                                 {
+                                    "name": "REPLACE_SECRETS",
+                                    "value": "${REPLACE_SECRETS}"
+                                 },
+                                 {
+                                    "name": "LETSENCRYPT_REPOSITORY",
+                                    "value": "${LETSENCRYPT_REPOSITORY}"
+                                 },
+                                 {
+                                    "name": "LETSENCRYPT_REVISION",
+                                    "value": "${LETSENCRYPT_REVISION}"
+                                 },
+                                 {
+                                    "name": "LETSENCRYPT_ENVIRONMENT",
+                                    "value": "${LETSENCRYPT_ENVIRONMENT}"
+                                 },
+                                 {
+                                    "name": "PROJECTS_TO_MONITOR",
+                                    "value": "${PROJECTS_TO_MONITOR}"
+                                 }
+                              ],
+                              "image": "${JOB_IMAGE}",
+                              "name": "deploy-sdi-registry"
+                           }
+                        ],
+                        "restartPolicy": "OnFailure",
+                        "serviceAccountName": "deploy-letsencrypt"
+                     }
+                  }
+               }
+            },
+            "parallelism": 1
+         }
+      }
+   ],
+   "parameters": [
+      {
+         "description": "If set to true, no action will be performed. The pod will just print\nwhat would have been executed.\n",
+         "name": "DRY_RUN",
+         "required": false,
+         "value": "false"
+      },
+      {
+         "description": "The desired namespace to deploy resources to. Defaults to the current\none.\n",
+         "name": "NAMESPACE",
+         "required": true
+      },
+      {
+         "description": "Whether to forcefully replace existing objects and configuration files. To replace\nexising secrets as well, RECREATE_SECRETS needs to be set.\n",
+         "name": "FORCE_REDEPLOY",
+         "required": false,
+         "value": "false"
+      },
+      {
+         "description": "Whether to replace secrets like SDI Registry's htpasswd file if they exist already.\n",
+         "name": "REPLACE_SECRETS",
+         "required": false,
+         "value": "false"
+      },
+      {
+         "description": "Unless given, a local copy will be used.\nDefaults to a local check out. Example value: https://github.com/tnozicka/openshift-acme\n",
+         "name": "LETSENCRYPT_REPOSITORY",
+         "required": false,
+         "value": null
+      },
+      {
+         "description": "Revision of letsencrypt repository to check out.\n",
+         "name": "LETSENCRYPT_REVISION",
+         "required": false,
+         "value": "2cfefc7388102408a334ada90933531c7e5e11c2"
+      },
+      {
+         "description": "Either \"live\" or \"staging\". Use the latter when debugging SDI Observer's deployment.\n",
+         "name": "LETSENCRYPT_ENVIRONMENT",
+         "required": true,
+         "value": "live"
+      },
+      {
+         "description": "Additional projects to monitor separated by commas. The controller will be granted\npermission to manage routes in the projects. The job needs to be able to create roles\nand rolebindings in all the projects listed.\n",
+         "name": "PROJECTS_TO_MONITOR",
+         "required": false
+      },
+      {
+         "description": "Pull specification of the built SDI Observer image.\n",
+         "name": "JOB_IMAGE",
+         "required": true,
+         "value": null
+      },
+      {
+         "description": "Arguments for job's script. Passed as a json array of strings.\n",
+         "name": "SCRIPT_ARGUMENTS",
+         "required": true,
+         "value": null
+      }
+   ]
+}

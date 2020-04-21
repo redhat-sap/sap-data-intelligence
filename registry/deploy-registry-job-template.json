@@ -177,7 +177,7 @@
          "description": "Pull specification of the built SDI Observer image.\n",
          "name": "JOB_IMAGE",
          "required": true,
-         "value": "sdi-observer:${OCP_MINOR_RELEASE}"
+         "value": null
       },
       {
          "description": "Arguments for job's script. Passed as a json array of strings.\n",

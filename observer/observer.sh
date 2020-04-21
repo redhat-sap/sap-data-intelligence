@@ -3,7 +3,7 @@
 set -euo pipefail
 IFS=$'\n\t'
 
-for d in "$(dirname "${BASH_SOURCE[0]}")" . /usr/local/share/sdi-observer; do
+for d in "$(dirname "${BASH_SOURCE[0]}")" . /usr/local/share/sdi; do
     if [[ -e "$d/lib/common.sh" ]]; then
         eval "source '$d/lib/common.sh'"
     fi
@@ -237,7 +237,8 @@ function runDeployScript() {
         .
         ""
         "$(dirname "${BASH_SOURCE[@]}")"
-        /usr/local/share/sdi-observer
+        /usr/local/share/sdi/registry
+        /usr/local/share/sdi/letsencrypt
     )
     local d
     for d in "${dirs[@]}"; do
