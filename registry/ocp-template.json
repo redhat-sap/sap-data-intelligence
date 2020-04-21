@@ -39,14 +39,54 @@
                "spec": {
                   "containers": [
                      {
-                        "env": [ ],
+                        "env": [
+                           {
+                              "name": "REGISTRY_AUTH_HTPASSWD_REALM",
+                              "value": "basic-realm"
+                           },
+                           {
+                              "name": "REGISTRY_AUTH_HTPASSWD_REALM",
+                              "value": "/etc/docker-distribution/htpasswd"
+                           },
+                           {
+                              "name": "REGISTRY_HTTP_SECRET",
+                              "value": "${SDI_REGISTRY_HTTP_SECRET}"
+                           }
+                        ],
                         "image": " ",
-                        "name": "container-image-registry"
+                        "name": "container-image-registry",
+                        "volumeMounts": [
+                           {
+                              "mountPath": "/var/lib/registry",
+                              "name": "storage"
+                           },
+                           {
+                              "mountPath": "/etc/docker-distribution/htpasswd",
+                              "name": "htpasswd",
+                              "readonly": true,
+                              "subPath": "htpasswd"
+                           }
+                        ]
                      }
                   ],
                   "restartPolicy": "Always",
                   "serviceAccount": "container-image-registry",
-                  "serviceAccountName": "container-image-registry"
+                  "serviceAccountName": "container-image-registry",
+                  "volumes": [
+                     {
+                        "name": "storage",
+                        "persistentVolumeClaim": {
+                           "claimName": "container-image-registry"
+                        }
+                     },
+                     {
+                        "name": "htpasswd",
+                        "readonly": true,
+                        "secret": {
+                           "secretName": "${HTPASSWD_SECRET_NAME}"
+                        }
+                     }
+                  ]
                }
             },
             "triggers": [
@@ -139,7 +179,7 @@
          "kind": "Service",
          "metadata": {
             "annotations": {
-               "template.openshift.io/expose-uri": "\"https://{.spec.clusterIP}:{.spec.ports[?(.name==\\\"registry\\\")].port)}\""
+               "template.openshift.io/expose-uri": "https://{.spec.clusterIP}:{.spec.ports[?(.name==\"registry\")].port}\n"
             },
             "name": "container-image-registry",
             "namespace": "${NAMESPACE}"
@@ -169,7 +209,7 @@
             "namespace": "${NAMESPACE}"
          },
          "spec": {
-            "host": "${HOSTNAME}",
+            "host": "${SDI_REGISTRY_ROUTE_HOSTNAME}",
             "port": {
                "targetPort": "registry"
             },
@@ -197,7 +237,7 @@
             ],
             "resources": {
                "requests": {
-                  "storage": "${VOLUME_CAPACITY}"
+                  "storage": "${SDI_REGISTRY_VOLUME_CAPACITY}"
                }
             }
          }
@@ -205,41 +245,33 @@
    ],
    "parameters": [
       {
-         "description": "If set to true, no action will be performed. The pod will just print\nwhat would have been executed.\n",
-         "name": "DRY_RUN",
-         "required": false,
-         "value": "false"
-      },
-      {
-         "description": "The desired namespace to deploy resources to. Defaults to the current\none.\n",
-         "name": "NAMESPACE",
-         "required": true
-      },
-      {
          "description": "Name of the secret with credentials for registry.redhat.io registry. Please visit\nhttps://access.redhat.com/terms-based-registry/ to obtain the OpenShift secret. For\nmore details, please refer to https://access.redhat.com/RegistryAuthentication.'\n",
          "name": "REDHAT_REGISTRY_SECRET_NAME",
          "required": true
       },
       {
-         "description": "Volume space available for container images (e.g. 75Gi).",
-         "name": "VOLUME_CAPACITY",
-         "required": true,
-         "value": "75Gi"
-      },
-      {
-         "name": "HTPASSWD_SECRET_NAME",
-         "required": true,
+         "description": "A secret with htpasswd file with authentication data for the sdi image container If\ngiven and the secret exists, it will be used instead of SDI_REGISTRY_USERNAME and\nSDI_REGISTRY_PASSWORD.\n",
+         "name": "SDI_REGISTRY_HTPASSWD_SECRET_NAME",
+         "required": false,
          "value": "container-image-registry-htpasswd"
       },
       {
-         "from": "[a-zA-Z0-9]{32}",
-         "generage": "expression",
-         "name": "REGISTRY_HTTP_SECRET"
+         "description": "Desired hostname of the exposed registry service. Defaults to\ncontainer-image-registry-<NAMESPACE>-apps.<cluster_name>.<base_domain>\n",
+         "name": "SDI_REGISTRY_ROUTE_HOSTNAME",
+         "required": false
       },
       {
-         "description": "Desired domain name of the exposed registry service.'\n",
-         "name": "HOSTNAME",
+         "description": "A random piece of data used to sign state that may be stored with the client to protect\nagainst tampering. If omitted, the registry will automatically generate a secret when it\nstarts. If using multiple replicas of registry, the secret MUST be the same for all of\nthem.\n",
+         "from": "[a-zA-Z0-9]{32}",
+         "generage": "expression",
+         "name": "SDI_REGISTRY_HTTP_SECRET",
          "required": false
+      },
+      {
+         "description": "Volume space available for container images (e.g. 75Gi).\n",
+         "name": "SDI_REGISTRY_VOLUME_CAPACITY",
+         "required": true,
+         "value": "75Gi"
       }
    ]
 }

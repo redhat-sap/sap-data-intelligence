@@ -1,9 +1,12 @@
+local params = import 'common-parameters.libsonnet';
 local base = import 'ocp-template.libsonnet';
 
 {
   DCTemplate: base.OCPTemplate {
     local dctmpl = self,
     imageStreamTag:: error 'imageStreamTag must be overriden!',
+    parametersToExport:: super.parameters,
+    additionalEnvironment:: [],
 
     objects+: [
       {
@@ -33,7 +36,14 @@ local base = import 'ocp-template.libsonnet';
             spec: {
               containers: [
                 {
-                  env: [],
+                  env: [
+                         {
+                           name: p.name,
+                           value: '${' + p.name + '}',
+                         }
+                         for p in dctmpl.parametersToExport
+                       ]
+                       + dctmpl.additionalEnvironment,
                   image: ' ',
                   name: dctmpl.resourceName,
                 },
@@ -76,5 +86,7 @@ local base = import 'ocp-template.libsonnet';
         },
       },
     ],
+    parameters: dctmpl.parametersToExport,
   },
+
 }

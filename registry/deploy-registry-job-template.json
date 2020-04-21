@@ -1,0 +1,195 @@
+{
+   "apiVersion": "template.openshift.io/v1",
+   "description": "TODO",
+   "kind": "Template",
+   "message": "TODO",
+   "metadata": {
+      "annotations": {
+         "description": "TODO",
+         "openshift.io/display-name": "Job to deploy a container image registry.\n",
+         "openshift.io/documentation-url": "https://access.redhat.com/articles/4324391",
+         "openshift.io/provider-display-name": "Red Hat, Inc."
+      },
+      "name": "deploy-registry"
+   },
+   "objects": [
+      {
+         "apiVersion": "batch/v1",
+         "kind": "CronJob",
+         "metadata": {
+            "name": "deploy-registry",
+            "namespace": "${NAMESPACE}"
+         },
+         "spec": {
+            "completions": 1,
+            "jobTemplate": {
+               "metadata": {
+                  "labels": {
+                     "job": "deploy-registry"
+                  }
+               },
+               "spec": {
+                  "template": {
+                     "spec": {
+                        "containers": [
+                           {
+                              "args": "${SCRIPT_ARGUMENTS}",
+                              "command": [
+                                 "deploy-registry.sh"
+                              ],
+                              "env": [
+                                 {
+                                    "name": "DRY_RUN",
+                                    "value": "${DRY_RUN}"
+                                 },
+                                 {
+                                    "name": "NAMESPACE",
+                                    "value": "${NAMESPACE}"
+                                 },
+                                 {
+                                    "name": "FORCE_REDEPLOY",
+                                    "value": "${FORCE_REDEPLOY}"
+                                 },
+                                 {
+                                    "name": "REPLACE_SECRETS",
+                                    "value": "${REPLACE_SECRETS}"
+                                 },
+                                 {
+                                    "name": "SDI_REGISTRY_STORAGE_CLASS_NAME",
+                                    "value": "${SDI_REGISTRY_STORAGE_CLASS_NAME}"
+                                 },
+                                 {
+                                    "name": "SDI_REGISTRY_USERNAME",
+                                    "value": "${SDI_REGISTRY_USERNAME}"
+                                 },
+                                 {
+                                    "name": "SDI_REGISTRY_PASSWORD",
+                                    "value": "${SDI_REGISTRY_PASSWORD}"
+                                 },
+                                 {
+                                    "name": "SDI_REGISTRY_HTPASSWD_SECRET_NAME",
+                                    "value": "${SDI_REGISTRY_HTPASSWD_SECRET_NAME}"
+                                 },
+                                 {
+                                    "name": "SDI_REGISTRY_ROUTE_HOSTNAME",
+                                    "value": "${SDI_REGISTRY_ROUTE_HOSTNAME}"
+                                 },
+                                 {
+                                    "name": "SDI_REGISTRY_HTTP_SECRET",
+                                    "value": "${SDI_REGISTRY_HTTP_SECRET}"
+                                 },
+                                 {
+                                    "name": "SDI_REGISTRY_VOLUME_CAPACITY",
+                                    "value": "${SDI_REGISTRY_VOLUME_CAPACITY}"
+                                 },
+                                 {
+                                    "name": "EXPOSE_WITH_LETSENCRYPT",
+                                    "value": "${EXPOSE_WITH_LETSENCRYPT}"
+                                 }
+                              ],
+                              "image": "${JOB_IMAGE}",
+                              "name": "deploy-sdi-registry"
+                           }
+                        ],
+                        "restartPolicy": "OnFailure",
+                        "serviceAccountName": "deploy-registry"
+                     }
+                  }
+               }
+            },
+            "parallelism": 1
+         }
+      }
+   ],
+   "parameters": [
+      {
+         "description": "If set to true, no action will be performed. The pod will just print\nwhat would have been executed.\n",
+         "name": "DRY_RUN",
+         "required": false,
+         "value": "false"
+      },
+      {
+         "description": "The desired namespace to deploy resources to. Defaults to the current\none.\n",
+         "name": "NAMESPACE",
+         "required": true
+      },
+      {
+         "description": "Whether to forcefully replace existing objects and configuration files. To replace\nexising secrets as well, RECREATE_SECRETS needs to be set.\n",
+         "name": "FORCE_REDEPLOY",
+         "required": false,
+         "value": "false"
+      },
+      {
+         "description": "Whether to replace secrets like SDI Registry's htpasswd file if they exist already.\n",
+         "name": "REPLACE_SECRETS",
+         "required": false,
+         "value": "false"
+      },
+      {
+         "description": "Unless given, the default storage class will be used.\n",
+         "name": "SDI_REGISTRY_STORAGE_CLASS_NAME",
+         "required": false
+      },
+      {
+         "description": "Will be used to generate htpasswd file to provide authentication data to the sdi registry\nservice as long as SDI_REGISTRY_HTPASSWD_SECRET_NAME does not exist or REPLACE_SECRETS is\n\"true\".\n",
+         "from": "user-[a-z0-9]{6}",
+         "generage": "expression",
+         "name": "SDI_REGISTRY_USERNAME",
+         "required": false
+      },
+      {
+         "description": "Will be used to generate htpasswd file to provide authentication data to the sdi registry\nservice as long as SDI_REGISTRY_HTPASSWD_SECRET_NAME does not exist or REPLACE_SECRETS is\n\"true\".\n",
+         "from": "[a-zA-Z0-9]{32}",
+         "generage": "expression",
+         "name": "SDI_REGISTRY_PASSWORD",
+         "required": false
+      },
+      {
+         "description": "A secret with htpasswd file with authentication data for the sdi image container If\ngiven and the secret exists, it will be used instead of SDI_REGISTRY_USERNAME and\nSDI_REGISTRY_PASSWORD.\n",
+         "name": "SDI_REGISTRY_HTPASSWD_SECRET_NAME",
+         "required": false,
+         "value": "container-image-registry-htpasswd"
+      },
+      {
+         "description": "Desired hostname of the exposed registry service. Defaults to\ncontainer-image-registry-<NAMESPACE>-apps.<cluster_name>.<base_domain>\n",
+         "name": "SDI_REGISTRY_ROUTE_HOSTNAME",
+         "required": false
+      },
+      {
+         "description": "A random piece of data used to sign state that may be stored with the client to protect\nagainst tampering. If omitted, the registry will automatically generate a secret when it\nstarts. If using multiple replicas of registry, the secret MUST be the same for all of\nthem.\n",
+         "from": "[a-zA-Z0-9]{32}",
+         "generage": "expression",
+         "name": "SDI_REGISTRY_HTTP_SECRET",
+         "required": false
+      },
+      {
+         "description": "Volume space available for container images (e.g. 75Gi).\n",
+         "name": "SDI_REGISTRY_VOLUME_CAPACITY",
+         "required": true,
+         "value": "75Gi"
+      },
+      {
+         "description": "Whether to expose routes annotated for letsencrypt controller. Requires project admin\nrole attached to the sdi-observer service account. Letsencrypt controller must be\ndeployed either via this observer or cluster-wide for this to have an effect.\n",
+         "name": "EXPOSE_WITH_LETSENCRYPT",
+         "value": "false"
+      },
+      {
+         "description": "Pull specification of the built SDI Observer image.\n",
+         "name": "JOB_IMAGE",
+         "required": true,
+         "value": "sdi-observer:${OCP_MINOR_RELEASE}"
+      },
+      {
+         "description": "Arguments for job's script. Passed as a json array of strings.\n",
+         "name": "SCRIPT_ARGUMENTS",
+         "required": true,
+         "value": null
+      },
+      {
+         "description": "Minor release of OpenShift Container Platform (e.g. 4.2). This value must match the OCP\nserver version. The biggest tolerated difference between the versions is 1 in the second\ndigit.\n",
+         "name": "OCP_MINOR_RELEASE",
+         "required": true,
+         "value": "4.2"
+      }
+   ]
+}

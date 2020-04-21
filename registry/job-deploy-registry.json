@@ -48,16 +48,16 @@
                         "value": "${FORCE_REDEPLOY}"
                       },
                       {
-                        "name": "RECREATE_SECRETS",
-                        "value": "${RECREATE_SECRETS}"
+                        "name": "REPLACE_SECRETS",
+                        "value": "${REPLACE_SECRETS}"
                       },
                       {
                         "name": "FORCE_REDEPLOY",
                         "value": "${FORCE_REDEPLOY}"
                       },
                       {
-                        "name": "RECREATE_SECRETS",
-                        "value": "${RECREATE_SECRETS}"
+                        "name": "REPLACE_SECRETS",
+                        "value": "${REPLACE_SECRETS}"
                       },
                       {
                         "name": "EXPOSE_WITH_LETSENCRYPT",
@@ -123,7 +123,7 @@
     },
     {
       "description": "Whether to replace secrets like SDI Registry's htpasswd file if they exist already.\n",
-      "name": "RECREATE_SECRETS",
+      "name": "REPLACE_SECRETS",
       "required": false,
       "value": "false"
     },

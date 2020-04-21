@@ -39,7 +39,96 @@
                "spec": {
                   "containers": [
                      {
-                        "env": [ ],
+                        "env": [
+                           {
+                              "name": "DRY_RUN",
+                              "value": "${DRY_RUN}"
+                           },
+                           {
+                              "name": "NAMESPACE",
+                              "value": "${NAMESPACE}"
+                           },
+                           {
+                              "name": "FORCE_REDEPLOY",
+                              "value": "${FORCE_REDEPLOY}"
+                           },
+                           {
+                              "name": "REPLACE_SECRETS",
+                              "value": "${REPLACE_SECRETS}"
+                           },
+                           {
+                              "name": "REDHAT_REGISTRY_SECRET_NAME",
+                              "value": "${REDHAT_REGISTRY_SECRET_NAME}"
+                           },
+                           {
+                              "name": "SDI_NAMESPACE",
+                              "value": "${SDI_NAMESPACE}"
+                           },
+                           {
+                              "name": "MARK_REGISTRY_INSECURE",
+                              "value": "${MARK_REGISTRY_INSECURE}"
+                           },
+                           {
+                              "name": "MAKE_VSYSTEM_IPTABLES_PODS_PRIVILEGED",
+                              "value": "${MAKE_VSYSTEM_IPTABLES_PODS_PRIVILEGED}"
+                           },
+                           {
+                              "name": "NODE_LOG_FORMAT",
+                              "value": "${NODE_LOG_FORMAT}"
+                           },
+                           {
+                              "name": "REGISTRY",
+                              "value": "${REGISTRY}"
+                           },
+                           {
+                              "name": "DEPLOY_SDI_REGISTRY",
+                              "value": "${DEPLOY_SDI_REGISTRY}"
+                           },
+                           {
+                              "name": "DEPLOY_LETSENCRYPT",
+                              "value": "${DEPLOY_LETSENCRYPT}"
+                           },
+                           {
+                              "name": "LETSENCRYPT_REPOSITORY",
+                              "value": "${LETSENCRYPT_REPOSITORY}"
+                           },
+                           {
+                              "name": "LETSENCRYPT_REVISION",
+                              "value": "${LETSENCRYPT_REVISION}"
+                           },
+                           {
+                              "name": "LETSENCRYPT_ENVIRONMENT",
+                              "value": "${LETSENCRYPT_ENVIRONMENT}"
+                           },
+                           {
+                              "name": "SDI_REGISTRY_STORAGE_CLASS_NAME",
+                              "value": "${SDI_REGISTRY_STORAGE_CLASS_NAME}"
+                           },
+                           {
+                              "name": "SDI_REGISTRY_USERNAME",
+                              "value": "${SDI_REGISTRY_USERNAME}"
+                           },
+                           {
+                              "name": "SDI_REGISTRY_PASSWORD",
+                              "value": "${SDI_REGISTRY_PASSWORD}"
+                           },
+                           {
+                              "name": "SDI_REGISTRY_HTPASSWD_SECRET_NAME",
+                              "value": "${SDI_REGISTRY_HTPASSWD_SECRET_NAME}"
+                           },
+                           {
+                              "name": "SDI_REGISTRY_ROUTE_HOSTNAME",
+                              "value": "${SDI_REGISTRY_ROUTE_HOSTNAME}"
+                           },
+                           {
+                              "name": "SDI_REGISTRY_HTTP_SECRET",
+                              "value": "${SDI_REGISTRY_HTTP_SECRET}"
+                           },
+                           {
+                              "name": "SDI_REGISTRY_VOLUME_CAPACITY",
+                              "value": "${SDI_REGISTRY_VOLUME_CAPACITY}"
+                           }
+                        ],
                         "image": " ",
                         "name": "sdi-observer"
                      }
@@ -373,37 +462,25 @@
          "required": true
       },
       {
+         "description": "Whether to forcefully replace existing objects and configuration files. To replace\nexising secrets as well, RECREATE_SECRETS needs to be set.\n",
+         "name": "FORCE_REDEPLOY",
+         "required": false,
+         "value": "false"
+      },
+      {
+         "description": "Whether to replace secrets like SDI Registry's htpasswd file if they exist already.\n",
+         "name": "REPLACE_SECRETS",
+         "required": false,
+         "value": "false"
+      },
+      {
          "description": "Name of the secret with credentials for registry.redhat.io registry. Please visit\nhttps://access.redhat.com/terms-based-registry/ to obtain the OpenShift secret. For\nmore details, please refer to https://access.redhat.com/RegistryAuthentication.'\n",
          "name": "REDHAT_REGISTRY_SECRET_NAME",
          "required": true
       },
       {
-         "description": "Minor release of OpenShift Container Platform (e.g. 4.2). This value must match the OCP\nserver version. The biggest tolerated difference between the versions is 1 in the second\ndigit.\n",
-         "name": "OCP_MINOR_RELEASE",
-         "required": true,
-         "value": "4.2"
-      },
-      {
          "description": "The name of the SAP Data Hub namespace to manage. Defaults to the current one. It must be\nset only in case the observer is running in a differnt namespace (see NAMESPACE).\n",
          "name": "SDI_NAMESPACE"
-      },
-      {
-         "description": "TODO\n",
-         "name": "SDI_OBSERVER_REPOSITORY",
-         "required": true,
-         "value": "https://github.com/redhat-sap/sap-data-intelligence"
-      },
-      {
-         "description": "Revision (e.g. tag, commit or branch) of git repository where SDI Observer's source\nreside.\n",
-         "name": "SDI_OBSERVER_GIT_REVISION",
-         "required": true,
-         "value": "master"
-      },
-      {
-         "description": "A random suffix for the new RoleBinding's name. No need to edit.\n",
-         "from": "[a-z0-9]{5}",
-         "generate": "expression",
-         "name": "ROLE_BINDING_SUFFIX"
       },
       {
          "description": "Set to true if the given or configured VFLOW_REGISTRY shall be marked as insecure in all\ninstances of Pipeline Modeler.\n",
@@ -439,10 +516,6 @@
          "value": "false"
       },
       {
-         "description": "Whether to expose routes annotated for letsencrypt controller. Requires project admin role\nattached to the sdi-observer service account. Letsencrypt controller must be deployed\neither via this observer or cluster-wide for this to have an effect. Defaults to\nDEPLOY_LETSENCRYPT.\n",
-         "name": "EXPOSE_WITH_LETSENCRYPT"
-      },
-      {
          "description": "Unless given, a local copy will be used.\n",
          "name": "LETSENCRYPT_REPOSITORY",
          "required": false,
@@ -461,16 +534,41 @@
          "value": "live"
       },
       {
-         "description": "Whether to forcefully replace existing registry and/or letsencrypt deployments and\nconfiguration files.\n",
-         "name": "FORCE_REDEPLOY",
-         "required": false,
-         "value": "false"
+         "description": "Unless given, the default storage class will be used.\n",
+         "name": "SDI_REGISTRY_STORAGE_CLASS_NAME",
+         "required": false
       },
       {
-         "description": "Whether to replace secrets like SDI Registry's htpasswd file if they exist already.\n",
-         "name": "RECREATE_SECRETS",
+         "description": "Will be used to generate htpasswd file to provide authentication data to the sdi registry\nservice as long as SDI_REGISTRY_HTPASSWD_SECRET_NAME does not exist or REPLACE_SECRETS is\n\"true\".\n",
+         "from": "user-[a-z0-9]{6}",
+         "generage": "expression",
+         "name": "SDI_REGISTRY_USERNAME",
+         "required": false
+      },
+      {
+         "description": "Will be used to generate htpasswd file to provide authentication data to the sdi registry\nservice as long as SDI_REGISTRY_HTPASSWD_SECRET_NAME does not exist or REPLACE_SECRETS is\n\"true\".\n",
+         "from": "[a-zA-Z0-9]{32}",
+         "generage": "expression",
+         "name": "SDI_REGISTRY_PASSWORD",
+         "required": false
+      },
+      {
+         "description": "A secret with htpasswd file with authentication data for the sdi image container If\ngiven and the secret exists, it will be used instead of SDI_REGISTRY_USERNAME and\nSDI_REGISTRY_PASSWORD.\n",
+         "name": "SDI_REGISTRY_HTPASSWD_SECRET_NAME",
          "required": false,
-         "value": "false"
+         "value": "container-image-registry-htpasswd"
+      },
+      {
+         "description": "Desired hostname of the exposed registry service. Defaults to\ncontainer-image-registry-<NAMESPACE>-apps.<cluster_name>.<base_domain>\n",
+         "name": "SDI_REGISTRY_ROUTE_HOSTNAME",
+         "required": false
+      },
+      {
+         "description": "A random piece of data used to sign state that may be stored with the client to protect\nagainst tampering. If omitted, the registry will automatically generate a secret when it\nstarts. If using multiple replicas of registry, the secret MUST be the same for all of\nthem.\n",
+         "from": "[a-zA-Z0-9]{32}",
+         "generage": "expression",
+         "name": "SDI_REGISTRY_HTTP_SECRET",
+         "required": false
       },
       {
          "description": "Volume space available for container images (e.g. 75Gi).\n",
@@ -479,31 +577,32 @@
          "value": "75Gi"
       },
       {
-         "description": "Unless given, the default storage class will be used.\n",
-         "name": "SDI_REGISTRY_STORAGE_CLASS_NAME",
-         "required": false
+         "description": "Name of the secret with credentials for registry.redhat.io registry. Please visit\nhttps://access.redhat.com/terms-based-registry/ to obtain the OpenShift secret. For\nmore details, please refer to https://access.redhat.com/RegistryAuthentication.'\n",
+         "name": "REDHAT_REGISTRY_SECRET_NAME",
+         "required": true
       },
       {
-         "description": "A secret with htpasswd file with authentication data for the sdi image container If given\nand the secret exists, it will be used instead of SDI_REGISTRY_USERNAME and\nSDI_REGISTRY_PASSWORD.\n",
-         "name": "SDI_REGISTRY_HTPASSWD_SECRET_NAME",
-         "required": false
+         "description": "TODO\n",
+         "name": "SDI_OBSERVER_REPOSITORY",
+         "required": true,
+         "value": "https://github.com/redhat-sap/sap-data-intelligence"
       },
       {
-         "from": "user-[a-z0-9]{6}",
-         "generage": "expression",
-         "name": "SDI_REGISTRY_USERNAME",
-         "required": false
+         "description": "Revision (e.g. tag, commit or branch) of git repository where SDI Observer's source\nreside.\n",
+         "name": "SDI_OBSERVER_GIT_REVISION",
+         "required": true,
+         "value": "master"
       },
       {
-         "from": "user-[a-zA-Z0-9]{32}",
-         "generage": "expression",
-         "name": "SDI_REGISTRY_PASSWORD",
-         "required": false
+         "description": "A random suffix for the new RoleBinding's name. No need to edit.\n",
+         "from": "[a-z0-9]{5}",
+         "generate": "expression",
+         "name": "ROLE_BINDING_SUFFIX"
       },
       {
-         "description": "Namespace where the secret with credentials for registry.redhat.io registry resides.\n",
-         "name": "REDHAT_REGISTRY_SECRET_NAMESPACE",
-         "require": false
+         "description": "Whether to expose routes annotated for letsencrypt controller. Requires project admin\nrole attached to the sdi-observer service account. Letsencrypt controller must be\ndeployed either via this observer or cluster-wide for this to have an effect.\n",
+         "name": "EXPOSE_WITH_LETSENCRYPT",
+         "value": "false"
       }
    ]
 }

@@ -35,12 +35,12 @@ objects:
                       value: ${NAMESPACE}
                     - name: FORCE_REDEPLOY
                       value: ${FORCE_REDEPLOY}
-                    - name: RECREATE_SECRETS
-                      value: ${RECREATE_SECRETS}
+                    - name: REPLACE_SECRETS
+                      value: ${REPLACE_SECRETS}
                     - name: FORCE_REDEPLOY
                       value: ${FORCE_REDEPLOY}
-                    - name: RECREATE_SECRETS
-                      value: ${RECREATE_SECRETS}
+                    - name: REPLACE_SECRETS
+                      value: ${REPLACE_SECRETS}
                     - name: EXPOSE_WITH_LETSENCRYPT
                       value: ${EXPOSE_WITH_LETSENCRYPT}
                     - name: SDI_REGISTRY_VOLUME_CAPACITY
@@ -82,7 +82,7 @@ parameters:
       deployments and configuration files.
     required: false
     value: "false"
-  - name: RECREATE_SECRETS
+  - name: REPLACE_SECRETS
     description: >
       Whether to replace secrets like SDI Registry's htpasswd file if they
       exist already.

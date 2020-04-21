@@ -134,7 +134,7 @@ function createHtpasswdSecret() {
 
 function getOrCreateHtpasswdSecret() {
     # returns $username:$password
-    if evalBool RECREATE_SECRETS; then
+    if evalBool REPLACE_SECRETS; then
         createHtpasswdSecret -f
     elif doesResourceExist "secret/$SECRET_NAME"; then
         oc get -o json "secret/$SECRET_NAME" | jq -r '.data[".htpasswd.raw"]' | base64 -d
@@ -209,7 +209,7 @@ function ensureRedHatRegistrySecret() {
     fi
     if [[ "${REDHAT_REGISTRY_SECRET_NAMESPACE:-$NAMESPACE}" != "${NAMESPACE}" ]]; then
         args=()
-        if evalBool RECREATE_SECRETS; then
+        if evalBool REPLACE_SECRETS; then
             args+=( -f )
         fi
         # shellcheck disable=SC2086

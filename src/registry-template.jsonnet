@@ -1,10 +1,13 @@
+local params = import 'common-parameters.libsonnet';
 local base = import 'dc-template.libsonnet';
 local bctmpl = import 'ubi-buildconfig.libsonnet';
 
 base.DCTemplate {
   local regtmpl = self,
+  local container = super.objects[0].spec.template.spec.containers[0],
   resourceName: 'container-image-registry',
   imageStreamTag: regtmpl.resourceName + ':latest',
+  parametersToExport: [],
 
   local bc = bctmpl.BuildConfigTemplate {
     resourceName: regtmpl.resourceName,
@@ -48,7 +51,47 @@ base.DCTemplate {
     |||,
   },
 
-  objects+: [
+  local addVolumes(object) = if object.kind == 'DeploymentConfig' then
+    object {
+      spec+: {
+        template+: {
+          spec+: {
+            containers: [(c {
+                            volumeMounts+: [
+                              {
+                                name: 'storage',
+                                mountPath: '/var/lib/registry',
+                              },
+                              {
+                                name: 'htpasswd',
+                                mountPath: '/etc/docker-distribution/htpasswd',
+                                readonly: true,
+                                subPath: 'htpasswd',
+                              },
+                            ],
+                          }) for c in object.spec.template.spec.containers],
+            volumes+: [
+              {
+                name: 'storage',
+                persistentVolumeClaim: {
+                  claimName: regtmpl.resourceName,
+                },
+              },
+              {
+                name: 'htpasswd',
+                secret: {
+                  secretName: '${HTPASSWD_SECRET_NAME}',
+                },
+                readonly: true,
+              },
+            ],
+          },
+        },
+      },
+    }
+  else object,
+
+  objects: [addVolumes(o) for o in super.objects] + [
     bc.bc,
 
     {
@@ -69,7 +112,9 @@ base.DCTemplate {
       kind: 'Service',
       metadata: {
         annotations: {
-          'template.openshift.io/expose-uri': '"https://{.spec.clusterIP}:{.spec.ports[?(.name==\\"registry\\")].port)}"',
+          'template.openshift.io/expose-uri': |||
+            https://{.spec.clusterIP}:{.spec.ports[?(.name=="registry")].port}
+          |||,
         },
         name: regtmpl.resourceName,
         namespace: '${NAMESPACE}',
@@ -100,7 +145,7 @@ base.DCTemplate {
         namespace: '${NAMESPACE}',
       },
       spec: {
-        host: '${HOSTNAME}',
+        host: '${SDI_REGISTRY_ROUTE_HOSTNAME}',
         port: {
           targetPort: 'registry',
         },
@@ -129,36 +174,28 @@ base.DCTemplate {
         ],
         resources: {
           requests: {
-            storage: '${VOLUME_CAPACITY}',
+            storage: '${SDI_REGISTRY_VOLUME_CAPACITY}',
           },
         },
       },
     },
   ],
 
-  parameters+: bc.newParameters + [
+
+  additionalEnvironment+: [
     {
-      description: 'Volume space available for container images (e.g. 75Gi).',
-      name: 'VOLUME_CAPACITY',
-      required: true,
-      value: '75Gi',
+      name: 'REGISTRY_AUTH_HTPASSWD_REALM',
+      value: 'basic-realm',
     },
     {
-      name: 'HTPASSWD_SECRET_NAME',
-      required: true,
-      value: regtmpl.resourceName + '-htpasswd',
+      name: 'REGISTRY_AUTH_HTPASSWD_REALM',
+      value: '/etc/docker-distribution/htpasswd',
     },
     {
-      from: '[a-zA-Z0-9]{32}',
-      generage: 'expression',
       name: 'REGISTRY_HTTP_SECRET',
-    },
-    {
-      description: |||
-        Desired domain name of the exposed registry service.'
-      |||,
-      name: 'HOSTNAME',
-      required: false,
+      value: '${SDI_REGISTRY_HTTP_SECRET}',
     },
   ],
+
+  parameters+: bc.newParameters + params.RegistryParams,
 }
