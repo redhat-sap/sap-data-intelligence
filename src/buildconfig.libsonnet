@@ -1,7 +1,7 @@
 {
   BuildConfig: {
     local bctmpl = self,
-    resourceName:: error 'resourcename must be overriden by a child',
+    resourceName:: error 'resourceName must be overriden by a child',
     srcImageStreamTag:: error 'srcImageStreamTag must be overriden by a child!',
     dstImageStreamTag:: error 'dstImageStreamTag must be overriden by a child!',
     dockerfile:: error 'dockerfile must be overriden by a child!',

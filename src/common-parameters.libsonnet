@@ -141,4 +141,14 @@
       value: '75Gi',
     },
   ],
+
+  NotRequired: function(p)
+    local _mkopt = function(i) i { required: false };
+    if std.isArray(p) then
+      [_mkopt(_p) for _p in p]
+    else if std.isObject(p) then
+      _mkopt(p)
+    else
+      error 'Expected parameter object, not "' + std.type(p) + '"!',
+
 }

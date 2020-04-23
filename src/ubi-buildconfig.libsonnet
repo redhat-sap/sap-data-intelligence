@@ -1,5 +1,6 @@
 local bc = import 'buildconfig.libsonnet';
 local base = import 'ocp-template.libsonnet';
+local ubiis = import 'ubi-imagestream.jsonnet';
 
 {
   BuildConfigTemplate: base.OCPTemplate {
@@ -8,10 +9,12 @@ local base = import 'ocp-template.libsonnet';
     dockerfile:: error 'dockerfile must be overriden by a child!',
     imageStreamTag:: error 'imageStreamTag must be overriden by a child!',
 
+    is:: ubiis.UBIImageStream,
+
     bc:: bc.BuildConfig {
       resourceName: bctmpl.resourceName,
       dstImageStreamTag: bctmpl.imageStreamTag,
-      srcImageStreamTag: 'ubi8:latest',
+      srcImageStreamTag: bctmpl.is.metadata.name + ':latest',
       dockerfile: bctmpl.dockerfile,
 
       spec+: {
@@ -37,7 +40,7 @@ local base = import 'ocp-template.libsonnet';
       },
     ],
 
-    objects+: [bc],
+    objects+: [bctmpl.bc, bctmpl.is],
     parameters+: bctmpl.newParameters,
   },
 }

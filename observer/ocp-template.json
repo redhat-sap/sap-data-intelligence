@@ -212,6 +212,31 @@
          }
       },
       {
+         "apiVersion": "v1",
+         "kind": "ImageStream",
+         "metadata": {
+            "name": "ubi8",
+            "namespace": "${NAMESPACE}"
+         },
+         "spec": {
+            "tags": [
+               {
+                  "from": {
+                     "kind": "DockerImage",
+                     "name": "registry.redhat.io/ubi8/ubi:latest"
+                  },
+                  "name": "latest",
+                  "referencePolicy": {
+                     "type": "Source"
+                  }
+               }
+            ]
+         },
+         "status": {
+            "dockerImageRepository": ""
+         }
+      },
+      {
          "apiVersion": "rbac.authorization.k8s.io/v1",
          "kind": "Role",
          "metadata": {
@@ -397,56 +422,6 @@
          "status": {
             "dockerImageRepository": ""
          }
-      },
-      {
-         "apiVersion": "v1",
-         "kind": "Service",
-         "metadata": {
-            "annotations": {
-               "template.openshift.io/expose-uri": "https://{.spec.clusterIP}:{.spec.ports[?(.name==\"registry\")].port}\n"
-            },
-            "name": "sdi-observer",
-            "namespace": "${NAMESPACE}"
-         },
-         "spec": {
-            "ports": [
-               {
-                  "name": "registry",
-                  "port": 5000
-               }
-            ],
-            "selector": {
-               "deploymentconfig": "sdi-observer"
-            },
-            "sessionAffinity": "ClientIP",
-            "type": "ClusterIP"
-         }
-      },
-      {
-         "apiVersion": "route.openshift.io/v1",
-         "kind": "Route",
-         "metadata": {
-            "annotations": {
-               "template.openshift.io/expose-uri": "https://{.spec.host}{.spec.path}"
-            },
-            "name": "sdi-observer",
-            "namespace": "${NAMESPACE}"
-         },
-         "spec": {
-            "host": "${HOSTNAME}",
-            "port": {
-               "targetPort": "registry"
-            },
-            "subdomain": "",
-            "tls": {
-               "insecureEdgeTerminationPolicy": "Redirect",
-               "termination": "edge"
-            },
-            "to": {
-               "kind": "Service",
-               "name": "sdi-observer"
-            }
-         }
       }
    ],
    "parameters": [
@@ -476,7 +451,7 @@
       {
          "description": "Name of the secret with credentials for registry.redhat.io registry. Please visit\nhttps://access.redhat.com/terms-based-registry/ to obtain the OpenShift secret. For\nmore details, please refer to https://access.redhat.com/RegistryAuthentication.'\n",
          "name": "REDHAT_REGISTRY_SECRET_NAME",
-         "required": true
+         "required": false
       },
       {
          "description": "The name of the SAP Data Hub namespace to manage. Defaults to the current one. It must be\nset only in case the observer is running in a differnt namespace (see NAMESPACE).\n",
@@ -575,11 +550,6 @@
          "name": "SDI_REGISTRY_VOLUME_CAPACITY",
          "required": true,
          "value": "75Gi"
-      },
-      {
-         "description": "Name of the secret with credentials for registry.redhat.io registry. Please visit\nhttps://access.redhat.com/terms-based-registry/ to obtain the OpenShift secret. For\nmore details, please refer to https://access.redhat.com/RegistryAuthentication.'\n",
-         "name": "REDHAT_REGISTRY_SECRET_NAME",
-         "required": true
       },
       {
          "description": "TODO\n",

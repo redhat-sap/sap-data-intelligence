@@ -9,7 +9,7 @@ base.DCTemplate {
   parametersToExport+: [
     params.ForceRedeployParam,
     params.ReplaceSecretsParam,
-  ] + bc.newParameters + [
+  ] + params.NotRequired(bc.newParameters) + [
     {
       description: |||
         The name of the SAP Data Hub namespace to manage. Defaults to the current one. It must be
@@ -178,9 +178,7 @@ base.DCTemplate {
     following command: oc logs -f dc/sdi-observer
   |||,
 
-  objects+: [
-    bc.bc,
-
+  objects+: bc.objects + [
     {
       apiVersion: 'rbac.authorization.k8s.io/v1',
       kind: 'Role',
@@ -371,63 +369,9 @@ base.DCTemplate {
         dockerImageRepository: '',
       },
     },
-
-    {
-      apiVersion: 'v1',
-      kind: 'Service',
-      metadata: {
-        annotations: {
-          'template.openshift.io/expose-uri': |||
-            https://{.spec.clusterIP}:{.spec.ports[?(.name=="registry")].port}
-          |||,
-        },
-        name: obstmpl.resourceName,
-        namespace: '${NAMESPACE}',
-      },
-      spec: {
-        ports: [
-          {
-            name: 'registry',
-            port: 5000,
-          },
-        ],
-        selector: {
-          deploymentconfig: obstmpl.resourceName,
-        },
-        sessionAffinity: 'ClientIP',
-        type: 'ClusterIP',
-      },
-    },
-
-    {
-      apiVersion: 'route.openshift.io/v1',
-      kind: 'Route',
-      metadata: {
-        annotations: {
-          'template.openshift.io/expose-uri': 'https://{.spec.host}{.spec.path}',
-        },
-        name: obstmpl.resourceName,
-        namespace: '${NAMESPACE}',
-      },
-      spec: {
-        host: '${HOSTNAME}',
-        port: {
-          targetPort: 'registry',
-        },
-        subdomain: '',
-        tls: {
-          insecureEdgeTerminationPolicy: 'Redirect',
-          termination: 'edge',
-        },
-        to: {
-          kind: 'Service',
-          name: obstmpl.resourceName,
-        },
-      },
-    },
   ],
 
-  parameters+: bc.newParameters + [
+  parameters+: [
     {
       description: |||
         TODO
