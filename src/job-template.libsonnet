@@ -26,12 +26,17 @@ local base = import 'ocp-template.libsonnet';
           activeDeadlineSeconds: 30 * 60,
           backoffLimit: 9999,
           completions: 1,
-          metadata: {
-            labels: {
+          selector: {
+            matchLabels: {
               job: jobtmpl.resourceName,
             },
           },
           template: {
+            metadata: {
+              labels: {
+                job: jobtmpl.resourceName,
+              },
+            },
             spec: {
               containers: [
                 {

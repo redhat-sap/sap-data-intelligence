@@ -24,13 +24,18 @@
             "activeDeadlineSeconds": 1800,
             "backoffLimit": 9999,
             "completions": 1,
-            "metadata": {
-               "labels": {
+            "parallelism": 1,
+            "selector": {
+               "matchLabels": {
                   "job": "deploy-letsencrypt"
                }
             },
-            "parallelism": 1,
             "template": {
+               "metadata": {
+                  "labels": {
+                     "job": "deploy-letsencrypt"
+                  }
+               },
                "spec": {
                   "containers": [
                      {
