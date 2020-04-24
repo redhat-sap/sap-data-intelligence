@@ -150,7 +150,7 @@ function common_init() {
     for pth in "${KUBECONFIG:-}" "$HOME/.kube/config"; do
         if [[ -n "${pth:-}" && -f "$pth" && -r "$pth" ]]; then
             cp "${pth}" "$TMP/"
-            KUBECONFIG="$TMP/$(basename "$KUBECONFIG")"
+            KUBECONFIG="$TMP/$(basename "$pth")"
             export KUBECONFIG
             break
         fi
