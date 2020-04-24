@@ -116,10 +116,14 @@ function ensureRepository() {
 
 function copyRoleToProject() {
     local project="$1"
-    createOrReplace -n "$project" <<<"$roleSpec"
+    local rc=0
+    if [[ "$project" != "$NAMESPACE" ]]; then
+        createOrReplace -n "$project" <<<"$roleSpec" || rc=$?
+    fi
     oc create rolebinding --namespace="$project" openshift-acme --role=openshift-acme \
         --serviceaccount="$NAMESPACE:openshift-acme" --dry-run -o json | \
-            createOrReplace
+            createOrReplace || rc=$?
+    return "$rc"
 }
 export -f copyRoleToProject
 
@@ -158,8 +162,7 @@ function deployLetsencrypt() {
     # shellcheck disable=SC2034
     roleSpec="$(oc get -o json role openshift-acme)"
     export roleSpec 
-    parallel copyRoleToProject '{}' < \
-        <(printf '%s\n' "${PROJECTS[@]}" | grep -v '^'"$NAMESPACE"'$')
+    parallel copyRoleToProject '{}' ::: "${PROJECTS[@]}"
     unset roleSpec
 }
 
