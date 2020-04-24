@@ -287,6 +287,20 @@ function deployComponent() {
             args+=( "PROJECTS_TO_MONITOR=$(join , "${projects[@]}")" )
             ;;
     esac
+
+    # prune empty parameters
+    local toDelete=()
+    for ((i=${#args[@]} - 1; i >= 0 ; i--)); do
+        if [[ "${args[$i]}" =~ ^[^=]+=$ ]]; then
+            toDelete+=( "$i" )
+        fi
+    done
+    if [[ "${#toDelete[@]}" -gt 0 ]]; then
+        for i in "${toDelete[@]}"; do
+            unset args["$i"]
+        done
+    fi
+
     for d in "${dirs[@]}"; do
         local pth="$d/$fn"
         if [[ -f "$pth" ]]; then
