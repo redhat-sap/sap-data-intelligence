@@ -262,7 +262,7 @@ function deployComponent() {
         FORCE_REDEPLOY="${FORCE_REDEPLOY:-}"
         REPLACE_SECRETS="${REPLACE_SECRETS:-}"
         JOB_IMAGE="$(getJobImage)"
-        WAIT_UNTIL_ROLLEDOUT=true
+        #WAIT_UNTIL_ROLLEDOUT=true
     )
     case "${component}" in
         registry)
