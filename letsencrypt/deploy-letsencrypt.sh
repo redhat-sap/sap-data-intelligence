@@ -114,17 +114,13 @@ function ensureRepository() {
     ensureRemoteRepository "$GITHUB_REPOSITORY"
 }
 
-function mkRoleBindingForProject() {
-    local project="$1"
-    oc create rolebinding --namespace="$project" openshift-acme --role=openshift-acme \
-        --serviceaccount="$NAMESPACE:openshift-acme" --dry-run -o json | \
-            createOrReplace
-}
-export -f mkRoleBindingForProject
-
 function copyRoleToProject() {
     local project="$1"
     createOrReplace -n "$project" <<<"$roleSpec"
+    mkRoleBindingForProject "$project"
+    oc create rolebinding --namespace="$project" openshift-acme --role=openshift-acme \
+        --serviceaccount="$NAMESPACE:openshift-acme" --dry-run -o json | \
+            createOrReplace
 }
 export -f copyRoleToProject
 
@@ -139,9 +135,6 @@ function ensureProject() {
             [[ "$cm" =~ -$ENVIRONMENT$ ]] && continue
             runOrLog oc delete "$cm"
         done < <(oc get cm -o name | grep '/letsencrypt-\(live\|staging\)')
-    fi
-    if ! evalBool DONT_GRANT_PROJECT_PERMISSIONS; then
-        parallel mkRoleBindingForProject '{}' ::: "${PROJECTS[@]}"
     fi
     set +x
 }
@@ -165,7 +158,7 @@ function deployLetsencrypt() {
     fi
     # shellcheck disable=SC2034
     roleSpec="$(oc get -o json role openshift-acme)"
-    export roleSpec
+    export roleSpec 
     parallel copyRoleToProject '{}' < \
         <(printf '%s\n' "${PROJECTS[@]}" | grep -v '^'"$NAMESPACE"'$')
     unset roleSpec
@@ -204,13 +197,10 @@ function addProjects() {
     done
 }
 
-NAMESPACE="${LETSENCRYPT_NAMESPACE:-}"
-if [[ -z "${NAMESPACE:-}" ]]; then
-    NAMESPACE="$(oc project -q ||:)"
-    if [[ -z "${NAMESPACE:-}" ]]; then
-        NAMESPACE="${SDI_NAMESPACE:-}"
-    fi
+if [[ -n "${LETSENCRYPT_NAMESPACE:-}" ]]; then
+    NAMESPACE="${LETSENCRYPT_NAMESPACE:-}"
 fi
+export NAMESPACE
 
 REVISION=master
 
