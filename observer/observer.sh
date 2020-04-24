@@ -216,12 +216,12 @@ function checkPermissions() {
             readarray -t letsencryptKinds <<<"$(oc create --dry-run \
                 -f "${prefix#file://}/$fn" -o jsonpath=$'{.kind}\n')"
             for kind in "${letsencryptKinds[@],,}"; do
-                toCheck+=( "${nmprefix}create/${kind}" )
+                toCheck+=( "${nmprefix}create/${kind,,}" )
             done
         done
     fi
     if evalBool DEPLOY_LETSENCRYPT || evalBool DEPLOY_SDI_REGISTRY; then
-        toCheck+=( "${nmprefix}delete/${kind}" )
+        toCheck+=( "${nmprefix}delete/job" )
     fi
 
     readarray -t lackingPermissions <<<"$(parallel checkPerm ::: "${toCheck[@]}")"
