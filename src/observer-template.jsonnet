@@ -361,7 +361,6 @@ base.DCTemplate {
           deploymentconfig: obstmpl.resourceName,
         },
         name: obstmpl.resourceName + '-node-reader-${ROLE_BINDING_SUFFIX}',
-        namespace: '${NAMESPACE}',
       },
       roleRef: {
         apiGroup: 'rbac.authorization.k8s.io',
@@ -385,7 +384,6 @@ base.DCTemplate {
           deploymentconfig: obstmpl.resourceName,
         },
         name: obstmpl.resourceName + '-admin',
-        namespace: '${NAMESPACE}',
       },
       roleRef: {
         apiGroup: 'rbac.authorization.k8s.io',

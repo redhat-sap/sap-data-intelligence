@@ -76,11 +76,6 @@ function doesLocalRepositoryExist() {
         log 'Given repository location "%s" does not exist!' "$location"
         return 1
     fi
-    if ! git -C "${location}" checkout "$REVISION"; then
-        log 'Cannot check out desired revision in repository %s! Falling back to %s' \
-            "$REVISION" "$DEFAULT_LETSENCRYPT_REPOSITORY" "$GITHUB_REPOSITORY"
-        return 1
-    fi
 }
 
 function ensureRemoteRepository() {
@@ -113,7 +108,7 @@ function ensureRepository() {
         fi
         return $?
     fi
-    if doesLocalRepositoryExist "$DEFAULT_LETSENCRYPT_REPOSITORY" 2>/dev/null; then
+    if doesLocalRepositoryExist "$DEFAULT_LETSENCRYPT_REPOSITORY"; then
         REPOSITORY="$DEFAULT_LETSENCRYPT_REPOSITORY"
         return 0 
     fi
