@@ -231,40 +231,41 @@ function checkPermissions() {
     fi
 }
 
-function runDeployScript() {
-    local scriptName="$1"
+function deployComponent() {
+    local component="$1"
     local dirs=(
         .
         ""
         "$(dirname "${BASH_SOURCE[@]}")"
-        /usr/local/share/sdi/registry
-        /usr/local/share/sdi/letsencrypt
+        /usr/local/share/sdi
     )
     local d
+    local fn="$component/deploy-job-template.json"
     for d in "${dirs[@]}"; do
-        if [[ -z "${d:-}" ]] && command -v "$scriptName"; then
-            "$scriptName" &
-            return 0
-        elif [[ -n "${d:-}" && -x "${d}/$scriptName" ]]; then
-            "$d/$scriptName" &
+        local pth="$d/$fn"
+        if [[ -f "$pth" ]]; then
+            createOrReplace < "$pth"
             return 0
         fi
     done
-    log 'WARNING: Cannot find %s script' "$scriptName"
+    log 'WARNING: Cannot find %s, skipping deployment!' "$fn"
     return 1
 }
 
 checkPermissions
 
 if evalBool DEPLOY_SDI_REGISTRY; then
-    runDeployScript deploy-registry.sh
+    if evalBool DEPLOY_LETSENCRYPT && [[ -z "${EXPOSE_WITH_LETSENCRYPT:-}" ]]; then
+        export EXPOSE_WITH_LETSENCRYPT=true
+    fi
+    deployComponent deploy-registry.sh
 fi
 if evalBool DEPLOY_LETSENCRYPT; then
     if [[ -z "${LETSENCRYPT_NAMESPACE:-}" ]] && evalBool DEPLOY_SDI_REGISTRY; then
         LETSENCRYPT_NAMESPACE="${SDI_REGISTRY_NAMESPACE:-}"
     fi
     LETSENCRYPT_NAMESPACE="${LETSENCRYPT_NAMESPACE:-$SDI_NAMESPACE}" \
-        runDeployScript deploy-letsencrypt.sh
+        deployComponent deploy-letsencrypt.sh
 fi
 
 if [[ -n "${SDI_NAMESPACE:-}" ]]; then

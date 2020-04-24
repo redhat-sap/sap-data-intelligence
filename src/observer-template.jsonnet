@@ -75,7 +75,12 @@ base.DCTemplate {
       required: false,
       value: 'false',
     },
-  ] + params.LetsencryptParams + params.RegistryDeployParams + params.RegistryParams,
+  ] + params.LetsencryptParams + params.RegistryDeployParams + params.RegistryParams + [
+    std.prune(params.ExposeWithLetsencryptParam {
+      value: null,
+      description+: 'Defaults to the value of DEPLOY_LETSENCRYPT.',
+    }),
+  ],
 
   local bc = bctmpl.BuildConfigTemplate {
     resourceName: obstmpl.resourceName,
@@ -404,5 +409,5 @@ base.DCTemplate {
       generate: 'expression',
       name: 'ROLE_BINDING_SUFFIX',
     },
-  ] + +[params.ExposeWithLetsencryptParam],
+  ],
 }

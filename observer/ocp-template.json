@@ -131,6 +131,10 @@
                            {
                               "name": "SDI_REGISTRY_VOLUME_CAPACITY",
                               "value": "${SDI_REGISTRY_VOLUME_CAPACITY}"
+                           },
+                           {
+                              "name": "EXPOSE_WITH_LETSENCRYPT",
+                              "value": "${EXPOSE_WITH_LETSENCRYPT}"
                            }
                         ],
                         "image": " ",
@@ -556,6 +560,10 @@
          "value": "75Gi"
       },
       {
+         "description": "Whether to expose routes annotated for letsencrypt controller. Requires project admin\nrole attached to the sdi-observer service account. Letsencrypt controller must be\ndeployed either via this observer or cluster-wide for this to have an effect.\nDefaults to the value of DEPLOY_LETSENCRYPT.",
+         "name": "EXPOSE_WITH_LETSENCRYPT"
+      },
+      {
          "description": "Minor release of OpenShift Container Platform (e.g. 4.2). This value must match the OCP\nserver version. The biggest tolerated difference between the versions is 1 in the second\ndigit.\n",
          "name": "OCP_MINOR_RELEASE",
          "required": true,
@@ -578,11 +586,6 @@
          "from": "[a-z0-9]{5}",
          "generate": "expression",
          "name": "ROLE_BINDING_SUFFIX"
-      },
-      {
-         "description": "Whether to expose routes annotated for letsencrypt controller. Requires project admin\nrole attached to the sdi-observer service account. Letsencrypt controller must be\ndeployed either via this observer or cluster-wide for this to have an effect.\n",
-         "name": "EXPOSE_WITH_LETSENCRYPT",
-         "value": "false"
       }
    ]
 }
