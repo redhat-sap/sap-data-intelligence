@@ -6,6 +6,7 @@ local base = import 'ocp-template.libsonnet';
     local jobtmpl = self,
     resourceName:: error 'resourceName must be overriden!',
     command:: error 'command must be overriden!',
+    defaultArguments:: ['--wait'],
     args:: null,
     jobImage:: 'JOB_IMAGE',
     parametersToExport:: super.parameters + [
@@ -70,7 +71,10 @@ local base = import 'ocp-template.libsonnet';
         |||,
         name: 'SCRIPT_ARGUMENTS',
         required: false,
-        value: std.toString(if jobtmpl.args != null then jobtmpl.args else ['--wait']),
+        value: std.toString(
+          jobtmpl.defaultArguments
+          + if jobtmpl.args != null then jobtmpl.args else []
+        ),
       },
     ],
   },

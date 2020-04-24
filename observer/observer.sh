@@ -262,6 +262,7 @@ function deployComponent() {
         FORCE_REDEPLOY="${FORCE_REDEPLOY:-}"
         REPLACE_SECRETS="${REPLACE_SECRETS:-}"
         JOB_IMAGE="$(getJobImage)"
+        # passed as an argument instead
         #WAIT_UNTIL_ROLLEDOUT=true
     )
     case "${component}" in
