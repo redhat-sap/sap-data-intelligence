@@ -188,7 +188,7 @@ base.DCTemplate {
       value: 'basic-realm',
     },
     {
-      name: 'REGISTRY_AUTH_HTPASSWD_REALM',
+      name: 'REGISTRY_AUTH_HTPASSWD_PATH',
       value: '/etc/docker-distribution/htpasswd',
     },
     {
