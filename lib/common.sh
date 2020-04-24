@@ -161,7 +161,10 @@ function common_init() {
     #    If you use programs that use GNU Parallel to process data for an article in a
     #    scientific publication, please cite:
     # This is not going to be a part of scientific publication.
-    mkdir -p "$HOME/.parallel" && touch "$HOME/.parallel/will-cite" || :
+    PARALLEL_HOME="$TMP/.parallel"
+    mkdir -p "$PARALLEL_HOME"
+    touch "$PARALLEL_HOME/.parallel/will-cite" || :
+    export PARALLEL_HOME
 
     [[ -z "${NAMESPACE:-}" ]] && NAMESPACE="$(oc project -q)"
     export NAMESPACE

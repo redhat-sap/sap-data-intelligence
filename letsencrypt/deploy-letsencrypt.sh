@@ -71,6 +71,7 @@ function doesLocalRepositoryExist() {
     if [[ -z "${location:-}" ]]; then
         return 1
     fi
+    local location="${location#file://}"
     if ! [[ -e "${location}" && -d "${location}" ]]; then
         log 'Given repository location "%s" does not exist!' "$location"
         return 1
