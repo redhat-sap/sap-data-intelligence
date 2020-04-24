@@ -201,7 +201,9 @@ function checkPermissions() {
     [[ -n "${NAMESPACE:-}" ]] && nmprefix="${NAMESPACE:-}:"
     if evalBool DEPLOY_SDI_REGISTRY; then
         declare -a registryKinds=()
-        readarray -t registryKinds <<<"$(oc process REDHAT_REGISTRY_SECRET_NAME=foo \
+        readarray -t registryKinds <<<"$(oc process \
+            NAMESPACE="${NAMESPACE:-foo}" \
+            REDHAT_REGISTRY_SECRET_NAME=foo \
             -f "$(getRegistryTemplatePath)" -o jsonpath=$'{range .items[*]}{.kind}\n{end}')"
         for kind in "${registryKinds[@],,}"; do
             toCheck+=( "${nmprefix}create/${kind}" )

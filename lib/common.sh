@@ -201,6 +201,7 @@ function createOrReplace() {
     local rc=0
     local err force namespace action args=()
     local input=/dev/fd/0
+    local overrideNamespace=0
     force="$(evalBool FORCE_REDEPLOY && printf true || printf false)"
     while [[ $# -gt 0 ]]; do
         case "${1:-}" in
@@ -211,6 +212,7 @@ function createOrReplace() {
             ;;
         -n)
             namespace="$2"
+            overrideNamespace=1
             shift 2
             ;;
         -i)
@@ -224,6 +226,22 @@ function createOrReplace() {
     done
 
     object="$(convertObjectToJSON -i "$input")"
+    if [[ "$(jq 'has("items")' <<<"$object")" == "true" ]]; then
+        local resources=() res kind name
+        readarray -t resources <<<"$(jq -r '.items[] | "\(.kind)/\(.metadata.name)\n"' \
+                <<<"$object")"
+        local rc=0
+        local childArgs=()
+        "$force" && childArgs+=( "-f" )
+        [[ "$overrideNamespace" == 1 ]] && childArgs+=( -n "$namespace" )
+        for res in "${resources[@]}"; do
+            [[ -z "${res:-}" ]] && continue
+            IFS=/ read -r kind name <<<"$res"
+            jq '.items[] | select(.kind == "'"$kind"'" and .metadata.name == "'"$name"'")' \
+                <<<"$object" | createOrReplace "${childArgs[@]}" || rc=$?
+        done
+        return $rc
+    fi
 
     if [[ -n "${namespace:-}" ]]; then
         object="$(jq '.metadata.namespace |= "'"$namespace"'"' <<<"$object")"
@@ -250,14 +268,11 @@ function createOrReplace() {
         return 0
     fi
     args=( -f - )
-    if [[ $rc != 0 ]]; then
-        if grep -q AlreadyExists <<<"${err:-}" && evalBool force; then
-            args+=( --force )
-        fi
+    if grep -q 'AlreadyExists\|Conflict\|Forbidden\|field is immutable' \
+            <<<"${err:-}" && evalBool force;
+    then
+        args+=( --force )
     fi
-    object="$(jq 'del(.spec.template.metadata.labels["controller-uid"]) |
-        del(.spec.selector.matchLabels["controller-uid"]) |
-        del(.metadata.labels["controller-uid"])' <<<"$object")"
     err="$(oc replace "${args[@]}" <<<"$object" 2>&1)" && rc=0 || rc=$?
     printf '%s\n' "$err" >&2
     if [[ $rc == 0 ]] || ! grep -q 'Conflict\|Forbidden\|field is immutable' <<<"${err:-}"; then

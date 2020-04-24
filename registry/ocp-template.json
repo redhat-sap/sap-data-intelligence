@@ -43,6 +43,14 @@
                         "command": null,
                         "env": [
                            {
+                              "name": "DRY_RUN",
+                              "value": "${DRY_RUN}"
+                           },
+                           {
+                              "name": "NAMESPACE",
+                              "value": "${NAMESPACE}"
+                           },
+                           {
                               "name": "REGISTRY_AUTH_HTPASSWD_REALM",
                               "value": "basic-realm"
                            },
@@ -246,6 +254,17 @@
       }
    ],
    "parameters": [
+      {
+         "description": "If set to true, no action will be performed. The pod will just print\nwhat would have been executed.\n",
+         "name": "DRY_RUN",
+         "required": false,
+         "value": "false"
+      },
+      {
+         "description": "The desired namespace to deploy resources to. Defaults to the current\none.\n",
+         "name": "NAMESPACE",
+         "required": true
+      },
       {
          "description": "Name of the secret with credentials for registry.redhat.io registry. Please visit\nhttps://access.redhat.com/terms-based-registry/ to obtain the OpenShift secret. For\nmore details, please refer to https://access.redhat.com/RegistryAuthentication.'\n",
          "name": "REDHAT_REGISTRY_SECRET_NAME",

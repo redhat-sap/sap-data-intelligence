@@ -7,7 +7,7 @@ base.DCTemplate {
   local container = super.objects[0].spec.template.spec.containers[0],
   resourceName: 'container-image-registry',
   imageStreamTag: regtmpl.resourceName + ':latest',
-  parametersToExport: [],
+  parametersToExport+: [],
 
   local bc = bctmpl.BuildConfigTemplate {
     resourceName: regtmpl.resourceName,

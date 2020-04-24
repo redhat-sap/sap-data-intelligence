@@ -90,7 +90,6 @@ function ensureRemoteRepository() {
 }
 
 function ensureRepository() {
-    set -x
     if [[ -n "${REPOSITORY:-}" ]]; then
         if isPathLocal "$REPOSITORY"; then
             doesLocalRepositoryExist "$REPOSITORY"
@@ -130,6 +129,7 @@ function copyRoleToProject() {
 export -f copyRoleToProject
 
 function ensureProject() {
+    set -x
     local cm
     if ! doesResourceExist "project/$NAMESPACE"; then
         runOrLog oc new-project "$NAMESPACE"
@@ -143,6 +143,7 @@ function ensureProject() {
     if ! evalBool DONT_GRANT_PROJECT_PERMISSIONS; then
         parallel mkRoleBindingForProject '{}' ::: "${PROJECTS[@]}"
     fi
+    set +x
 }
 
 function cleanup() {

@@ -25,11 +25,6 @@
             "backoffLimit": 9999,
             "completions": 1,
             "parallelism": 1,
-            "selector": {
-               "matchLabels": {
-                  "job": "deploy-registry"
-               }
-            },
             "template": {
                "metadata": {
                   "labels": {
