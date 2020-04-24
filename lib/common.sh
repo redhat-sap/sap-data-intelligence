@@ -149,7 +149,7 @@ function common_init() {
     export TMP
     for pth in "${KUBECONFIG:-}" "$HOME/.kube/config"; do
         if [[ -n "${pth:-}" && -f "$pth" && -r "$pth" ]]; then
-            cp "${KUBECONFIG:-}" "$TMP/"
+            cp "${pth}" "$TMP/"
             KUBECONFIG="$TMP/$(basename "$KUBECONFIG")"
             export KUBECONFIG
             break
