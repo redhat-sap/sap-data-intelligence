@@ -220,6 +220,9 @@ function checkPermissions() {
             done
         done
     fi
+    if evalBool DEPLOY_LETSENCRYPT || evalBool DEPLOY_SDI_REGISTRY; then
+        toCheck+=( "${nmprefix}delete/${kind}" )
+    fi
 
     readarray -t lackingPermissions <<<"$(parallel checkPerm ::: "${toCheck[@]}")"
 

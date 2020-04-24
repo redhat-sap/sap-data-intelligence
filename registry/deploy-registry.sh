@@ -49,8 +49,9 @@ readonly longOptions=(
     rht-registry-secret-namespace: dry-run
 )
 
-NAMESPACE="${SDI_REGISTRY_NAMESPACE:-}"
-if [[ -z "${NAMESPACE:-}" ]]; then
+if [[ -z "${NAMESPACE:-}" && -n "${SDI_REGISTRY_NAMESPACE:-}" ]]; then
+    NAMESPACE="${SDI_REGISTRY_NAMESPACE:-}"
+elif [[ -z "${NAMESPACE:-}" ]]; then
     NAMESPACE="$(oc project -q ||:)"
     if [[ -z "${NAMESPACE:-}" ]]; then
         NAMESPACE="${SDI_NAMESPACE:-}"

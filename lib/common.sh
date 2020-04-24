@@ -15,14 +15,6 @@ readonly DEFAULT_SDI_REGISTRY_HTPASSWD_SECRET_NAME="container-image-registry-htp
 readonly SDI_REGISTRY_TEMPLATE_FILE_NAME=ocp-template.json
 
 
-if [[ -n "${SDI_NAMESPACE:-}" ]]; then
-    HOME="$(mktemp -d)"    # so that oc can create $HOME/.kube/ directory
-    export HOME
-else
-    SDI_NAMESPACE="$(oc project -q 2>/dev/null|| :)"
-    export SDI_NAMESPACE
-fi
-
 function join() { local IFS="${1:-}"; shift; echo "$*"; }
 
 # support both 3.x and 4.x output formats
@@ -145,7 +137,6 @@ function common_init() {
     fi
     trap common_cleanup EXIT
     TMP="$(mktemp -d)"
-    export TMP
     for pth in "${KUBECONFIG:-}" "$HOME/.kube/config"; do
         if [[ -n "${pth:-}" && -f "$pth" && -r "$pth" ]]; then
             cp "${pth}" "$TMP/"
@@ -154,6 +145,8 @@ function common_init() {
             break
         fi
     done
+    HOME="$TMP"    # so that oc can create $HOME/.kube/ directory
+    export TMP HOME
 
     # shellcheck disable=SC2015
     # Disable quotation remark according to `parallel --bibtex`:
@@ -168,6 +161,12 @@ function common_init() {
 
     [[ -z "${NAMESPACE:-}" ]] && NAMESPACE="$(oc project -q)"
     export NAMESPACE
+
+
+    if [[ -z "${SDI_NAMESPACE:-}" ]]; then
+        SDI_NAMESPACE="$NAMESPACE"
+    fi
+    export SDI_NAMESPACE
 
     _common_init_performed=1
 }
@@ -268,8 +267,8 @@ function createOrReplace() {
         return 0
     fi
     args=( -f - )
-    if grep -q 'AlreadyExists\|Conflict\|Forbidden\|field is immutable' \
-            <<<"${err:-}" && evalBool force;
+    if grep -q 'AlreadyExists\|Conflict\|Forbidden\|field is immutable' <<<"${err:-}" && \
+            evalBool force || [[ "${kind,,}" == job ]];
     then
         args+=( --force )
     fi
