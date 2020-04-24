@@ -131,9 +131,9 @@ function mkRegistryTemplateParams() {
         printf '%s=%s\n' "$key" "$value"
     done < <(printf '%s\n' \
         "SDI_REGISTRY_ROUTE_HOSTNAME=${REGISTRY_HOSTNAME:-}" \
-        "HTPASSWD_SECRET_NAME=$SECRET_NAME" \
+        "SDI_REGISTRY_HTPASSWD_SECRET_NAME=$SECRET_NAME" \
         "NAMESPACE=$NAMESPACE" \
-        "VOLUME_CAPACITY=${SDI_REGISTRY_VOLUME_CAPACITY:-}" \
+        "SDI_REGISTRY_VOLUME_CAPACITY=${SDI_REGISTRY_VOLUME_CAPACITY:-}" \
         "REDHAT_REGISTRY_SECRET_NAME=$REDHAT_REGISTRY_SECRET_NAME")
 }
 export -f mkRegistryTemplateParams

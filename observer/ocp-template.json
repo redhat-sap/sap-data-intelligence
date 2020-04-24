@@ -396,8 +396,7 @@
             "labels": {
                "deploymentconfig": "sdi-observer"
             },
-            "name": "sdi-observer-node-reader-${ROLE_BINDING_SUFFIX}",
-            "namespace": "${NAMESPACE}"
+            "name": "sdi-observer-node-reader-${ROLE_BINDING_SUFFIX}"
          },
          "roleRef": {
             "apiGroup": "rbac.authorization.k8s.io",
@@ -419,8 +418,7 @@
             "labels": {
                "deploymentconfig": "sdi-observer"
             },
-            "name": "sdi-observer-admin",
-            "namespace": "${NAMESPACE}"
+            "name": "sdi-observer-admin"
          },
          "roleRef": {
             "apiGroup": "rbac.authorization.k8s.io",
@@ -546,7 +544,7 @@
          "value": "container-image-registry-htpasswd"
       },
       {
-         "description": "Desired hostname of the exposed registry service. Defaults to\ncontainer-image-registry-<NAMESPACE>-apps.<cluster_name>.<base_domain>\n",
+         "description": "Desired hostname of the exposed registry service. Defaults to\ncontainer-image-registry-<NAMESPACE>-apps.<cluster_name>.<base_domain>\nOverrides REGISTRY parameter.",
          "name": "SDI_REGISTRY_ROUTE_HOSTNAME",
          "required": false
       },

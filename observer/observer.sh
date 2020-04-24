@@ -304,6 +304,9 @@ if evalBool DEPLOY_SDI_REGISTRY; then
     if evalBool DEPLOY_LETSENCRYPT && [[ -z "${EXPOSE_WITH_LETSENCRYPT:-}" ]]; then
         export EXPOSE_WITH_LETSENCRYPT=true
     fi
+    if [[ -z "${SDI_REGISTRY_ROUTE_HOSTNAME:-}" && -n "${REGISTRY:-}" ]]; then
+        SDI_REGISTRY_ROUTE_HOSTNAME="${REGISTRY}"
+    fi
     deployComponent registry
 fi
 if evalBool DEPLOY_LETSENCRYPT; then
