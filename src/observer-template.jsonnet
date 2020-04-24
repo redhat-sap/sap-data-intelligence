@@ -98,7 +98,7 @@ base.DCTemplate {
         dnf install -y jq
       RUN dnf install -y \
         https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm && \
-        dnf install -y parallel procps-ng bc git && dnf clean all -y
+        dnf install -y parallel procps-ng bc git httpd-tools && dnf clean all -y
       # TODO: determine OCP version from environment
       COPY https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest-${OCP_MINOR_RELEASE}/openshift-client-linux.tar.gz /tmp/
       COPY https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest-${OCP_MINOR_RELEASE}/sha256sum.txt /tmp/

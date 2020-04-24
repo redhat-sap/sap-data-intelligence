@@ -160,7 +160,7 @@ trap cleanup EXIT
 function deployLetsencrypt() {
     ensureRepository
     ensureProject
-    parallel createOrReplace -i "${REPOSITORY}/{}" ::: \
+    parallel createOrReplace -i "${REPOSITORY#file://}/{}" ::: \
         "${LETSENCRYPT_DEPLOY_FILES[@]//@environment@/$ENVIRONMENT}"
     if evalBool DONT_GRANT_PROJECT_PERMISSIONS; then
         return 0
