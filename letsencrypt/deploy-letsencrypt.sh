@@ -117,7 +117,6 @@ function ensureRepository() {
 function copyRoleToProject() {
     local project="$1"
     createOrReplace -n "$project" <<<"$roleSpec"
-    mkRoleBindingForProject "$project"
     oc create rolebinding --namespace="$project" openshift-acme --role=openshift-acme \
         --serviceaccount="$NAMESPACE:openshift-acme" --dry-run -o json | \
             createOrReplace
