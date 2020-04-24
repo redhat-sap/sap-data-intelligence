@@ -95,6 +95,7 @@ function ensureRemoteRepository() {
 }
 
 function ensureRepository() {
+    set -x
     if [[ -n "${REPOSITORY:-}" ]]; then
         if isPathLocal "$REPOSITORY"; then
             doesLocalRepositoryExist "$REPOSITORY"
@@ -159,6 +160,7 @@ trap cleanup EXIT
 
 function deployLetsencrypt() {
     ensureRepository
+    set +x
     ensureProject
     parallel createOrReplace -i "${REPOSITORY#file://}/{}" ::: \
         "${LETSENCRYPT_DEPLOY_FILES[@]//@environment@/$ENVIRONMENT}"

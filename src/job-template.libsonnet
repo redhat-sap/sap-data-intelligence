@@ -23,6 +23,8 @@ local base = import 'ocp-template.libsonnet';
           namespace: '${NAMESPACE}',
         },
         spec: {
+          activeDeadlineSeconds: 30 * 60,
+          backoffLimit: 9999,
           completions: 1,
           metadata: {
             labels: {

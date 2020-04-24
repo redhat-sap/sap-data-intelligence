@@ -21,6 +21,8 @@
             "namespace": "${NAMESPACE}"
          },
          "spec": {
+            "activeDeadlineSeconds": 1800,
+            "backoffLimit": 9999,
             "completions": 1,
             "metadata": {
                "labels": {

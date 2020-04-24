@@ -255,6 +255,9 @@ function createOrReplace() {
             args+=( --force )
         fi
     fi
+    object="$(jq 'del(.spec.template.metadata.labels["controller-uid"]) |
+        del(.spec.selector.matchLabels["controller-uid"]) |
+        del(.metadata.labels["controller-uid"])' <<<"$object")"
     err="$(oc replace "${args[@]}" <<<"$object" 2>&1)" && rc=0 || rc=$?
     printf '%s\n' "$err" >&2
     if [[ $rc == 0 ]] || ! grep -q 'Conflict\|Forbidden\|field is immutable' <<<"${err:-}"; then
