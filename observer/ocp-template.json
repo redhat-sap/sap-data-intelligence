@@ -93,14 +93,6 @@
                               "value": "${DEPLOY_LETSENCRYPT}"
                            },
                            {
-                              "name": "LETSENCRYPT_REPOSITORY",
-                              "value": "${LETSENCRYPT_REPOSITORY}"
-                           },
-                           {
-                              "name": "LETSENCRYPT_REVISION",
-                              "value": "${LETSENCRYPT_REVISION}"
-                           },
-                           {
                               "name": "LETSENCRYPT_ENVIRONMENT",
                               "value": "${LETSENCRYPT_ENVIRONMENT}"
                            },
@@ -499,21 +491,9 @@
          "value": "false"
       },
       {
-         "description": "Unless given, a local copy will be used.\n",
-         "name": "LETSENCRYPT_REPOSITORY",
-         "required": false,
-         "value": "https://github.com/tnozicka/openshift-acme"
-      },
-      {
-         "description": "Revision of letsencrypt repository to check out.\n",
-         "name": "LETSENCRYPT_REVISION",
-         "required": false,
-         "value": "master"
-      },
-      {
          "description": "Either \"live\" or \"staging\". Use the latter when debugging SDI Observer's deployment.\n",
          "name": "LETSENCRYPT_ENVIRONMENT",
-         "required": true,
+         "required": false,
          "value": "live"
       },
       {
@@ -586,6 +566,18 @@
          "from": "[a-z0-9]{5}",
          "generate": "expression",
          "name": "ROLE_BINDING_SUFFIX"
+      },
+      {
+         "description": "Unless given, a local copy will be used.\n",
+         "name": "LETSENCRYPT_REPOSITORY",
+         "required": false,
+         "value": "https://github.com/tnozicka/openshift-acme"
+      },
+      {
+         "description": "Revision of letsencrypt repository to check out.\n",
+         "name": "LETSENCRYPT_REVISION",
+         "required": false,
+         "value": "master"
       }
    ]
 }

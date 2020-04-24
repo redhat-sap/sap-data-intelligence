@@ -75,7 +75,11 @@ base.DCTemplate {
       required: false,
       value: 'false',
     },
-  ] + params.LetsencryptParams + params.RegistryDeployParams + params.RegistryParams + [
+  ] + [
+    params.NotRequired(p)
+    for p in params.LetsencryptParams
+    if p.name == 'LETSENCRYPT_ENVIRONMENT'
+  ] + params.RegistryDeployParams + params.RegistryParams + [
     std.prune(params.ExposeWithLetsencryptParam {
       value: null,
       description+: 'Defaults to the value of DEPLOY_LETSENCRYPT.',
@@ -409,5 +413,10 @@ base.DCTemplate {
       generate: 'expression',
       name: 'ROLE_BINDING_SUFFIX',
     },
+  ] + [
+    p
+    for p in params.LetsencryptParams
+    if p.name != 'LETSENCRYPT_ENVIRONMENT'
   ],
+
 }

@@ -216,7 +216,7 @@ function checkPermissions() {
         for perm in "${lackingPermissions[@]}"; do
             [[ -z "$perm" ]] && continue
             log -n 'Cannot "%s" "%s", please grant the needed permissions' "${perm%%/*}" "${perm##*/}"
-            log -L ' to sdi-observer service account!'
+            log -d ' to sdi-observer service account!'
             rc=1
         done
         return "$rc"
