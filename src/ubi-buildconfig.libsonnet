@@ -1,4 +1,5 @@
 local bc = import 'buildconfig.libsonnet';
+local params = import 'common-parameters.libsonnet';
 local base = import 'ocp-template.libsonnet';
 local ubiis = import 'ubi-imagestream.jsonnet';
 
@@ -28,17 +29,7 @@ local ubiis = import 'ubi-imagestream.jsonnet';
       },
     },
 
-    newParameters:: [
-      {
-        description: |||
-          Name of the secret with credentials for registry.redhat.io registry. Please visit
-          https://access.redhat.com/terms-based-registry/ to obtain the OpenShift secret. For
-          more details, please refer to https://access.redhat.com/RegistryAuthentication.'
-        |||,
-        name: 'REDHAT_REGISTRY_SECRET_NAME',
-        required: true,
-      },
-    ],
+    newParameters:: params.RedHatRegistrySecretParams,
 
     objects+: [bctmpl.bc, bctmpl.is],
     parameters+: bctmpl.newParameters,

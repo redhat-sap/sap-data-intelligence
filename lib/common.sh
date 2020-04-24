@@ -163,7 +163,7 @@ function common_init() {
     # This is not going to be a part of scientific publication.
     PARALLEL_HOME="$TMP/.parallel"
     mkdir -p "$PARALLEL_HOME"
-    touch "$PARALLEL_HOME/.parallel/will-cite" || :
+    touch "$PARALLEL_HOME/will-cite" || :
     export PARALLEL_HOME
 
     [[ -z "${NAMESPACE:-}" ]] && NAMESPACE="$(oc project -q)"

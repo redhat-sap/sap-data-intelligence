@@ -245,7 +245,6 @@ function getJobImage() {
 }
 
 function deployComponent() {
-    set -x
     local component="$1"
     local dirs=(
         .
@@ -277,6 +276,7 @@ function deployComponent() {
                 SDI_REGISTRY_HTTP_SECRET="${SDI_REGISTRY_HTTP_SECRET:-}"
                 SDI_REGISTRY_VOLUME_CAPACITY="${SDI_REGISTRY_VOLUME_CAPACITY:-}"
                 EXPOSE_WITH_LETSENCRYPT="${EXPOSE_WITH_LETSENCRYPT:-}"
+                REDHAT_REGISTRY_SECRET_NAME="${REDHAT_REGISTRY_SECRET_NAME:-}"
             )
             ;;
         letsencrypt)
@@ -291,12 +291,10 @@ function deployComponent() {
         local pth="$d/$fn"
         if [[ -f "$pth" ]]; then
             oc process "${args[@]}" -f "$pth" | createOrReplace
-            set +x
             return 0
         fi
     done
     log 'WARNING: Cannot find %s, skipping deployment!' "$fn"
-    set +x
     return 1
 }
 

@@ -158,7 +158,6 @@ function cleanup() {
 trap cleanup EXIT
 
 function deployLetsencrypt() {
-    set -x
     ensureRepository
     ensureProject
     parallel createOrReplace -i "${REPOSITORY}/{}" ::: \
@@ -216,8 +215,6 @@ if [[ -z "${NAMESPACE:-}" ]]; then
 fi
 
 REVISION=master
-
-set -x
 
 addProjects "${PROJECTS_TO_MONITOR:-}"
 
@@ -289,7 +286,6 @@ if evalBool DEPLOY_LETSENCRYPT true && [[ -z "${DEPLOY_LETSENCRYPT:-}" ]]; then
 fi
 
 if [[ -n "${NAMESPACE:-}" ]]; then
-    set -x
     if evalBool DEPLOY_LETSENCRYPT; then
         log 'Deploying SDI registry to namespace "%s"...' "$NAMESPACE"
         if ! doesResourceExist "project/$NAMESPACE"; then
@@ -299,7 +295,6 @@ if [[ -n "${NAMESPACE:-}" ]]; then
     if [[ "$(oc project -q)" != "${NAMESPACE}" ]]; then
         oc project "${NAMESPACE}"
     fi
-    set +x
 fi
 export NAMESPACE
 TMP_PROJECTS=( "$NAMESPACE" )

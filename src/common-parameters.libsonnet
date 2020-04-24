@@ -142,6 +142,18 @@
     },
   ],
 
+  RedHatRegistrySecretParams: [
+    {
+      description: |||
+        Name of the secret with credentials for registry.redhat.io registry. Please visit
+        https://access.redhat.com/terms-based-registry/ to obtain the OpenShift secret. For
+        more details, please refer to https://access.redhat.com/RegistryAuthentication.'
+      |||,
+      name: 'REDHAT_REGISTRY_SECRET_NAME',
+      required: true,
+    },
+  ],
+
   NotRequired: function(p)
     local _mkopt = function(i) i { required: false };
     if std.isArray(p) then

@@ -18,5 +18,5 @@ base.JobTemplate {
 
   parametersToExport+: params.RegistryDeployParams + params.RegistryParams + [
     params.ExposeWithLetsencryptParam,
-  ],
+  ] + params.RedHatRegistrySecretParams,
 }
