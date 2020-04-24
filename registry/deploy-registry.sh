@@ -3,14 +3,12 @@
 set -euo pipefail
 IFS=$'\n\t'
 
-readonly SDI_REGISTRY_TEMPLATE_FILE_NAME=registry-template.yaml
-
 for d in "$(dirname "${BASH_SOURCE[0]}")" . /usr/local/share/sdi; do
     if [[ -e "$d/lib/common.sh" ]]; then
         eval "source '$d/lib/common.sh'"
     fi
 done
-if [[ "${_SDI_LIB_SOURCED:-0}" != 1 ]]; then
+if [[ "${_SDI_LIB_SOURCED:-0}" == 0 ]]; then
     printf 'FATAL: failed to source lib/common.sh!\n' >&2
     exit 1
 fi
@@ -66,24 +64,6 @@ function cleanup() {
     fi
 }
 trap cleanup EXIT
-
-function getRegistryTemplatePath() {
-    local dirs=(
-        .
-        /usr/local/share/sdi/registry
-        /usr/local/share/sap-data-intelligence/registry
-    )
-    for d in "${dirs[@]}"; do
-        local pth="${d}/$SDI_REGISTRY_TEMPLATE_FILE_NAME"
-        if [[ -e "$pth" ]]; then
-            printf '%s' "$pth"
-            return 0
-        fi
-    done
-    log 'WARNING: Could not determine path to %s' "$SDI_REGISTRY_TEMPLATE_FILE_NAME"
-    return 1
-}
-export -f getRegistryTemplatePath
 
 function genSecret() {
     local length="${1:-32}"

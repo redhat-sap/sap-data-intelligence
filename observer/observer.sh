@@ -159,14 +159,6 @@ declare -A gotmpls=(
     [ConfigMap]="$(join '' "${gotmplConfigMap[@]}")"
 )
 
-# shellcheck disable=SC2015
-# Disable quotation remark according to `parallel --bibtex`:
-#    Academic tradition requires you to cite works you base your article on.
-#    If you use programs that use GNU Parallel to process data for an article in a
-#    scientific publication, please cite:
-# This is not going to be a part of scientific publication.
-mkdir -p "$HOME/.parallel" && touch "$HOME/.parallel/will-cite" || :
-
 function checkPerm() {
     local perm="$1"
     if ! oc auth can-i "${perm%%/*}" "${perm##*/}" >/dev/null; then
@@ -198,7 +190,7 @@ function checkPermissions() {
     )
     if evalBool DEPLOY_SDI_REGISTRY; then
         declare -a registryKinds=()
-        readarray -t registryKinds <<<"$(oc process --local \
+        readarray -t registryKinds <<<"$(oc process \
             REDHAT_REGISTRY_SECRET_NAME=foo \
             -f "$(getRegistryTemplatePath)" \
                     -o jsonpath=$'{range .items[*]}{.kind}\n{end}')"
@@ -210,8 +202,8 @@ function checkPermissions() {
         declare -a letsencryptKinds=()
         local prefix="${LETSENCRYPT_REPOSITORY:-$DEFAULT_LETSENCRYPT_REPOSITORY}"
         for fn in "${LETSENCRYPT_DEPLOY_FILES[@]//@environment@/live}"; do
-            readarray -t letsencryptKinds <<<"$(oc create --local \
-                -f "$prefix/$fn" -o jsonpath=$'{.kind}\n')"
+            readarray -t letsencryptKinds <<<"$(oc create --dry-run \
+                -f "${prefix#file://}/$fn" -o jsonpath=$'{.kind}\n')"
             for kind in "${letsencryptKinds[@]}"; do
                 toCheck+=( create/"$kind" )
             done
@@ -231,7 +223,20 @@ function checkPermissions() {
     fi
 }
 
+function getJobImage() {
+    if [[ -n "${JOB_IMAGE:-}" ]]; then
+        printf '%s' "${JOB_IMAGE}"
+        return 0
+    fi
+    # shellcheck disable=SC2016
+    JOB_IMAGE="$(oc get -n "$NAMESPACE" dc/sdi-observer -o  \
+        go-template='{{with $c := index .spec.template.spec.containers 0}}{{$c.image}}{{end}}')"
+    export JOB_IMAGE
+    printf '%s' "${JOB_IMAGE}"
+}
+
 function deployComponent() {
+    set -x
     local component="$1"
     local dirs=(
         .
@@ -241,14 +246,47 @@ function deployComponent() {
     )
     local d
     local fn="$component/deploy-job-template.json"
+    # shellcheck disable=SC2191
+    local args=(
+        DRY_RUN="${DRY_RUN:-}"
+        NAMESPACE="${NAMESPACE:-}"
+        FORCE_REDEPLOY="${FORCE_REDEPLOY:-}"
+        REPLACE_SECRETS="${REPLACE_SECRETS:-}"
+        JOB_IMAGE="$(getJobImage)"
+        WAIT_UNTIL_ROLLEDOUT=true
+    )
+    case "${component}" in
+        registry)
+            # shellcheck disable=SC2191
+            args+=(
+                SDI_REGISTRY_STORAGE_CLASS_NAME="${SDI_REGISTRY_STORAGE_CLASS_NAME:-}"
+                SDI_REGISTRY_USERNAME="${SDI_REGISTRY_USERNAME:-}"
+                SDI_REGISTRY_PASSWORD="${SDI_REGISTRY_PASSWORD:-}"
+                SDI_REGISTRY_HTPASSWD_SECRET_NAME="${SDI_REGISTRY_HTPASSWD_SECRET_NAME:-}"
+                SDI_REGISTRY_ROUTE_HOSTNAME="${SDI_REGISTRY_ROUTE_HOSTNAME:-}"
+                SDI_REGISTRY_HTTP_SECRET="${SDI_REGISTRY_HTTP_SECRET:-}"
+                SDI_REGISTRY_VOLUME_CAPACITY="${SDI_REGISTRY_VOLUME_CAPACITY:-}"
+                EXPOSE_WITH_LETSENCRYPT="${EXPOSE_WITH_LETSENCRYPT:-}"
+            )
+            ;;
+        letsencrypt)
+            local projects=( "$SDI_NAMESPACE" )
+            if evalBool DEPLOY_SDI_REGISTRY && [[ -n "${NAMESPACE:-}" ]]; then
+                projects+=( "$NAMESPACE" )
+            fi
+            args+=( "PROJECTS_TO_MONITOR=$(join , "${projects[@]}")" )
+            ;;
+    esac
     for d in "${dirs[@]}"; do
         local pth="$d/$fn"
         if [[ -f "$pth" ]]; then
-            createOrReplace < "$pth"
+            oc process "${args[@]}" -f "$pth" | createOrReplace
+            set +x
             return 0
         fi
     done
     log 'WARNING: Cannot find %s, skipping deployment!' "$fn"
+    set +x
     return 1
 }
 
@@ -258,14 +296,14 @@ if evalBool DEPLOY_SDI_REGISTRY; then
     if evalBool DEPLOY_LETSENCRYPT && [[ -z "${EXPOSE_WITH_LETSENCRYPT:-}" ]]; then
         export EXPOSE_WITH_LETSENCRYPT=true
     fi
-    deployComponent deploy-registry.sh
+    deployComponent registry
 fi
 if evalBool DEPLOY_LETSENCRYPT; then
     if [[ -z "${LETSENCRYPT_NAMESPACE:-}" ]] && evalBool DEPLOY_SDI_REGISTRY; then
         LETSENCRYPT_NAMESPACE="${SDI_REGISTRY_NAMESPACE:-}"
     fi
     LETSENCRYPT_NAMESPACE="${LETSENCRYPT_NAMESPACE:-$SDI_NAMESPACE}" \
-        deployComponent deploy-letsencrypt.sh
+        deployComponent letsencrypt
 fi
 
 if [[ -n "${SDI_NAMESPACE:-}" ]]; then

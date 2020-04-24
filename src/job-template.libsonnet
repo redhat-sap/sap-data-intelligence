@@ -6,7 +6,7 @@ local base = import 'ocp-template.libsonnet';
     local jobtmpl = self,
     resourceName:: error 'resourceName must be overriden!',
     command:: error 'command must be overriden!',
-    args:: '${SCRIPT_ARGUMENTS}',
+    args:: null,
     jobImage:: 'JOB_IMAGE',
     parametersToExport:: super.parameters + [
       params.ForceRedeployParam,
@@ -16,44 +16,40 @@ local base = import 'ocp-template.libsonnet';
     objects+: [
       {
         apiVersion: 'batch/v1',
-        kind: 'CronJob',
+        kind: 'Job',
         metadata: {
           name: jobtmpl.resourceName,
           namespace: '${NAMESPACE}',
         },
         spec: {
           completions: 1,
-          jobTemplate: {
-            metadata: {
-              labels: {
-                job: jobtmpl.resourceName,
-              },
+          metadata: {
+            labels: {
+              job: jobtmpl.resourceName,
             },
+          },
+          template: {
             spec: {
-              template: {
-                spec: {
-                  containers: [
-                    {
-                      args: jobtmpl.args,
-                      command: if std.isString(jobtmpl.command) then
-                        [jobtmpl.command]
-                      else if std.isArray(jobtmpl.command) then
-                        jobtmpl.command
-                      else
-                        error 'command must be either string or array!',
+              containers: [
+                {
+                  args: '${{SCRIPT_ARGUMENTS}}',
+                  command: if std.isString(jobtmpl.command) then
+                    [jobtmpl.command]
+                  else if std.isArray(jobtmpl.command) then
+                    jobtmpl.command
+                  else
+                    error 'command must be either string or array!',
 
-                      env: [{
-                        name: p.name,
-                        value: '${' + p.name + '}',
-                      } for p in jobtmpl.parametersToExport],
-                      image: '${JOB_IMAGE}',
-                      name: 'deploy-sdi-registry',
-                    },
-                  ],
-                  restartPolicy: 'OnFailure',
-                  serviceAccountName: jobtmpl.resourceName,
+                  env: [{
+                    name: p.name,
+                    value: '${' + p.name + '}',
+                  } for p in jobtmpl.parametersToExport],
+                  image: '${JOB_IMAGE}',
+                  name: 'deploy-sdi-registry',
                 },
-              },
+              ],
+              restartPolicy: 'OnFailure',
+              serviceAccountName: 'sdi-observer',
             },
           },
           parallelism: 1,
@@ -73,8 +69,8 @@ local base = import 'ocp-template.libsonnet';
           Arguments for job's script. Passed as a json array of strings.
         |||,
         name: 'SCRIPT_ARGUMENTS',
-        required: true,
-        value: if jobtmpl.args != '${SCRIPT_ARGUMENTS}' then jobtmpl.args,
+        required: false,
+        value: std.toString(if jobtmpl.args != null then jobtmpl.args else ['--wait']),
       },
     ],
   },

@@ -15,89 +15,85 @@
    "objects": [
       {
          "apiVersion": "batch/v1",
-         "kind": "CronJob",
+         "kind": "Job",
          "metadata": {
             "name": "deploy-registry",
             "namespace": "${NAMESPACE}"
          },
          "spec": {
             "completions": 1,
-            "jobTemplate": {
-               "metadata": {
-                  "labels": {
-                     "job": "deploy-registry"
-                  }
-               },
-               "spec": {
-                  "template": {
-                     "spec": {
-                        "containers": [
-                           {
-                              "args": "${SCRIPT_ARGUMENTS}",
-                              "command": [
-                                 "deploy-registry.sh"
-                              ],
-                              "env": [
-                                 {
-                                    "name": "DRY_RUN",
-                                    "value": "${DRY_RUN}"
-                                 },
-                                 {
-                                    "name": "NAMESPACE",
-                                    "value": "${NAMESPACE}"
-                                 },
-                                 {
-                                    "name": "FORCE_REDEPLOY",
-                                    "value": "${FORCE_REDEPLOY}"
-                                 },
-                                 {
-                                    "name": "REPLACE_SECRETS",
-                                    "value": "${REPLACE_SECRETS}"
-                                 },
-                                 {
-                                    "name": "SDI_REGISTRY_STORAGE_CLASS_NAME",
-                                    "value": "${SDI_REGISTRY_STORAGE_CLASS_NAME}"
-                                 },
-                                 {
-                                    "name": "SDI_REGISTRY_USERNAME",
-                                    "value": "${SDI_REGISTRY_USERNAME}"
-                                 },
-                                 {
-                                    "name": "SDI_REGISTRY_PASSWORD",
-                                    "value": "${SDI_REGISTRY_PASSWORD}"
-                                 },
-                                 {
-                                    "name": "SDI_REGISTRY_HTPASSWD_SECRET_NAME",
-                                    "value": "${SDI_REGISTRY_HTPASSWD_SECRET_NAME}"
-                                 },
-                                 {
-                                    "name": "SDI_REGISTRY_ROUTE_HOSTNAME",
-                                    "value": "${SDI_REGISTRY_ROUTE_HOSTNAME}"
-                                 },
-                                 {
-                                    "name": "SDI_REGISTRY_HTTP_SECRET",
-                                    "value": "${SDI_REGISTRY_HTTP_SECRET}"
-                                 },
-                                 {
-                                    "name": "SDI_REGISTRY_VOLUME_CAPACITY",
-                                    "value": "${SDI_REGISTRY_VOLUME_CAPACITY}"
-                                 },
-                                 {
-                                    "name": "EXPOSE_WITH_LETSENCRYPT",
-                                    "value": "${EXPOSE_WITH_LETSENCRYPT}"
-                                 }
-                              ],
-                              "image": "${JOB_IMAGE}",
-                              "name": "deploy-sdi-registry"
-                           }
-                        ],
-                        "restartPolicy": "OnFailure",
-                        "serviceAccountName": "deploy-registry"
-                     }
-                  }
+            "metadata": {
+               "labels": {
+                  "job": "deploy-registry"
                }
             },
-            "parallelism": 1
+            "parallelism": 1,
+            "template": {
+               "spec": {
+                  "containers": [
+                     {
+                        "args": "${{SCRIPT_ARGUMENTS}}",
+                        "command": [
+                           "deploy-registry.sh"
+                        ],
+                        "env": [
+                           {
+                              "name": "DRY_RUN",
+                              "value": "${DRY_RUN}"
+                           },
+                           {
+                              "name": "NAMESPACE",
+                              "value": "${NAMESPACE}"
+                           },
+                           {
+                              "name": "FORCE_REDEPLOY",
+                              "value": "${FORCE_REDEPLOY}"
+                           },
+                           {
+                              "name": "REPLACE_SECRETS",
+                              "value": "${REPLACE_SECRETS}"
+                           },
+                           {
+                              "name": "SDI_REGISTRY_STORAGE_CLASS_NAME",
+                              "value": "${SDI_REGISTRY_STORAGE_CLASS_NAME}"
+                           },
+                           {
+                              "name": "SDI_REGISTRY_USERNAME",
+                              "value": "${SDI_REGISTRY_USERNAME}"
+                           },
+                           {
+                              "name": "SDI_REGISTRY_PASSWORD",
+                              "value": "${SDI_REGISTRY_PASSWORD}"
+                           },
+                           {
+                              "name": "SDI_REGISTRY_HTPASSWD_SECRET_NAME",
+                              "value": "${SDI_REGISTRY_HTPASSWD_SECRET_NAME}"
+                           },
+                           {
+                              "name": "SDI_REGISTRY_ROUTE_HOSTNAME",
+                              "value": "${SDI_REGISTRY_ROUTE_HOSTNAME}"
+                           },
+                           {
+                              "name": "SDI_REGISTRY_HTTP_SECRET",
+                              "value": "${SDI_REGISTRY_HTTP_SECRET}"
+                           },
+                           {
+                              "name": "SDI_REGISTRY_VOLUME_CAPACITY",
+                              "value": "${SDI_REGISTRY_VOLUME_CAPACITY}"
+                           },
+                           {
+                              "name": "EXPOSE_WITH_LETSENCRYPT",
+                              "value": "${EXPOSE_WITH_LETSENCRYPT}"
+                           }
+                        ],
+                        "image": "${JOB_IMAGE}",
+                        "name": "deploy-sdi-registry"
+                     }
+                  ],
+                  "restartPolicy": "OnFailure",
+                  "serviceAccountName": "sdi-observer"
+               }
+            }
          }
       }
    ],
@@ -182,8 +178,8 @@
       {
          "description": "Arguments for job's script. Passed as a json array of strings.\n",
          "name": "SCRIPT_ARGUMENTS",
-         "required": true,
-         "value": null
+         "required": false,
+         "value": "[\"--wait\"]"
       }
    ]
 }

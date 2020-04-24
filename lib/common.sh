@@ -12,6 +12,7 @@ readonly LETSENCRYPT_DEPLOY_FILES=(
 )
 # shellcheck disable=SC2034
 readonly DEFAULT_SDI_REGISTRY_HTPASSWD_SECRET_NAME="container-image-registry-htpasswd"
+readonly SDI_REGISTRY_TEMPLATE_FILE_NAME=ocp-template.json
 
 
 if [[ -n "${SDI_NAMESPACE:-}" ]]; then
@@ -20,6 +21,7 @@ if [[ -n "${SDI_NAMESPACE:-}" ]]; then
     oc project "$SDI_NAMESPACE"
 else
     SDI_NAMESPACE="$(oc project -q 2>/dev/null|| :)"
+    export SDI_NAMESPACE
 fi
 
 function join() { local IFS="${1:-}"; shift; echo "$*"; }
@@ -61,6 +63,7 @@ if [[ ! "${OCP_SERVER_VERSION:-}" =~ ^4\. ]]; then
     printf 'FATAL: OpenShift server version other then 4.* is not supported!\n' >&2
     exit 1
 fi
+export OCP_SERVER_VERSION OCP_CLIENT_VERSION
 
 if [[ ! "${NODE_LOG_FORMAT:-}" =~ ^(text|json|)$ ]]; then
     printf 'FATAL: unrecognized NODE_LOG_FORMAT; "%s" is not one of "json" or "text"!' \
@@ -75,6 +78,7 @@ if [[ -z "${NODE_LOG_FORMAT:-}" ]]; then
     fi
 
 fi
+export NODE_LOG_FORMAT
 
 function doesResourceExist() {
     local cmd=oc args=( get )
@@ -151,6 +155,18 @@ function common_init() {
             break
         fi
     done
+
+    # shellcheck disable=SC2015
+    # Disable quotation remark according to `parallel --bibtex`:
+    #    Academic tradition requires you to cite works you base your article on.
+    #    If you use programs that use GNU Parallel to process data for an article in a
+    #    scientific publication, please cite:
+    # This is not going to be a part of scientific publication.
+    mkdir -p "$HOME/.parallel" && touch "$HOME/.parallel/will-cite" || :
+
+    [[ -z "${NAMESPACE:-}" ]] && NAMESPACE="$(oc project -q)"
+    export NAMESPACE
+
     _common_init_performed=1
 }
 
@@ -269,5 +285,25 @@ export -f isPathLocal
 function common_cleanup() {
     rm -rf "$TMP"
 }
+
+function getRegistryTemplatePath() {
+    local dirs=(
+        .
+        /usr/local/share/sdi/registry
+        /usr/local/share/sap-data-intelligence/registry
+    )
+    for d in "${dirs[@]}"; do
+        local pth="${d}/$SDI_REGISTRY_TEMPLATE_FILE_NAME"
+        if [[ -e "$pth" ]]; then
+            printf '%s' "$pth"
+            return 0
+        fi
+    done
+    log 'WARNING: Could not determine path to %s' "$SDI_REGISTRY_TEMPLATE_FILE_NAME"
+    return 1
+}
+export -f getRegistryTemplatePath
+
+export LETSENCRYPT_ENVIRONMENT="${LETSENCRYPT_ENVIRONMENT:-live}"
 
 export _SDI_LIB_SOURCED=1

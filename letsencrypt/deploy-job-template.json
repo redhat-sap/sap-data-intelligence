@@ -15,73 +15,69 @@
    "objects": [
       {
          "apiVersion": "batch/v1",
-         "kind": "CronJob",
+         "kind": "Job",
          "metadata": {
             "name": "deploy-letsencrypt",
             "namespace": "${NAMESPACE}"
          },
          "spec": {
             "completions": 1,
-            "jobTemplate": {
-               "metadata": {
-                  "labels": {
-                     "job": "deploy-letsencrypt"
-                  }
-               },
-               "spec": {
-                  "template": {
-                     "spec": {
-                        "containers": [
-                           {
-                              "args": "${SCRIPT_ARGUMENTS}",
-                              "command": [
-                                 "deploy-letsencrypt.sh"
-                              ],
-                              "env": [
-                                 {
-                                    "name": "DRY_RUN",
-                                    "value": "${DRY_RUN}"
-                                 },
-                                 {
-                                    "name": "NAMESPACE",
-                                    "value": "${NAMESPACE}"
-                                 },
-                                 {
-                                    "name": "FORCE_REDEPLOY",
-                                    "value": "${FORCE_REDEPLOY}"
-                                 },
-                                 {
-                                    "name": "REPLACE_SECRETS",
-                                    "value": "${REPLACE_SECRETS}"
-                                 },
-                                 {
-                                    "name": "LETSENCRYPT_REPOSITORY",
-                                    "value": "${LETSENCRYPT_REPOSITORY}"
-                                 },
-                                 {
-                                    "name": "LETSENCRYPT_REVISION",
-                                    "value": "${LETSENCRYPT_REVISION}"
-                                 },
-                                 {
-                                    "name": "LETSENCRYPT_ENVIRONMENT",
-                                    "value": "${LETSENCRYPT_ENVIRONMENT}"
-                                 },
-                                 {
-                                    "name": "PROJECTS_TO_MONITOR",
-                                    "value": "${PROJECTS_TO_MONITOR}"
-                                 }
-                              ],
-                              "image": "${JOB_IMAGE}",
-                              "name": "deploy-sdi-registry"
-                           }
-                        ],
-                        "restartPolicy": "OnFailure",
-                        "serviceAccountName": "deploy-letsencrypt"
-                     }
-                  }
+            "metadata": {
+               "labels": {
+                  "job": "deploy-letsencrypt"
                }
             },
-            "parallelism": 1
+            "parallelism": 1,
+            "template": {
+               "spec": {
+                  "containers": [
+                     {
+                        "args": "${{SCRIPT_ARGUMENTS}}",
+                        "command": [
+                           "deploy-letsencrypt.sh"
+                        ],
+                        "env": [
+                           {
+                              "name": "DRY_RUN",
+                              "value": "${DRY_RUN}"
+                           },
+                           {
+                              "name": "NAMESPACE",
+                              "value": "${NAMESPACE}"
+                           },
+                           {
+                              "name": "FORCE_REDEPLOY",
+                              "value": "${FORCE_REDEPLOY}"
+                           },
+                           {
+                              "name": "REPLACE_SECRETS",
+                              "value": "${REPLACE_SECRETS}"
+                           },
+                           {
+                              "name": "LETSENCRYPT_REPOSITORY",
+                              "value": "${LETSENCRYPT_REPOSITORY}"
+                           },
+                           {
+                              "name": "LETSENCRYPT_REVISION",
+                              "value": "${LETSENCRYPT_REVISION}"
+                           },
+                           {
+                              "name": "LETSENCRYPT_ENVIRONMENT",
+                              "value": "${LETSENCRYPT_ENVIRONMENT}"
+                           },
+                           {
+                              "name": "PROJECTS_TO_MONITOR",
+                              "value": "${PROJECTS_TO_MONITOR}"
+                           }
+                        ],
+                        "image": "${JOB_IMAGE}",
+                        "name": "deploy-sdi-registry"
+                     }
+                  ],
+                  "restartPolicy": "OnFailure",
+                  "serviceAccountName": "sdi-observer"
+               }
+            }
          }
       }
    ],
@@ -141,8 +137,8 @@
       {
          "description": "Arguments for job's script. Passed as a json array of strings.\n",
          "name": "SCRIPT_ARGUMENTS",
-         "required": true,
-         "value": null
+         "required": false,
+         "value": "[\"--wait\"]"
       }
    ]
 }
