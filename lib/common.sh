@@ -18,7 +18,6 @@ readonly SDI_REGISTRY_TEMPLATE_FILE_NAME=ocp-template.json
 if [[ -n "${SDI_NAMESPACE:-}" ]]; then
     HOME="$(mktemp -d)"    # so that oc can create $HOME/.kube/ directory
     export HOME
-    oc project "$SDI_NAMESPACE"
 else
     SDI_NAMESPACE="$(oc project -q 2>/dev/null|| :)"
     export SDI_NAMESPACE
@@ -229,7 +228,7 @@ function createOrReplace() {
 
     IFS=: read -r namespace kind name <<<"$(oc create --dry-run -f - -o \
         jsonpath=$'{.metadata.namespace}:{.kind}:{.metadata.name}\n' <<<"$object")"
-    namespace="${namespace:-NAMESPACE}"
+    namespace="${namespace:-$NAMESPACE}"
     [[ -z "${namespace:-}" ]] && namespace="$(oc project -q)"
     if evalBool DRY_RUN; then
         [[ -n "${namespace:-}" ]] && args=( -n "$namespace" )

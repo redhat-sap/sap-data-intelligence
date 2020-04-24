@@ -43,7 +43,7 @@ function observe() {
     # fully refetched each time
     tr '[:upper:]' '[:lower:]' <<<"$(printf '%s\n' "$@")" | \
         parallel --halt now,done=1 --line-buffer -J "$#" \
-            oc observe --no-headers --listen-addr=":1125{#}" '{}' \
+            oc observe -n "$SDI_NAMESPACE" --no-headers --listen-addr=":1125{#}" '{}' \
                 --output=gotemplate --argument '{{.kind}}/{{.metadata.name}}' -- echo
 }
 
@@ -161,7 +161,16 @@ declare -A gotmpls=(
 
 function checkPerm() {
     local perm="$1"
-    if ! oc auth can-i "${perm%%/*}" "${perm##*/}" >/dev/null; then
+    local namespace=""
+    local args=()
+    if [[ "$perm" =~ (.+):(.+) ]]; then
+        namespace="${BASH_REMATCH[1]}"
+        perm="${BASH_REMATCH[2]}"
+    else
+        namespace="$SDI_NAMESPACE"
+    fi
+    args+=( -n "$namespace" "${perm%%/*}" "${perm##*/}" )
+    if ! oc auth can-i "${args[@]}" >/dev/null; then
         printf '%s\n' "$perm"
     fi
 }
@@ -172,30 +181,30 @@ function checkPermissions() {
     local perm
     local rc=0
     local toCheck=(
-        get/configmaps \
-        get/deployments \
-        get/nodes \
-        get/projects \
-        get/secrets \
-        get/statefulsets \
-        patch/configmaps \
-        patch/daemonsets \
-        patch/deployments \
-        patch/statefulsets \
-        update/daemonsets \
-        watch/configmaps \
-        watch/daemonsets \
-        watch/deployments \
+        get/configmaps
+        get/deployments
+        get/nodes
+        get/projects
+        get/secrets
+        get/statefulsets
+        patch/configmaps
+        patch/daemonsets
+        patch/deployments
+        patch/statefulsets
+        update/daemonsets
+        watch/configmaps
+        watch/daemonsets
+        watch/deployments
         watch/statefulsets
     )
+    local prefix=""
+    [[ -n "${NAMESPACE:-}" ]] && prefix="${NAMESPACE:-}:"
     if evalBool DEPLOY_SDI_REGISTRY; then
         declare -a registryKinds=()
-        readarray -t registryKinds <<<"$(oc process \
-            REDHAT_REGISTRY_SECRET_NAME=foo \
-            -f "$(getRegistryTemplatePath)" \
-                    -o jsonpath=$'{range .items[*]}{.kind}\n{end}')"
+        readarray -t registryKinds <<<"$(oc process REDHAT_REGISTRY_SECRET_NAME=foo \
+            -f "$(getRegistryTemplatePath)" -o jsonpath=$'{range .items[*]}{.kind}\n{end}')"
         for kind in "${registryKinds[@]}"; do
-            toCheck+=( create/"$kind" )
+            toCheck+=( "${prefix}create/$kind" )
         done
     fi
     if evalBool DEPLOY_LETSENCRYPT; then
@@ -205,7 +214,7 @@ function checkPermissions() {
             readarray -t letsencryptKinds <<<"$(oc create --dry-run \
                 -f "${prefix#file://}/$fn" -o jsonpath=$'{.kind}\n')"
             for kind in "${letsencryptKinds[@]}"; do
-                toCheck+=( create/"$kind" )
+                toCheck+=( "${prefix}create/$kind" )
             done
         done
     fi
@@ -319,6 +328,10 @@ parallel deleteResource ::: {deploymentconfig,serviceaccount,role}/{vflow,vsyste
     "rolebinding -l deploymentconfig="{vflow-observer,vsystem-observer,sdh-observer}
 
 gotmplvflow=$'{{range $index, $arg := (index (index .spec.template.spec.containers 0) "args")}}{{$arg}}\n{{end}}'
+
+if [[ -n "${NAMESPACE:-}" && -n "${SDI_NAMESPACE:-}" && "$NAMESPACE" != "$SDI_NAMESPACE" ]]; then
+    oc project "$SDI_NAMESPACE"
+fi
 
 while IFS=' ' read -u 3 -r _ name resource; do
     if [[ "${resource:-""}" == '""' ]]; then
