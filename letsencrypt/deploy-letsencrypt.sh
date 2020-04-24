@@ -128,7 +128,6 @@ function copyRoleToProject() {
 export -f copyRoleToProject
 
 function ensureProject() {
-    set -x
     local cm
     if ! doesResourceExist "project/$NAMESPACE"; then
         runOrLog oc new-project "$NAMESPACE"
@@ -139,7 +138,6 @@ function ensureProject() {
             runOrLog oc delete "$cm"
         done < <(oc get cm -o name | grep '/letsencrypt-\(live\|staging\)')
     fi
-    set +x
 }
 
 function cleanup() {
@@ -152,7 +150,6 @@ trap cleanup EXIT
 
 function deployLetsencrypt() {
     ensureRepository
-    set +x
     ensureProject
     parallel createOrReplace -i "${REPOSITORY#file://}/{}" ::: \
         "${LETSENCRYPT_DEPLOY_FILES[@]//@environment@/$ENVIRONMENT}"
