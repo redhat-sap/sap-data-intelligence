@@ -396,12 +396,36 @@
             "labels": {
                "deploymentconfig": "sdi-observer"
             },
-            "name": "sdi-observer-node-reader-${ROLE_BINDING_SUFFIX}"
+            "name": "sdi-observer-node-reader-${ROLE_BINDING_SUFFIX}",
+            "namespace": "${NAMESPACE}"
          },
          "roleRef": {
             "apiGroup": "rbac.authorization.k8s.io",
             "kind": "ClusterRole",
             "name": "system:node-reader"
+         },
+         "subjects": [
+            {
+               "kind": "ServiceAccount",
+               "name": "sdi-observer",
+               "namespace": "${NAMESPACE}"
+            }
+         ]
+      },
+      {
+         "apiVersion": "rbac.authorization.k8s.io/v1",
+         "kind": "ClusterRoleBinding",
+         "metadata": {
+            "labels": {
+               "deploymentconfig": "sdi-observer"
+            },
+            "name": "sdi-observer-admin",
+            "namespace": "${NAMESPACE}"
+         },
+         "roleRef": {
+            "apiGroup": "rbac.authorization.k8s.io",
+            "kind": "ClusterRole",
+            "name": "admin"
          },
          "subjects": [
             {

@@ -197,14 +197,14 @@ function checkPermissions() {
         watch/deployments
         watch/statefulsets
     )
-    local prefix=""
-    [[ -n "${NAMESPACE:-}" ]] && prefix="${NAMESPACE:-}:"
+    local nmprefix=""
+    [[ -n "${NAMESPACE:-}" ]] && nmprefix="${NAMESPACE:-}:"
     if evalBool DEPLOY_SDI_REGISTRY; then
         declare -a registryKinds=()
         readarray -t registryKinds <<<"$(oc process REDHAT_REGISTRY_SECRET_NAME=foo \
             -f "$(getRegistryTemplatePath)" -o jsonpath=$'{range .items[*]}{.kind}\n{end}')"
-        for kind in "${registryKinds[@]}"; do
-            toCheck+=( "${prefix}create/$kind" )
+        for kind in "${registryKinds[@],,}"; do
+            toCheck+=( "${nmprefix}create/${kind}" )
         done
     fi
     if evalBool DEPLOY_LETSENCRYPT; then
@@ -213,8 +213,8 @@ function checkPermissions() {
         for fn in "${LETSENCRYPT_DEPLOY_FILES[@]//@environment@/live}"; do
             readarray -t letsencryptKinds <<<"$(oc create --dry-run \
                 -f "${prefix#file://}/$fn" -o jsonpath=$'{.kind}\n')"
-            for kind in "${letsencryptKinds[@]}"; do
-                toCheck+=( "${prefix}create/$kind" )
+            for kind in "${letsencryptKinds[@],,}"; do
+                toCheck+=( "${nmprefix}create/${kind}" )
             done
         done
     fi

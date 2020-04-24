@@ -349,6 +349,10 @@ base.DCTemplate {
       ],
     },
 
+    /**
+     * TODO: determine the necessary permissions (ideally automatically) and create a custom role
+     * instead
+     */
     {
       apiVersion: 'rbac.authorization.k8s.io/v1',
       kind: 'ClusterRoleBinding',
@@ -357,6 +361,7 @@ base.DCTemplate {
           deploymentconfig: obstmpl.resourceName,
         },
         name: obstmpl.resourceName + '-node-reader-${ROLE_BINDING_SUFFIX}',
+        namespace: '${NAMESPACE}',
       },
       roleRef: {
         apiGroup: 'rbac.authorization.k8s.io',
@@ -371,6 +376,31 @@ base.DCTemplate {
         },
       ],
     },
+
+    {
+      apiVersion: 'rbac.authorization.k8s.io/v1',
+      kind: 'ClusterRoleBinding',
+      metadata: {
+        labels: {
+          deploymentconfig: obstmpl.resourceName,
+        },
+        name: obstmpl.resourceName + '-admin',
+        namespace: '${NAMESPACE}',
+      },
+      roleRef: {
+        apiGroup: 'rbac.authorization.k8s.io',
+        kind: 'ClusterRole',
+        name: 'admin',
+      },
+      subjects: [
+        {
+          kind: 'ServiceAccount',
+          name: obstmpl.resourceName,
+          namespace: '${NAMESPACE}',
+        },
+      ],
+    },
+
 
     {
       apiVersion: 'v1',
