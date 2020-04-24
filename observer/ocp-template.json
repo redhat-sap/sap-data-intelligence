@@ -558,7 +558,7 @@
       {
          "description": "Volume space available for container images (e.g. 75Gi).\n",
          "name": "SDI_REGISTRY_VOLUME_CAPACITY",
-         "required": true,
+         "required": false,
          "value": "75Gi"
       },
       {

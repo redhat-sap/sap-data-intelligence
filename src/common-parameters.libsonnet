@@ -109,7 +109,7 @@
         SDI_REGISTRY_PASSWORD.
       |||,
       name: 'SDI_REGISTRY_HTPASSWD_SECRET_NAME',
-      required: false,
+      required: true,
       value: 'container-image-registry-htpasswd',
     },
     {

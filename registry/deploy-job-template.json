@@ -149,7 +149,7 @@
       {
          "description": "A secret with htpasswd file with authentication data for the sdi image container If\ngiven and the secret exists, it will be used instead of SDI_REGISTRY_USERNAME and\nSDI_REGISTRY_PASSWORD.\n",
          "name": "SDI_REGISTRY_HTPASSWD_SECRET_NAME",
-         "required": false,
+         "required": true,
          "value": "container-image-registry-htpasswd"
       },
       {

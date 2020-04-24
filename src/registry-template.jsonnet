@@ -80,7 +80,7 @@ base.DCTemplate {
               {
                 name: 'htpasswd',
                 secret: {
-                  secretName: '${HTPASSWD_SECRET_NAME}',
+                  secretName: '${SDI_REGISTRY_HTPASSWD_SECRET_NAME}',
                 },
                 readonly: true,
               },
