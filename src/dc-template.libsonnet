@@ -7,6 +7,8 @@ local base = import 'ocp-template.libsonnet';
     imageStreamTag:: error 'imageStreamTag must be overriden!',
     parametersToExport:: super.parameters,
     additionalEnvironment:: [],
+    command:: null,
+    args:: null,
 
     objects+: [
       {
@@ -46,6 +48,11 @@ local base = import 'ocp-template.libsonnet';
                        + dctmpl.additionalEnvironment,
                   image: ' ',
                   name: dctmpl.resourceName,
+                  command: if std.isArray(dctmpl.command) then
+                    dctmpl.command
+                  else if dctmpl.command != null then
+                    [dctmpl.command],
+                  args: dctmpl.args,
                 },
               ],
               restartPolicy: 'Always',

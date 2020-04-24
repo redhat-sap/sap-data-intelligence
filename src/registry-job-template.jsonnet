@@ -19,8 +19,4 @@ base.JobTemplate {
   parametersToExport+: params.RegistryDeployParams + params.RegistryParams + [
     params.ExposeWithLetsencryptParam,
   ],
-
-  parameters+: [
-    params.OCPMinorReleaseParam,
-  ],
 }

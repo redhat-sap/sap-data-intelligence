@@ -6,6 +6,8 @@ base.DCTemplate {
   local obstmpl = self,
   resourceName: 'sdi-observer',
   imageStreamTag: obstmpl.resourceName + ':${OCP_MINOR_RELEASE}',
+  command: '/usr/local/bin/observer.sh',
+
   parametersToExport+: [
     params.ForceRedeployParam,
     params.ReplaceSecretsParam,
@@ -92,12 +94,16 @@ base.DCTemplate {
       COPY https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest-${OCP_MINOR_RELEASE}/openshift-client-linux.tar.gz /tmp/
       COPY https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest-${OCP_MINOR_RELEASE}/sha256sum.txt /tmp/
       # verify the downloaded tar
-      RUN /bin/bash -c 'grep "$(awk '"'"'{print $1}'"'"' \
-        <(sha256sum /tmp/openshift-client-linux.tar.gz))[[:space:]]\+openshift-client-linux-." \
-        /tmp/sha256sum.txt'
+      RUN /bin/bash -c 'f=/tmp/openshift-client-linux.tar.gz; \
+        got="$(awk '"'"'{print $1}'"'"' <(sha256sum "$f"))"; \
+        exp="$(awk '"'"'/openshift-client-linux-/ {print $1}'"'"' /tmp/sha256sum.txt | head -n 1)"; \
+        if [[ "$got" != "$exp" ]]; then printf \
+          '"'"'Unexpected hashsum of %s (expected "%s", got "%s")\n!'"'"' "$f" "$exp" "$got" >&2; \
+          exit 1; \
+        fi'
       RUN /bin/bash -c 'tar -C /usr/local/bin/ -xzvf /tmp/openshift-client-linux.tar.gz -T <(printf oc)'
       # TODO: verify signatures as well
-      RUN mkdir -p /usr/local/bin /usr/local/share/{sdi,openshift-acme}
+      RUN mkdir -p /usr/local/bin /usr/local/share/openshift-acme
       RUN git clone --depth 5 --single-branch \
         --branch ${LETSENCRYPT_REVISION} \
         ${LETSENCRYPT_REPOSITORY} /usr/local/share/openshift-acme
@@ -112,7 +118,7 @@ base.DCTemplate {
           done
       RUN ln -s /usr/local/share/sap-data-intelligence /usr/local/share/sdi
       WORKDIR /usr/local/share/sdi
-    |||,
+    ||| + 'CMD ["' + obstmpl.command + '"]',
   },
 
   metadata+: {
@@ -372,6 +378,7 @@ base.DCTemplate {
   ],
 
   parameters+: [
+    params.OCPMinorReleaseParam,
     {
       description: |||
         TODO

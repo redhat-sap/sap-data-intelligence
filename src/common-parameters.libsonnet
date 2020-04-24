@@ -45,7 +45,7 @@
       |||,
       name: 'LETSENCRYPT_REVISION',
       required: false,
-      value: '2cfefc7388102408a334ada90933531c7e5e11c2',
+      value: 'master',
     },
     {
       description: |||

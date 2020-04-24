@@ -8,7 +8,7 @@ for d in "$(dirname "${BASH_SOURCE[0]}")" . /usr/local/share/sdi; do
         eval "source '$d/lib/common.sh'"
     fi
 done
-if [[ "${_SDI_LIB_SOURCED:-0}" == 1 ]]; then
+if [[ "${_SDI_LIB_SOURCED:-0}" == 0 ]]; then
     printf 'FATAL: failed to source lib/common.sh!\n' >&2
     exit 1
 fi

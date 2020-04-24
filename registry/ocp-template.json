@@ -39,6 +39,8 @@
                "spec": {
                   "containers": [
                      {
+                        "args": null,
+                        "command": null,
                         "env": [
                            {
                               "name": "REGISTRY_AUTH_HTPASSWD_REALM",

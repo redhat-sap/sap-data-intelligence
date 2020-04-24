@@ -270,4 +270,4 @@ function common_cleanup() {
     rm -rf "$TMP"
 }
 
-_SDI_LIB_SOURCED=1
+export _SDI_LIB_SOURCED=1
