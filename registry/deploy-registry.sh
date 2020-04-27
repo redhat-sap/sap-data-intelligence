@@ -214,7 +214,9 @@ function waitForRegistryBuild() {
         phase="$(oc get builds "$buildName" -o jsonpath=$'{.status.phase}\n')" || rc=$?
         case "$phase" in
             Running)
-                oc logs -f "build/$buildName"
+                if ! oc logs -f "build/$buildName"; then
+                    sleep 1
+                fi
                 ;;
             Complete)
                 break
