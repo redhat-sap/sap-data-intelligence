@@ -4,7 +4,7 @@
    "message": "TODO",
    "metadata": {
       "annotations": {
-         "description": "TODO",
+         "description": "",
          "openshift.io/display-name": "TODO",
          "openshift.io/documentation-url": "https://access.redhat.com/articles/4324391",
          "openshift.io/provider-display-name": "Red Hat, Inc."

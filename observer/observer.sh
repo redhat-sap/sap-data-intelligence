@@ -290,7 +290,11 @@ function deployComponent() {
             if evalBool DEPLOY_SDI_REGISTRY && [[ -n "${NAMESPACE:-}" ]]; then
                 projects+=( "$NAMESPACE" )
             fi
-            args+=( "PROJECTS_TO_MONITOR=$(join , "${projects[@]}")" )
+            args+=(
+                "PROJECTS_TO_MONITOR=$(join , "${projects[@]}")"
+                "LETSENCRYPT_ENVIRONMENT=${LETSENCRYPT_ENVIRONMENT:-}"
+            )
+            
             ;;
     esac
 
