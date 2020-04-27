@@ -339,6 +339,7 @@ function common_cleanup() {
 function getRegistryTemplatePath() {
     local dirs=(
         .
+        ./registry
         /usr/local/share/sdi/registry
         /usr/local/share/sap-data-intelligence/registry
     )

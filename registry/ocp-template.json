@@ -4,8 +4,8 @@
    "message": "TODO",
    "metadata": {
       "annotations": {
-         "description": "",
-         "openshift.io/display-name": "TODO",
+         "description": "Generic purpose Container Image Registry secured from unauthorized access. It is more\ntolerant to image names than the integrated OpenShift image registry. Therefore it also\nallows for hosting of SAP Data Intelligence images.\n",
+         "openshift.io/display-name": "Docker's Container Image Registry",
          "openshift.io/documentation-url": "https://access.redhat.com/articles/4324391",
          "openshift.io/provider-display-name": "Red Hat, Inc."
       },

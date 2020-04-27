@@ -9,7 +9,16 @@ base.DCTemplate {
   imageStreamTag: regtmpl.resourceName + ':latest',
   metadata+: {
     annotations+: {
-      description: '',
+      description: |||
+        Generic purpose Container Image Registry secured from unauthorized access. It is more
+        tolerant to image names than the integrated OpenShift image registry. Therefore it also
+        allows for hosting of SAP Data Intelligence images.
+      |||,
+      'openshift.io/display-name': "Docker's Container Image Registry",
+      'openshift.io/provider-display-name': 'Red Hat, Inc.',
+      // TODO: update KB article when published
+      'openshift.io/documentation-url':
+        'https://access.redhat.com/articles/4324391',
     },
   },
   parametersToExport+: [],
@@ -187,7 +196,6 @@ base.DCTemplate {
       },
     },
   ],
-
 
   additionalEnvironment+: [
     {

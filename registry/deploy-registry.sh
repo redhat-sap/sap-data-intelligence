@@ -132,7 +132,9 @@ function getRegistryTemplateAs() {
     local output="$1"
     local params=()
     readarray -t params <<<"$(mkRegistryTemplateParams)"
-    oc process --local "${params[@]}" -f "$(getRegistryTemplatePath)" -o "$output" 
+    local tmplPath
+    tmplPath="$(getRegistryTemplatePath)"
+    oc process --local "${params[@]}" -f "$tmplPath" -o "$output" 
 }
 export -f getRegistryTemplateAs
 
@@ -214,7 +216,7 @@ function waitForRegistryBuild() {
         phase="$(oc get builds "$buildName" -o jsonpath=$'{.status.phase}\n')" || rc=$?
         case "$phase" in
             Running)
-                if ! oc logs -f "build/$buildName"; then
+                if ! oc logs -f "build/$buildName" >&2; then
                     sleep 1
                 fi
                 ;;
@@ -224,7 +226,7 @@ function waitForRegistryBuild() {
             *)
                 if [[ "$rc" != 0 && "$i" == 5 ]]; then
                     log 'Starting a new build of container-image-registry manually ...'
-                    oc start-build --follow container-image-registry
+                    oc start-build --follow container-image-registry >&2
                 else
                     sleep 1
                 fi
@@ -249,12 +251,12 @@ function waitForRegistryPod() {
 function getLatestRunningPodResourceVersion() {
     oc get pod -o json \
         -l deploymentconfig=container-image-registry | \
-        jq $'.items[] | select(.kind == "Pod" and .status.phase == "Running") |
-            "\(.metadata.resourceVersion):\(.metadata.name)\n"' | sort -n -t : | tail -n 1
+        jq -r $'.items[] | select(.kind == "Pod" and .status.phase == "Running") |
+            "\(.metadata.resourceVersion):\(.metadata.name)\n"' | sort -n -t : | tail -n 1 | \
+            sed 's/:.*//'
 }
 
 function waitForRegistry() {
-    set -x
     local resource=bc/container-image-registry
     local initialPodResourceVersion
     initialPodResourceVersion="$(getLatestRunningPodResourceVersion)" ||:
