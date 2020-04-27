@@ -265,6 +265,7 @@ function deployComponent() {
         NAMESPACE="${NAMESPACE:-}"
         FORCE_REDEPLOY="${FORCE_REDEPLOY:-}"
         REPLACE_SECRETS="${REPLACE_SECRETS:-}"
+        REPLACE_PERSISTENT_VOLUME_CLAIMS="${REPLACE_PERSISTENT_VOLUME_CLAIMS:-}"
         JOB_IMAGE="$(getJobImage)"
         # passed as an argument instead
         #WAIT_UNTIL_ROLLEDOUT=true

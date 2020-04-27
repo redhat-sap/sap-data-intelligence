@@ -97,6 +97,10 @@
                               "value": "${LETSENCRYPT_ENVIRONMENT}"
                            },
                            {
+                              "name": "REPLACE_PERSISTENT_VOLUME_CLAIMS",
+                              "value": "${REPLACE_PERSISTENT_VOLUME_CLAIMS}"
+                           },
+                           {
                               "name": "SDI_REGISTRY_STORAGE_CLASS_NAME",
                               "value": "${SDI_REGISTRY_STORAGE_CLASS_NAME}"
                            },
@@ -517,6 +521,12 @@
          "name": "LETSENCRYPT_ENVIRONMENT",
          "required": false,
          "value": "live"
+      },
+      {
+         "description": "Whether to replace existing persistent volume claims like the one belonging to SDI\nRegistry.\n",
+         "name": "REPLACE_PERSISTENT_VOLUME_CLAIMS",
+         "required": false,
+         "value": "false"
       },
       {
          "description": "Unless given, the default storage class will be used.\n",

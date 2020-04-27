@@ -177,6 +177,7 @@ base.DCTemplate {
             storage: '${SDI_REGISTRY_VOLUME_CAPACITY}',
           },
         },
+        persistentVolumeReclaimPolicy: 'Retain',
       },
     },
   ],

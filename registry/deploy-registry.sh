@@ -87,22 +87,12 @@ function mkHtpasswd() {
 }
 
 function createHtpasswdSecret() {
-    local force=0
-    while [[ $# -gt 0 ]]; do
-        if [[ "${1:-}" == "-f" ]]; then
-            # shellcheck disable=SC2034
-            force=1
-        fi
-        shift
-    done
     if [[ -z "${SDI_REGISTRY_USERNAME:-}" ]]; then
         SDI_REGISTRY_USERNAME="user-$(genSecret 9 'a-z0-9')"
     fi
     if [[ -z "${SDI_REGISTRY_PASSWORD:-}" ]]; then
         SDI_REGISTRY_PASSWORD="$(genSecret)"
     fi
-    local args=()
-    evalBool force && args+=( -f )
     mkHtpasswd "$SDI_REGISTRY_USERNAME" "$SDI_REGISTRY_PASSWORD" "$OUTPUT_DIR/htpasswd"
     printf "%s:%s\n" "$SDI_REGISTRY_USERNAME" "$SDI_REGISTRY_PASSWORD" >"$OUTPUT_DIR/.htpasswd.raw"
 
@@ -110,15 +100,13 @@ function createHtpasswdSecret() {
     oc create secret generic --dry-run -o yaml "$SECRET_NAME" \
         --from-file=htpasswd="$OUTPUT_DIR/htpasswd" \
         --from-file=.htpasswd.raw="$OUTPUT_DIR/.htpasswd.raw"  | \
-            createOrReplace ${args[@]}
+            createOrReplace
     cat "$OUTPUT_DIR/.htpasswd.raw"
 }
 
 function getOrCreateHtpasswdSecret() {
     # returns $username:$password
-    if evalBool REPLACE_SECRETS; then
-        createHtpasswdSecret -f
-    elif doesResourceExist "secret/$SECRET_NAME"; then
+    if doesResourceExist "secret/$SECRET_NAME" && ! evalBool REPLACE_SECRETS; then
         oc get -o json "secret/$SECRET_NAME" | jq -r '.data[".htpasswd.raw"]' | base64 -d
     else
         createHtpasswdSecret
@@ -196,14 +184,10 @@ function ensureRedHatRegistrySecret() {
         exit 1
     fi
     if [[ "${REDHAT_REGISTRY_SECRET_NAMESPACE:-$NAMESPACE}" != "${NAMESPACE}" ]]; then
-        args=()
-        if evalBool REPLACE_SECRETS; then
-            args+=( -f )
-        fi
         # shellcheck disable=SC2086
         oc  get -n "${REDHAT_REGISTRY_SECRET_NAMESPACE:-$NAMESPACE}" -o json \
             "secret/$REDHAT_REGISTRY_SECRET_NAME" | \
-            createOrReplace -n "$NAMESPACE" ${args:-}
+            createOrReplace -n "$NAMESPACE"
     fi
     runOrLog oc secrets add default "$REDHAT_REGISTRY_SECRET_NAME" --for=pull
 }

@@ -168,6 +168,13 @@ function common_init() {
         SDI_NAMESPACE="$NAMESPACE"
     fi
     export SDI_NAMESPACE
+    local var
+    # shellcheck disable=SC2034
+    for var in in REPLACE_SECRETS REPLACE_PERSISTENT_VOLUME_CLAIMS; do
+        eval val='"${'"$var"':-}"'
+        [[ -z "${val:-}" ]] && continue
+        eval 'export '"$var"'="$val"'
+    done
 
     _common_init_performed=1
 }
@@ -195,6 +202,31 @@ function convertObjectToJSON() {
     printf '%s' "$object"
 }
 export -f convertObjectToJSON
+
+function _forceReplace() {
+    # shellcheck disable=SC2034
+    local forceFlag="$1"
+    local err="${2:-}"
+    if ! grep -q 'AlreadyExists\|Conflict\|Forbidden\|field is immutable' <<<"${err:-}"; then
+        return 1
+    fi
+    if [[ "${kind,,}" == job ]]; then
+        return 0
+    fi
+    if ! evalBool forceFlag; then
+        return 1
+    fi
+    case "${kind,,}" in
+        secret)
+            evalBool REPLACE_SECRETS
+            ;;
+        persistentvolumeclaim)
+            evalBool REPLACE_PERSISTENT_VOLUME_CLAIMS
+            ;;
+    esac
+    return 0
+}
+export -f _forceReplace
 
 function createOrReplace() {
     local object
@@ -268,9 +300,7 @@ function createOrReplace() {
         return 0
     fi
     args=( -f - )
-    if grep -q 'AlreadyExists\|Conflict\|Forbidden\|field is immutable' <<<"${err:-}" && \
-            evalBool force || [[ "${kind,,}" == job ]];
-    then
+    if _forceReplace "$force" "${err:-}"; then
         args+=( --force )
     fi
     err="$(oc replace "${args[@]}" <<<"$object" 2>&1)" && rc=0 || rc=$?

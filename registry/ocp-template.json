@@ -245,6 +245,7 @@
             "accessModes": [
                "ReadWriteOnce"
             ],
+            "persistentVolumeReclaimPolicy": "Retain",
             "resources": {
                "requests": {
                   "storage": "${SDI_REGISTRY_VOLUME_CAPACITY}"

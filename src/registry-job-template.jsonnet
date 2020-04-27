@@ -16,7 +16,8 @@ base.JobTemplate {
     },
   },
 
-  parametersToExport+: params.RegistryDeployParams + params.RegistryParams + [
+  parametersToExport+: [params.ReplacePersistentVolumeClaimsParam]
+                       + params.RegistryDeployParams + params.RegistryParams + [
     params.ExposeWithLetsencryptParam,
   ] + params.RedHatRegistrySecretParams,
 }

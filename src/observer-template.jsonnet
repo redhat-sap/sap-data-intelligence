@@ -79,7 +79,7 @@ base.DCTemplate {
     params.NotRequired(p)
     for p in params.LetsencryptParams
     if p.name == 'LETSENCRYPT_ENVIRONMENT'
-  ] + params.RegistryDeployParams + [
+  ] + [params.ReplacePersistentVolumeClaimsParam] + params.RegistryDeployParams + [
     params.NotRequired(if p.name == 'SDI_REGISTRY_ROUTE_HOSTNAME' then
       p { description+: 'Overrides REGISTRY parameter.' }
     else p)

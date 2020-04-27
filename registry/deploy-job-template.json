@@ -56,6 +56,10 @@
                               "value": "${REPLACE_SECRETS}"
                            },
                            {
+                              "name": "REPLACE_PERSISTENT_VOLUME_CLAIMS",
+                              "value": "${REPLACE_PERSISTENT_VOLUME_CLAIMS}"
+                           },
+                           {
                               "name": "SDI_REGISTRY_STORAGE_CLASS_NAME",
                               "value": "${SDI_REGISTRY_STORAGE_CLASS_NAME}"
                            },
@@ -124,6 +128,12 @@
       {
          "description": "Whether to replace secrets like SDI Registry's htpasswd file if they exist already.\n",
          "name": "REPLACE_SECRETS",
+         "required": false,
+         "value": "false"
+      },
+      {
+         "description": "Whether to replace existing persistent volume claims like the one belonging to SDI\nRegistry.\n",
+         "name": "REPLACE_PERSISTENT_VOLUME_CLAIMS",
          "required": false,
          "value": "false"
       },

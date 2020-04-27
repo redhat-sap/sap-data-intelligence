@@ -8,6 +8,16 @@
     value: 'false',
   },
 
+  ReplacePersistentVolumeClaimsParam: {
+    description: |||
+      Whether to replace existing persistent volume claims like the one belonging to SDI
+      Registry.
+    |||,
+    name: 'REPLACE_PERSISTENT_VOLUME_CLAIMS',
+    required: false,
+    value: 'false',
+  },
+
   ForceRedeployParam:
     {
       description: |||
