@@ -128,15 +128,16 @@ function copyRoleToProject() {
 export -f copyRoleToProject
 
 function ensureProject() {
-    local cm
+    local res
     if ! doesResourceExist "project/$NAMESPACE"; then
         runOrLog oc new-project "$NAMESPACE"
     else
-        # delete a conflicting ConfigMap if it exists
-        while IFS='' read -r cm; do
-            [[ "$cm" =~ -$ENVIRONMENT$ ]] && continue
-            runOrLog oc delete "$cm"
-        done < <(oc get cm -o name | grep '/letsencrypt-\(live\|staging\)')
+        # delete a conflicting ConfigMap and Secret if it exists
+        while IFS='' read -r res; do
+            [[ "$res" =~ -$ENVIRONMENT$ ]] && continue
+            runOrLog oc delete "$res"
+        done < <(parallel -i -- oc get '{}' -o name ::: cm secret | \
+            grep '/letsencrypt-\(live\|staging\)')
     fi
 }
 
