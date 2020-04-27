@@ -300,11 +300,9 @@ function createOrReplace() {
         return 0
     fi
     args=( -f - )
-    set -x
     if _forceReplace "$kind" "$force" "${err:-}"; then
         args+=( --force )
     fi
-    set +x
     err="$(oc replace "${args[@]}" <<<"$object" 2>&1)" && rc=0 || rc=$?
     printf '%s\n' "$err" >&2
     if [[ $rc == 0 ]] || ! grep -q 'Conflict\|Forbidden\|field is immutable' <<<"${err:-}"; then
