@@ -148,10 +148,39 @@ function cleanup() {
 }
 trap cleanup EXIT
 
+function deployFile() {
+    local file="$1"
+    local object
+    object="$(oc create --dry-run -o json -f "$file")"
+    kind="$(jq -r '.kind' <<<"${object}")"
+    local patchParts=(
+        '.spec.template.spec.containers[0].args |= ([(.[] // []) |'
+            'select(test("-namespace")|not)] + ['
+    )
+    readarray -d , -t PROJECTS <<<"$projects"
+    local namespaces=()
+    for p in "${PROJECTS[@]}"; do
+        p="$(tr -d '[:space:]' <<<"$p")"
+        [[ -z "${p:-}" ]] && continue
+        namespaces+=( '"--namespace='"$p"'"' )
+    done
+    patchParts+=( "$(join "," "${namespaces[@]}")" )
+    patchParts+=( '])' )
+    case "${kind,,}" in
+        deploy*)
+            object="$(jq "$(join ' ' "${patchParts[@]}")" <<<"$object")"
+            ;;
+    esac
+    createOrReplace <<<"$object"
+}
+export -f deployFile
+
 function deployLetsencrypt() {
     ensureRepository
     ensureProject
-    parallel createOrReplace -i "${REPOSITORY#file://}/{}" ::: \
+    projects="$(join , "${PROJECTS[@]}")"
+    export projects
+    parallel deployFile "${REPOSITORY#file://}/{}" ::: \
         "${LETSENCRYPT_DEPLOY_FILES[@]//@environment@/$ENVIRONMENT}"
     if evalBool DONT_GRANT_PROJECT_PERMISSIONS; then
         return 0
@@ -191,6 +220,7 @@ function addProjects() {
     [[ -z "${values:-}" ]] && return 0
     readarray -d , -t ps <<<"${values:-}"
     for p in "${ps[@]}"; do
+        p="$(tr -d '[:space:]' <<<"${p:-}")"
         [[ -z "${p:-}" ]] && continue
         PROJECTS+=( "$p" )
     done
@@ -284,10 +314,11 @@ if [[ -n "${NAMESPACE:-}" ]]; then
     fi
 fi
 export NAMESPACE
-TMP_PROJECTS=( "$NAMESPACE" )
-[[ "${#PROJECTS[@]}" -gt 0 ]] && TMP_PROJECTS+=( "${PROJECTS[@]}" )
+addProjects "$NAMESPACE"
 
-readarray -t PROJECTS < <(printf '%s\n' "${PROJECTS[@]}" | sort -u | grep -v '^\s*$')
+TMP_PROJECTS=(  )
+[[ "${#PROJECTS[@]}" -gt 0 ]] && TMP_PROJECTS+=( "${PROJECTS[@]}" )
+readarray -t PROJECTS < <(printf '%s\n' "${TMP_PROJECTS[@]}" | sort -u | grep -v '^\s*$')
 
 if [[ -z "${REVISION:-}" ]]; then
     REVISION="${LETSENCRYPT_REVISION:-$DEFAULT_REVISION}"

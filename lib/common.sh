@@ -16,6 +16,7 @@ readonly SDI_REGISTRY_TEMPLATE_FILE_NAME=ocp-template.json
 
 
 function join() { local IFS="${1:-}"; shift; echo "$*"; }
+export -f join
 
 # support both 3.x and 4.x output formats
 version="$(oc version --short 2>/dev/null || oc version)"
