@@ -222,11 +222,12 @@ function deployRegistry() {
 function waitForRegistryBuild() {
     local buildName buildVersion
     local phase="Unknown"
-    while true; do
+    for ((i=0; 1; i++)); do
         buildVersion="$(oc get -o jsonpath='{.status.lastVersion}' \
             "bc/container-image-registry")"
         buildName="container-image-registry-$buildVersion"
-        phase="$(oc get builds "$buildName" -o jsonpath=$'{.status.phase}\n')" ||:
+        local rc=0
+        phase="$(oc get builds "$buildName" -o jsonpath=$'{.status.phase}\n')" || rc=$?
         case "$phase" in
             Running)
                 oc logs -f "build/$buildName"
@@ -235,7 +236,11 @@ function waitForRegistryBuild() {
                 break
                 ;;
             *)
-                sleep 1
+                if [[ "$rc" != 0 && "$i" -gt 5 ]]; then
+                    oc start-build -w -F container-image-registry
+                else
+                    sleep 1
+                fi
                 ;;
         esac
     done
@@ -269,7 +274,9 @@ function waitForRegistry() {
 }
 
 NOOUT=0
-REGISTRY_HOSTNAME="${SDI_REGISTRY_ROUTE_HOSTNAME:-}"
+if [[ -z "${REGISTRY_HOSTNAME:-}" && -n "${SDI_REGISTRY_ROUTE_HOSTNAME:-}" ]]; then
+    REGISTRY_HOSTNAME="${SDI_REGISTRY_ROUTE_HOSTNAME:-}"
+fi
 
 TMPARGS="$(getopt -o ho:nw -l "$(join , "${longOptions[@]}")" -n "${BASH_SOURCE[0]}" -- "$@")"
 eval set -- "$TMPARGS"
