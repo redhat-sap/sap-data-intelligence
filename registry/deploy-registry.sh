@@ -220,7 +220,7 @@ function waitForRegistryBuild() {
                 break
                 ;;
             *)
-                if [[ "$rc" != 0 && "$i" -gt 5 ]]; then
+                if [[ "$rc" != 0 && "$i" == 5 ]]; then
                     log 'Starting a new build of container-image-registry manually ...'
                     oc start-build -w -F container-image-registry
                 else
