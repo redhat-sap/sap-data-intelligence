@@ -330,6 +330,6 @@ fi
 
 check
 
-if evalBool WAIT_UNTIL_ROLLEDOUT; then
+if evalBool WAIT_UNTIL_ROLLEDOUT && ! evalBool DRY_RUN; then
     waitForReady
 fi

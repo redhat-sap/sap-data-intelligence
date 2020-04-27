@@ -221,6 +221,7 @@ function waitForRegistryBuild() {
                 ;;
             *)
                 if [[ "$rc" != 0 && "$i" -gt 5 ]]; then
+                    log 'Starting a new build of container-image-registry manually ...'
                     oc start-build -w -F container-image-registry
                 else
                     sleep 1
@@ -355,6 +356,6 @@ if evalBool DEPLOY_SDI_REGISTRY; then
     deployRegistry
 fi
 
-if evalBool WAIT_UNTIL_ROLLEDOUT; then
+if evalBool WAIT_UNTIL_ROLLEDOUT && ! evalBool DRY_RUN; then
     waitForRegistry
 fi

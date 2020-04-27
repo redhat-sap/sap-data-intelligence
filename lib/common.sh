@@ -204,9 +204,10 @@ function convertObjectToJSON() {
 export -f convertObjectToJSON
 
 function _forceReplace() {
+    local kind="$1"
     # shellcheck disable=SC2034
-    local forceFlag="$1"
-    local err="${2:-}"
+    local forceFlag="$2"
+    local err="${3:-}"
     if ! grep -q 'AlreadyExists\|Conflict\|Forbidden\|field is immutable' <<<"${err:-}"; then
         return 1
     fi
@@ -224,7 +225,6 @@ function _forceReplace() {
             evalBool REPLACE_PERSISTENT_VOLUME_CLAIMS
             ;;
     esac
-    return 0
 }
 export -f _forceReplace
 
@@ -300,9 +300,11 @@ function createOrReplace() {
         return 0
     fi
     args=( -f - )
-    if _forceReplace "$force" "${err:-}"; then
+    set -x
+    if _forceReplace "$kind" "$force" "${err:-}"; then
         args+=( --force )
     fi
+    set +x
     err="$(oc replace "${args[@]}" <<<"$object" 2>&1)" && rc=0 || rc=$?
     printf '%s\n' "$err" >&2
     if [[ $rc == 0 ]] || ! grep -q 'Conflict\|Forbidden\|field is immutable' <<<"${err:-}"; then

@@ -182,6 +182,7 @@ base.DCTemplate {
             storage: '${SDI_REGISTRY_VOLUME_CAPACITY}',
           },
         },
+        // NOTE: Dynamically provisioned volumes are always deleted.
         persistentVolumeReclaimPolicy: 'Retain',
       },
     },
