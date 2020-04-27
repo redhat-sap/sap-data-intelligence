@@ -246,18 +246,35 @@ function waitForRegistryPod() {
             jsonpath=$'{range .items[*]}{.status.phase}\n{end}' | tail -n 1
 }
 
+function getLatestRunningPodResourceVersion() {
+    oc get pod -o json \
+        -l deploymentconfig=container-image-registry | \
+        jq $'.items[] | select(.kind == "Pod" and .status.phase == "Running") |
+            "\(.metadata.resourceVersion):\(.metadata.name)\n"' | sort -n -t : | tail -n 1
+}
+
 function waitForRegistry() {
+    set -x
     local resource=bc/container-image-registry
+    local initialPodResourceVersion
+    initialPodResourceVersion="$(getLatestRunningPodResourceVersion)" ||:
+    local buildRC=0
     read -r -t 600 phase <<<"$(waitForRegistryBuild)"
     if [[ "$phase" != Complete ]]; then
         log 'WARNING: failed to wait for the latest build of %s' "$resource"
-        return 1
+        buildRC=1
     fi
     read -r -t 300 phase <<<"$(waitForRegistryPod)"
     if [[ "$phase" != Running ]]; then
         log 'WARNING: failed to wait for the latest deployment of %s' "dc/${resource#bc/}"
         return 1
     fi
+    podResourceVersion="$(getLatestRunningPodResourceVersion)"
+    if [[ $buildRC != 0 && -n "${podResourceVersion:-}" && \
+            "${initialPodResourceVersion:-}" != "${podResourceVersion:-}" ]]; then
+        return 0
+    fi
+    return "$buildRC"
 }
 
 NOOUT=0
