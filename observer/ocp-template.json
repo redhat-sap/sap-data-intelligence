@@ -14,9 +14,22 @@
    "objects": [
       {
          "apiVersion": "v1",
+         "kind": "ServiceAccount",
+         "metadata": {
+            "labels": {
+               "created-by": "sdi-observer-template",
+               "deploymentconfig": "sdi-observer"
+            },
+            "name": "sdi-observer",
+            "namespace": "${NAMESPACE}"
+         }
+      },
+      {
+         "apiVersion": "v1",
          "kind": "DeploymentConfig",
          "metadata": {
             "labels": {
+               "created-by": "sdi-observer-template",
                "deploymentconfig": "sdi-observer"
             },
             "name": "sdi-observer",
@@ -63,6 +76,14 @@
                            {
                               "name": "REDHAT_REGISTRY_SECRET_NAME",
                               "value": "${REDHAT_REGISTRY_SECRET_NAME}"
+                           },
+                           {
+                              "name": "SDI_OBSERVER_REPOSITORY",
+                              "value": "${SDI_OBSERVER_REPOSITORY}"
+                           },
+                           {
+                              "name": "SDI_OBSERVER_GIT_REVISION",
+                              "value": "${SDI_OBSERVER_GIT_REVISION}"
                            },
                            {
                               "name": "SDI_NAMESPACE",
@@ -167,6 +188,7 @@
          "kind": "ServiceAccount",
          "metadata": {
             "labels": {
+               "created-by": "sdi-observer-template",
                "deploymentconfig": "sdi-observer"
             },
             "name": "sdi-observer",
@@ -174,77 +196,33 @@
          }
       },
       {
-         "apiVersion": "build.openshift.io/v1",
-         "kind": "BuildConfig",
+         "apiVersion": "rbac.authorization.k8s.io/v1",
+         "kind": "ClusterRoleBinding",
          "metadata": {
             "labels": {
                "deploymentconfig": "sdi-observer"
             },
-            "name": "sdi-observer",
-            "namespace": "${NAMESPACE}"
+            "name": "sdi-observer-admin"
          },
-         "spec": {
-            "output": {
-               "to": {
-                  "kind": "ImageStreamTag",
-                  "name": "sdi-observer:${OCP_MINOR_RELEASE}"
-               }
-            },
-            "runPolicy": "Serial",
-            "source": {
-               "dockerfile": "FROM openshift/cli:latest\nRUN dnf update -y\n# TODO: jq is not yet available in EPEL-8\nRUN dnf install -y \\\n  https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm && \\\n  dnf install -y jq\nRUN dnf install -y \\\n  https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm && \\\n  dnf install -y parallel procps-ng bc git httpd-tools && dnf clean all -y\n# TODO: determine OCP version from environment\nCOPY https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest-${OCP_MINOR_RELEASE}/openshift-client-linux.tar.gz /tmp/\nCOPY https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest-${OCP_MINOR_RELEASE}/sha256sum.txt /tmp/\n# verify the downloaded tar\nRUN /bin/bash -c 'f=/tmp/openshift-client-linux.tar.gz; \\\n  got=\"$(awk '\"'\"'{print $1}'\"'\"' <(sha256sum \"$f\"))\"; \\\n  exp=\"$(awk '\"'\"'/openshift-client-linux-/ {print $1}'\"'\"' /tmp/sha256sum.txt | head -n 1)\"; \\\n  if [[ \"$got\" != \"$exp\" ]]; then printf \\\n    '\"'\"'Unexpected hashsum of %s (expected \"%s\", got \"%s\")\\n!'\"'\"' \"$f\" \"$exp\" \"$got\" >&2; \\\n    exit 1; \\\n  fi'\nRUN /bin/bash -c 'tar -C /usr/local/bin/ -xzvf /tmp/openshift-client-linux.tar.gz -T <(printf oc)'\n# TODO: verify signatures as well\nRUN mkdir -p /usr/local/bin /usr/local/share/openshift-acme\nRUN git clone --depth 5 --single-branch \\\n  --branch ${LETSENCRYPT_REVISION} \\\n  ${LETSENCRYPT_REPOSITORY} /usr/local/share/openshift-acme\nRUN git clone --depth 5 --single-branch \\\n  --branch ${SDI_OBSERVER_GIT_REVISION} \\\n  ${SDI_OBSERVER_REPOSITORY} /usr/local/share/sap-data-intelligence\nRUN for bin in observer.sh deploy-registry.sh deploy-letsencrypt.sh; do \\\n      cp -lv $(find /usr/local/share/sap-data-intelligence \\\n                -type f -executable -name \"$bin\") \\\n        /usr/local/bin/$bin; \\\n      chmod a+rx /usr/local/bin/$bin; \\\n    done\nRUN ln -s /usr/local/share/sap-data-intelligence /usr/local/share/sdi\nWORKDIR /usr/local/share/sdi\nCMD [\"/usr/local/bin/observer.sh\"]"
-            },
-            "strategy": {
-               "dockerStrategy": {
-                  "from": {
-                     "kind": "ImageStreamTag",
-                     "name": "ubi8:latest"
-                  },
-                  "pullSecret": {
-                     "name": "${REDHAT_REGISTRY_SECRET_NAME}"
-                  }
-               }
-            },
-            "triggers": [
-               {
-                  "type": "ImageChange"
-               },
-               {
-                  "type": "ConfigChange"
-               }
-            ]
-         }
-      },
-      {
-         "apiVersion": "v1",
-         "kind": "ImageStream",
-         "metadata": {
-            "name": "ubi8",
-            "namespace": "${NAMESPACE}"
+         "roleRef": {
+            "apiGroup": "rbac.authorization.k8s.io",
+            "kind": "ClusterRole",
+            "name": "admin"
          },
-         "spec": {
-            "tags": [
-               {
-                  "from": {
-                     "kind": "DockerImage",
-                     "name": "registry.redhat.io/ubi8/ubi:latest"
-                  },
-                  "name": "latest",
-                  "referencePolicy": {
-                     "type": "Source"
-                  }
-               }
-            ]
-         },
-         "status": {
-            "dockerImageRepository": ""
-         }
+         "subjects": [
+            {
+               "kind": "ServiceAccount",
+               "name": "sdi-observer",
+               "namespace": "${NAMESPACE}"
+            }
+         ]
       },
       {
          "apiVersion": "rbac.authorization.k8s.io/v1",
          "kind": "Role",
          "metadata": {
             "labels": {
+               "created-by": "sdi-observer-template",
                "deploymentconfig": "sdi-observer"
             },
             "name": "sdi-observer",
@@ -374,9 +352,10 @@
          "kind": "RoleBinding",
          "metadata": {
             "labels": {
+               "created-by": "sdi-observer-template",
                "deploymentconfig": "sdi-observer"
             },
-            "name": "sdi-observer-${ROLE_BINDING_SUFFIX}",
+            "name": "sdi-observer",
             "namespace": "${SDI_NAMESPACE}"
          },
          "roleRef": {
@@ -400,7 +379,7 @@
             "labels": {
                "deploymentconfig": "sdi-observer"
             },
-            "name": "sdi-observer-node-reader-${ROLE_BINDING_SUFFIX}"
+            "name": "sdi-observer-node-reader"
          },
          "roleRef": {
             "apiGroup": "rbac.authorization.k8s.io",
@@ -416,31 +395,98 @@
          ]
       },
       {
-         "apiVersion": "rbac.authorization.k8s.io/v1",
-         "kind": "ClusterRoleBinding",
+         "apiVersion": "build.openshift.io/v1",
+         "kind": "BuildConfig",
          "metadata": {
             "labels": {
+               "created-by": "sdi-observer-template",
                "deploymentconfig": "sdi-observer"
             },
-            "name": "sdi-observer-admin"
+            "name": "sdi-observer",
+            "namespace": "${NAMESPACE}"
          },
-         "roleRef": {
-            "apiGroup": "rbac.authorization.k8s.io",
-            "kind": "ClusterRole",
-            "name": "admin"
-         },
-         "subjects": [
-            {
-               "kind": "ServiceAccount",
-               "name": "sdi-observer",
-               "namespace": "${NAMESPACE}"
-            }
-         ]
+         "spec": {
+            "output": {
+               "to": {
+                  "kind": "ImageStreamTag",
+                  "name": "sdi-observer:${OCP_MINOR_RELEASE}"
+               }
+            },
+            "runPolicy": "Serial",
+            "source": {
+               "dockerfile": "FROM openshift/cli:latest\nRUN dnf update -y\n# TODO: jq is not yet available in EPEL-8\nRUN dnf install -y \\\n  https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm && \\\n  dnf install -y jq\nRUN dnf install -y \\\n  https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm && \\\n  dnf install -y parallel procps-ng bc git httpd-tools && dnf clean all -y\n# TODO: determine OCP version from environment\nCOPY https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest-${OCP_MINOR_RELEASE}/openshift-client-linux.tar.gz /tmp/\nCOPY https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest-${OCP_MINOR_RELEASE}/sha256sum.txt /tmp/\n# verify the downloaded tar\nRUN /bin/bash -c 'f=/tmp/openshift-client-linux.tar.gz; \\\n  got=\"$(awk '\"'\"'{print $1}'\"'\"' <(sha256sum \"$f\"))\"; \\\n  exp=\"$(awk '\"'\"'/openshift-client-linux-/ {print $1}'\"'\"' /tmp/sha256sum.txt | head -n 1)\"; \\\n  if [[ \"$got\" != \"$exp\" ]]; then printf \\\n    '\"'\"'Unexpected hashsum of %s (expected \"%s\", got \"%s\")\\n!'\"'\"' \"$f\" \"$exp\" \"$got\" >&2; \\\n    exit 1; \\\n  fi'\nRUN /bin/bash -c 'tar -C /usr/local/bin/ -xzvf /tmp/openshift-client-linux.tar.gz -T <(printf oc)'\n# TODO: verify signatures as well\nRUN mkdir -p /usr/local/bin /usr/local/share/openshift-acme\nRUN git clone --depth 5 --single-branch \\\n  --branch ${LETSENCRYPT_REVISION} \\\n  ${LETSENCRYPT_REPOSITORY} /usr/local/share/openshift-acme\nRUN git clone --depth 5 --single-branch \\\n  --branch ${SDI_OBSERVER_GIT_REVISION} \\\n  ${SDI_OBSERVER_REPOSITORY} /usr/local/share/sap-data-intelligence\nRUN for bin in observer.sh deploy-registry.sh deploy-letsencrypt.sh; do \\\n      cp -lv $(find /usr/local/share/sap-data-intelligence \\\n                -type f -executable -name \"$bin\") \\\n        /usr/local/bin/$bin; \\\n      chmod a+rx /usr/local/bin/$bin; \\\n    done\nRUN ln -s /usr/local/share/sap-data-intelligence /usr/local/share/sdi\nWORKDIR /usr/local/share/sdi\nCMD [\"/usr/local/bin/observer.sh\"]"
+            },
+            "strategy": {
+               "dockerStrategy": {
+                  "from": {
+                     "kind": "ImageStreamTag",
+                     "name": "ubi8:latest"
+                  },
+                  "pullSecret": {
+                     "name": "${REDHAT_REGISTRY_SECRET_NAME}"
+                  }
+               }
+            },
+            "triggers": [
+               {
+                  "type": "ImageChange"
+               },
+               {
+                  "type": "ConfigChange"
+               }
+            ]
+         }
       },
       {
          "apiVersion": "v1",
          "kind": "ImageStream",
          "metadata": {
+            "labels": {
+               "created-by": "sdi-observer-template"
+            },
+            "name": "sdi-observer",
+            "namespace": "${NAMESPACE}"
+         },
+         "spec": null,
+         "status": {
+            "dockerImageRepository": ""
+         }
+      },
+      {
+         "apiVersion": "v1",
+         "kind": "ImageStream",
+         "metadata": {
+            "labels": {
+               "created-by": "sdi-observer-template"
+            },
+            "name": "ubi8",
+            "namespace": "${NAMESPACE}"
+         },
+         "spec": {
+            "tags": [
+               {
+                  "from": {
+                     "kind": "DockerImage",
+                     "name": "registry.redhat.io/ubi8/ubi:latest"
+                  },
+                  "name": "latest",
+                  "referencePolicy": {
+                     "type": "Source"
+                  }
+               }
+            ]
+         },
+         "status": {
+            "dockerImageRepository": ""
+         }
+      },
+      {
+         "apiVersion": "v1",
+         "kind": "ImageStream",
+         "metadata": {
+            "labels": {
+               "created-by": "sdi-observer-template"
+            },
             "name": "sdi-observer",
             "namespace": "${NAMESPACE}"
          },
@@ -477,7 +523,19 @@
       {
          "description": "Name of the secret with credentials for registry.redhat.io registry. Please visit\nhttps://access.redhat.com/terms-based-registry/ to obtain the OpenShift secret. For\nmore details, please refer to https://access.redhat.com/RegistryAuthentication.'\n",
          "name": "REDHAT_REGISTRY_SECRET_NAME",
-         "required": false
+         "required": true
+      },
+      {
+         "description": "URL of SDI Observer's git repository to clone into sdi-observer image.\n",
+         "name": "SDI_OBSERVER_REPOSITORY",
+         "required": true,
+         "value": "https://github.com/redhat-sap/sap-data-intelligence"
+      },
+      {
+         "description": "Revision (e.g. tag, commit or branch) of SDI Observer's git repository to check out.\n",
+         "name": "SDI_OBSERVER_GIT_REVISION",
+         "required": true,
+         "value": "master"
       },
       {
          "description": "The name of the SAP Data Hub namespace to manage. Defaults to the current one. It must be\nset only in case the observer is running in a differnt namespace (see NAMESPACE).\n",
@@ -576,12 +634,6 @@
          "name": "EXPOSE_WITH_LETSENCRYPT"
       },
       {
-         "description": "Minor release of OpenShift Container Platform (e.g. 4.2). This value must match the OCP\nserver version. The biggest tolerated difference between the versions is 1 in the second\ndigit.\n",
-         "name": "OCP_MINOR_RELEASE",
-         "required": true,
-         "value": "4.2"
-      },
-      {
          "description": "TODO\n",
          "name": "SDI_OBSERVER_REPOSITORY",
          "required": true,
@@ -592,12 +644,6 @@
          "name": "SDI_OBSERVER_GIT_REVISION",
          "required": true,
          "value": "master"
-      },
-      {
-         "description": "A random suffix for the new RoleBinding's name. No need to edit.\n",
-         "from": "[a-z0-9]{5}",
-         "generate": "expression",
-         "name": "ROLE_BINDING_SUFFIX"
       },
       {
          "description": "Unless given, a local copy will be used.\n",

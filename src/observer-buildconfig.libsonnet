@@ -1,0 +1,74 @@
+local params = import 'common-parameters.libsonnet';
+local bctmpl = import 'ubi-buildconfig.libsonnet';
+
+{
+  ObserverBuildConfigTemplate: bctmpl.BuildConfigTemplate {
+    local obsbc = self,
+    resourceName: 'sdi-observer',
+    ocpMinorRelease:: '${' + params.OCPMinorReleaseParam.name + '}',
+    imageStreamTag: obsbc.resourceName + ':' + obsbc.ocpMinorRelease,
+    command:: '/usr/local/bin/observer.sh',
+
+    dockerfile: |||
+      FROM openshift/cli:latest
+      RUN dnf update -y
+      # TODO: jq is not yet available in EPEL-8
+      RUN dnf install -y \
+        https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm && \
+        dnf install -y jq
+      RUN dnf install -y \
+        https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm && \
+        dnf install -y parallel procps-ng bc git httpd-tools && dnf clean all -y
+      # TODO: determine OCP version from environment
+      COPY https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest-${OCP_MINOR_RELEASE}/openshift-client-linux.tar.gz /tmp/
+      COPY https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest-${OCP_MINOR_RELEASE}/sha256sum.txt /tmp/
+      # verify the downloaded tar
+      RUN /bin/bash -c 'f=/tmp/openshift-client-linux.tar.gz; \
+        got="$(awk '"'"'{print $1}'"'"' <(sha256sum "$f"))"; \
+        exp="$(awk '"'"'/openshift-client-linux-/ {print $1}'"'"' /tmp/sha256sum.txt | head -n 1)"; \
+        if [[ "$got" != "$exp" ]]; then printf \
+          '"'"'Unexpected hashsum of %s (expected "%s", got "%s")\n!'"'"' "$f" "$exp" "$got" >&2; \
+          exit 1; \
+        fi'
+      RUN /bin/bash -c 'tar -C /usr/local/bin/ -xzvf /tmp/openshift-client-linux.tar.gz -T <(printf oc)'
+      # TODO: verify signatures as well
+      RUN mkdir -p /usr/local/bin /usr/local/share/openshift-acme
+      RUN git clone --depth 5 --single-branch \
+        --branch ${LETSENCRYPT_REVISION} \
+        ${LETSENCRYPT_REPOSITORY} /usr/local/share/openshift-acme
+      RUN git clone --depth 5 --single-branch \
+        --branch ${SDI_OBSERVER_GIT_REVISION} \
+        ${SDI_OBSERVER_REPOSITORY} /usr/local/share/sap-data-intelligence
+      RUN for bin in observer.sh deploy-registry.sh deploy-letsencrypt.sh; do \
+            cp -lv $(find /usr/local/share/sap-data-intelligence \
+                      -type f -executable -name "$bin") \
+              /usr/local/bin/$bin; \
+            chmod a+rx /usr/local/bin/$bin; \
+          done
+      RUN ln -s /usr/local/share/sap-data-intelligence /usr/local/share/sdi
+      WORKDIR /usr/local/share/sdi
+    ||| + 'CMD ["' + obsbc.command + '"]',
+
+    newParameters+: [
+      params.OCPMinorReleaseParam
+
+      {
+        description: |||
+          URL of SDI Observer's git repository to clone into sdi-observer image.
+        |||,
+        name: 'SDI_OBSERVER_REPOSITORY',
+        required: true,
+        value: 'https://github.com/redhat-sap/sap-data-intelligence',
+      },
+      {
+        description: |||
+          Revision (e.g. tag, commit or branch) of SDI Observer's git repository to check out.
+        |||,
+        name: 'SDI_OBSERVER_GIT_REVISION',
+        required: true,
+        value: 'master',
+      },
+    ],
+
+  },
+}

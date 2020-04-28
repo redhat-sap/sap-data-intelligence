@@ -1,4 +1,5 @@
 local params = import 'common-parameters.libsonnet';
+local obssa = import 'observer-serviceaccount.libsonnet';
 local base = import 'ocp-template.libsonnet';
 
 {
@@ -9,14 +10,31 @@ local base = import 'ocp-template.libsonnet';
     additionalEnvironment:: [],
     command:: null,
     args:: null,
+    createdBy:: error 'createdBy must be overriden by a child!',
+
+    sa:: {
+      apiVersion: 'v1',
+      kind: 'ServiceAccount',
+      metadata: {
+        labels: {
+          deploymentconfig: dctmpl.resourceName,
+          'created-by': dctmpl.createdBy,
+        },
+        name: dctmpl.resourceName,
+        namespace: '${NAMESPACE}',
+      },
+    },
 
     objects+: [
+      dctmpl.sa,
+
       {
         apiVersion: 'v1',
         kind: 'DeploymentConfig',
         metadata: {
           labels: {
             deploymentconfig: dctmpl.resourceName,
+            'created-by': dctmpl.createdBy,
           },
           name: dctmpl.resourceName,
           namespace: '${NAMESPACE}',
@@ -78,18 +96,6 @@ local base = import 'ocp-template.libsonnet';
               type: 'ImageChange',
             },
           ],
-        },
-      },
-
-      {
-        apiVersion: 'v1',
-        kind: 'ServiceAccount',
-        metadata: {
-          labels: {
-            deploymentconfig: dctmpl.resourceName,
-          },
-          name: dctmpl.resourceName,
-          namespace: '${NAMESPACE}',
         },
       },
     ],

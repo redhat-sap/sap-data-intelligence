@@ -1,11 +1,18 @@
 local params = import 'common-parameters.libsonnet';
 local base = import 'job-template.libsonnet';
+local obsbc = import 'observer-buildconfig.libsonnet';
+local obssa = import 'observer-serviceaccount.libsonnet';
 
 base.JobTemplate {
   local acmejobtmpl = self,
   resourceName: 'deploy-letsencrypt',
   jobImage: null,
   command: acmejobtmpl.resourceName + '.sh',
+  createdBy:: 'letsencrypt-deploy',
+
+  local bc = obsbc.ObserverBuildConfigTemplate {
+    createdBy: acmejobtmpl.createdBy,
+  },
 
   description: 'TODO',
   metadata+: {
@@ -15,6 +22,8 @@ base.JobTemplate {
       |||,
     },
   },
+
+  objects+: obssa { createdBy: acmejobtmpl.createdBy }.Objects + bc.objects,
 
   parametersToExport+: [
     (if p.name == 'LETSENCRYPT_REPOSITORY' then p {
@@ -36,5 +45,5 @@ base.JobTemplate {
     },
   ],
 
-  parameters+: [],
+  parameters+: bc.newParameters,
 }

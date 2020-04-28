@@ -7,6 +7,8 @@ base.DCTemplate {
   local container = super.objects[0].spec.template.spec.containers[0],
   resourceName: 'container-image-registry',
   imageStreamTag: regtmpl.resourceName + ':latest',
+  createdBy: 'registry-template',
+
   metadata+: {
     annotations+: {
       description: |||
@@ -26,6 +28,8 @@ base.DCTemplate {
   local bc = bctmpl.BuildConfigTemplate {
     resourceName: regtmpl.resourceName,
     imageStreamTag: regtmpl.imageStreamTag,
+    createdBy: regtmpl.createdBy,
+
     dockerfile: |||
       FROM openshift/ubi8:latest
       # docker-distribution is not yet available on UBI - install from fedora repo
@@ -105,97 +109,83 @@ base.DCTemplate {
     }
   else object,
 
-  objects: [addVolumes(o) for o in super.objects] + [
-    bc.bc,
+  objects: [addVolumes(o) for o in super.objects] + bc.objects
+           + [
+             {
+               apiVersion: 'v1',
+               kind: 'Service',
+               metadata: {
+                 annotations: {
+                   'template.openshift.io/expose-uri': |||
+                     https://{.spec.clusterIP}:{.spec.ports[?(.name=="registry")].port}
+                   |||,
+                 },
+                 name: regtmpl.resourceName,
+                 namespace: '${NAMESPACE}',
+               },
+               spec: {
+                 ports: [
+                   {
+                     name: 'registry',
+                     port: 5000,
+                   },
+                 ],
+                 selector: {
+                   deploymentconfig: regtmpl.resourceName,
+                 },
+                 sessionAffinity: 'ClientIP',
+                 type: 'ClusterIP',
+               },
+             },
 
-    {
-      apiVersion: 'v1',
-      kind: 'ImageStream',
-      metadata: {
-        name: regtmpl.resourceName,
-        namespace: '${NAMESPACE}',
-      },
-      spec: null,
-      status: {
-        dockerImageRepository: '',
-      },
-    },
+             {
+               apiVersion: 'route.openshift.io/v1',
+               kind: 'Route',
+               metadata: {
+                 annotations: {
+                   'template.openshift.io/expose-uri': 'https://{.spec.host}{.spec.path}',
+                 },
+                 name: regtmpl.resourceName,
+                 namespace: '${NAMESPACE}',
+               },
+               spec: {
+                 host: '${SDI_REGISTRY_ROUTE_HOSTNAME}',
+                 port: {
+                   targetPort: 'registry',
+                 },
+                 subdomain: '',
+                 tls: {
+                   insecureEdgeTerminationPolicy: 'Redirect',
+                   termination: 'edge',
+                 },
+                 to: {
+                   kind: 'Service',
+                   name: regtmpl.resourceName,
+                 },
+               },
+             },
 
-    {
-      apiVersion: 'v1',
-      kind: 'Service',
-      metadata: {
-        annotations: {
-          'template.openshift.io/expose-uri': |||
-            https://{.spec.clusterIP}:{.spec.ports[?(.name=="registry")].port}
-          |||,
-        },
-        name: regtmpl.resourceName,
-        namespace: '${NAMESPACE}',
-      },
-      spec: {
-        ports: [
-          {
-            name: 'registry',
-            port: 5000,
-          },
-        ],
-        selector: {
-          deploymentconfig: regtmpl.resourceName,
-        },
-        sessionAffinity: 'ClientIP',
-        type: 'ClusterIP',
-      },
-    },
-
-    {
-      apiVersion: 'route.openshift.io/v1',
-      kind: 'Route',
-      metadata: {
-        annotations: {
-          'template.openshift.io/expose-uri': 'https://{.spec.host}{.spec.path}',
-        },
-        name: regtmpl.resourceName,
-        namespace: '${NAMESPACE}',
-      },
-      spec: {
-        host: '${SDI_REGISTRY_ROUTE_HOSTNAME}',
-        port: {
-          targetPort: 'registry',
-        },
-        subdomain: '',
-        tls: {
-          insecureEdgeTerminationPolicy: 'Redirect',
-          termination: 'edge',
-        },
-        to: {
-          kind: 'Service',
-          name: regtmpl.resourceName,
-        },
-      },
-    },
-
-    {
-      apiVersion: 'v1',
-      kind: 'PersistentVolumeClaim',
-      metadata: {
-        name: regtmpl.resourceName,
-        namespace: '${NAMESPACE}',
-      },
-      spec: {
-        accessModes: [
-          'ReadWriteOnce',
-        ],
-        resources: {
-          requests: {
-            storage: '${SDI_REGISTRY_VOLUME_CAPACITY}',
-          },
-        },
-        // NOTE: Dynamically provisioned volumes are always deleted.
-        persistentVolumeReclaimPolicy: 'Retain',
-      },
-    },
-  ],
+             {
+               apiVersion: 'v1',
+               kind: 'PersistentVolumeClaim',
+               metadata: {
+                 name: regtmpl.resourceName,
+                 namespace: '${NAMESPACE}',
+               },
+               spec: {
+                 accessModes: [
+                   'ReadWriteOnce',
+                 ],
+                 resources: {
+                   requests: {
+                     storage: '${SDI_REGISTRY_VOLUME_CAPACITY}',
+                   },
+                 },
+                 // NOTE: Dynamically provisioned volumes are always deleted.
+                 persistentVolumeReclaimPolicy: 'Retain',
+               },
+             },
+           ],
 
   additionalEnvironment+: [
     {

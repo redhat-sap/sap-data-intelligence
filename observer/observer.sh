@@ -204,6 +204,7 @@ function checkPermissions() {
         readarray -t registryKinds <<<"$(oc process \
             NAMESPACE="${NAMESPACE:-foo}" \
             REDHAT_REGISTRY_SECRET_NAME=foo \
+            OCP_MINOR_RELEASE="${OCP_MINOR_RELEASE:-foo}" \
             -f "$(getRegistryTemplatePath)" -o jsonpath=$'{range .items[*]}{.kind}\n{end}')"
         for kind in "${registryKinds[@],,}"; do
             toCheck+=( "${nmprefix}create/${kind}" )
@@ -283,6 +284,7 @@ function deployComponent() {
                 EXPOSE_WITH_LETSENCRYPT="${EXPOSE_WITH_LETSENCRYPT:-}"
                 REDHAT_REGISTRY_SECRET_NAME="${REDHAT_REGISTRY_SECRET_NAME:-}"
                 REPLACE_PERSISTENT_VOLUME_CLAIMS="${REPLACE_PERSISTENT_VOLUME_CLAIMS:-}"
+                OCP_MINOR_RELEASE="${OCP_MINOR_RELEASE:-}"
             )
             ;;
         letsencrypt)

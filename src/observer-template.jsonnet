@@ -1,17 +1,22 @@
 local params = import 'common-parameters.libsonnet';
 local base = import 'dc-template.libsonnet';
-local bctmpl = import 'ubi-buildconfig.libsonnet';
+local is = import 'imagestream.libsonnet';
+local obsbc = import 'observer-buildconfig.libsonnet';
+local obssa = import 'observer-serviceaccount.libsonnet';
 
 base.DCTemplate {
   local obstmpl = self,
   resourceName: 'sdi-observer',
   imageStreamTag: obstmpl.resourceName + ':${OCP_MINOR_RELEASE}',
+  createdBy: 'sdi-observer-template',
+  saObjects:: obssa { createdBy: obstmpl.createdBy },
+  sa: obstmpl.saObjects.ObserverServiceAccount,
   command: '/usr/local/bin/observer.sh',
 
   parametersToExport+: [
     params.ForceRedeployParam,
     params.ReplaceSecretsParam,
-  ] + params.NotRequired(bc.newParameters) + [
+  ] + bc.newParameters + [
     {
       description: |||
         The name of the SAP Data Hub namespace to manage. Defaults to the current one. It must be
@@ -91,48 +96,8 @@ base.DCTemplate {
     }),
   ],
 
-  local bc = bctmpl.BuildConfigTemplate {
-    resourceName: obstmpl.resourceName,
-    imageStreamTag: obstmpl.imageStreamTag,
-    dockerfile: |||
-      FROM openshift/cli:latest
-      RUN dnf update -y
-      # TODO: jq is not yet available in EPEL-8
-      RUN dnf install -y \
-        https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm && \
-        dnf install -y jq
-      RUN dnf install -y \
-        https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm && \
-        dnf install -y parallel procps-ng bc git httpd-tools && dnf clean all -y
-      # TODO: determine OCP version from environment
-      COPY https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest-${OCP_MINOR_RELEASE}/openshift-client-linux.tar.gz /tmp/
-      COPY https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest-${OCP_MINOR_RELEASE}/sha256sum.txt /tmp/
-      # verify the downloaded tar
-      RUN /bin/bash -c 'f=/tmp/openshift-client-linux.tar.gz; \
-        got="$(awk '"'"'{print $1}'"'"' <(sha256sum "$f"))"; \
-        exp="$(awk '"'"'/openshift-client-linux-/ {print $1}'"'"' /tmp/sha256sum.txt | head -n 1)"; \
-        if [[ "$got" != "$exp" ]]; then printf \
-          '"'"'Unexpected hashsum of %s (expected "%s", got "%s")\n!'"'"' "$f" "$exp" "$got" >&2; \
-          exit 1; \
-        fi'
-      RUN /bin/bash -c 'tar -C /usr/local/bin/ -xzvf /tmp/openshift-client-linux.tar.gz -T <(printf oc)'
-      # TODO: verify signatures as well
-      RUN mkdir -p /usr/local/bin /usr/local/share/openshift-acme
-      RUN git clone --depth 5 --single-branch \
-        --branch ${LETSENCRYPT_REVISION} \
-        ${LETSENCRYPT_REPOSITORY} /usr/local/share/openshift-acme
-      RUN git clone --depth 5 --single-branch \
-        --branch ${SDI_OBSERVER_GIT_REVISION} \
-        ${SDI_OBSERVER_REPOSITORY} /usr/local/share/sap-data-intelligence
-      RUN for bin in observer.sh deploy-registry.sh deploy-letsencrypt.sh; do \
-            cp -lv $(find /usr/local/share/sap-data-intelligence \
-                      -type f -executable -name "$bin") \
-              /usr/local/bin/$bin; \
-            chmod a+rx /usr/local/bin/$bin; \
-          done
-      RUN ln -s /usr/local/share/sap-data-intelligence /usr/local/share/sdi
-      WORKDIR /usr/local/share/sdi
-    ||| + 'CMD ["' + obstmpl.command + '"]',
+  local bc = obsbc.ObserverBuildConfigTemplate {
+    createdBy: obstmpl.createdBy,
   },
 
   metadata+: {
@@ -198,229 +163,14 @@ base.DCTemplate {
     following command: oc logs -f dc/sdi-observer
   |||,
 
-  objects+: bc.objects + [
-    {
-      apiVersion: 'rbac.authorization.k8s.io/v1',
-      kind: 'Role',
-      metadata: {
-        labels: {
-          deploymentconfig: obstmpl.resourceName,
-        },
-        name: obstmpl.resourceName,
-        namespace: '${SDI_NAMESPACE}',
-      },
-      rules: [
-        {
-          apiGroups: [
-            'apps',
-            'extensions',
-          ],
-          resources: [
-            'deployments',
-            'deployments/scale',
-            'statefulsets',
-            'statefulsets/scale',
-          ],
-          verbs: [
-            'get',
-            'list',
-            'patch',
-            'watch',
-          ],
-        },
-        {
-          apiGroups: [
-            'apps',
-            'extensions',
-          ],
-          resources: [
-            'daemonsets',
-          ],
-          verbs: [
-            'get',
-            'list',
-            'patch',
-            'update',
-            'watch',
-          ],
-        },
-        {
-          apiGroups: [
-            '',
-          ],
-          resources: [
-            'secrets',
-          ],
-          verbs: [
-            'get',
-          ],
-        },
-        {
-          apiGroups: [
-            '',
-          ],
-          resources: [
-            'configmaps',
-          ],
-          verbs: [
-            'get',
-            'list',
-            'watch',
-            'patch',
-          ],
-        },
-        {
-          apiGroups: [
-            '',
-          ],
-          resources: [
-            'namespaces',
-            'namespaces/status',
-          ],
-          verbs: [
-            'get',
-            'list',
-            'watch',
-          ],
-        },
-        {
-          apiGroups: [
-            '',
-            'project.openshift.io',
-          ],
-          resources: [
-            'projects',
-          ],
-          verbs: [
-            'get',
-          ],
-        },
-        {
-          apiGroups: [
-            'apps',
-            'deploymentconfigs.apps.openshift.io',
-          ],
-          resources: [
-            'deploymentconfigs',
-          ],
-          verbs: [
-            'get',
-            'list',
-            'delete',
-          ],
-        },
-        {
-          apiGroups: [
-            '',
-            'authorization.openshift.io',
-            'rbac.authorization.k8s.io',
-          ],
-          resources: [
-            'roles',
-            'rolebindings',
-            'serviceaccounts',
-          ],
-          verbs: [
-            'get',
-            'list',
-            'delete',
-          ],
-        },
-      ],
-    },
-
-    {
-      apiVersion: 'rbac.authorization.k8s.io/v1',
-      kind: 'RoleBinding',
-      metadata: {
-        labels: {
-          deploymentconfig: obstmpl.resourceName,
-        },
-        name: obstmpl.resourceName + '-${ROLE_BINDING_SUFFIX}',
-        namespace: '${SDI_NAMESPACE}',
-      },
-      roleRef: {
-        apiGroup: 'rbac.authorization.k8s.io',
-        kind: 'Role',
-        name: obstmpl.resourceName,
-        namespace: '${SDI_NAMESPACE}',
-      },
-      subjects: [
-        {
-          kind: 'ServiceAccount',
-          name: obstmpl.resourceName,
-          namespace: '${NAMESPACE}',
-        },
-      ],
-    },
-
-    /**
-     * TODO: determine the necessary permissions (ideally automatically) and create a custom role
-     * instead
-     */
-    {
-      apiVersion: 'rbac.authorization.k8s.io/v1',
-      kind: 'ClusterRoleBinding',
-      metadata: {
-        labels: {
-          deploymentconfig: obstmpl.resourceName,
-        },
-        name: obstmpl.resourceName + '-node-reader-${ROLE_BINDING_SUFFIX}',
-      },
-      roleRef: {
-        apiGroup: 'rbac.authorization.k8s.io',
-        kind: 'ClusterRole',
-        name: 'system:node-reader',
-      },
-      subjects: [
-        {
-          kind: 'ServiceAccount',
-          name: obstmpl.resourceName,
-          namespace: '${NAMESPACE}',
-        },
-      ],
-    },
-
-    {
-      apiVersion: 'rbac.authorization.k8s.io/v1',
-      kind: 'ClusterRoleBinding',
-      metadata: {
-        labels: {
-          deploymentconfig: obstmpl.resourceName,
-        },
-        name: obstmpl.resourceName + '-admin',
-      },
-      roleRef: {
-        apiGroup: 'rbac.authorization.k8s.io',
-        kind: 'ClusterRole',
-        name: 'admin',
-      },
-      subjects: [
-        {
-          kind: 'ServiceAccount',
-          name: obstmpl.resourceName,
-          namespace: '${NAMESPACE}',
-        },
-      ],
-    },
-
-
-    {
-      apiVersion: 'v1',
-      kind: 'ImageStream',
-      metadata: {
-        name: obstmpl.resourceName,
-        namespace: '${NAMESPACE}',
-      },
-      spec: null,
-      status: {
-        dockerImageRepository: '',
-      },
+  objects+: obstmpl.saObjects.ObjectsForSDI + bc.objects + [
+    is.ImageStream {
+      resourceName: obstmpl.resourceName,
+      createdBy: obstmpl.createdBy,
     },
   ],
 
   parameters+: [
-    params.OCPMinorReleaseParam,
     {
       description: |||
         TODO
@@ -437,14 +187,6 @@ base.DCTemplate {
       name: 'SDI_OBSERVER_GIT_REVISION',
       required: true,
       value: 'master',
-    },
-    {
-      description: |||
-        A random suffix for the new RoleBinding's name. No need to edit.
-      |||,
-      from: '[a-z0-9]{5}',
-      generate: 'expression',
-      name: 'ROLE_BINDING_SUFFIX',
     },
   ] + [
     p

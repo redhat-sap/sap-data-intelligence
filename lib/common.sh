@@ -279,6 +279,9 @@ function createOrReplace() {
         object="$(jq '.metadata.namespace |= "'"$namespace"'"' <<<"$object")"
     fi
 
+    local creator=""
+    creator="$(jq -r '.metadata.labels["created-by"]' <<<"$object")" ||:
+
     IFS=: read -r namespace kind name <<<"$(oc create --dry-run -f - -o \
         jsonpath=$'{.metadata.namespace}:{.kind}:{.metadata.name}\n' <<<"$object")"
     namespace="${namespace:-$NAMESPACE}"
@@ -297,6 +300,13 @@ function createOrReplace() {
         if [[ -n "${kind:-}" && -n "${name:-}" ]]; then
             log 'Created %s/%s in namespace %s' "${kind,,}" "$name" "${namespace:-UNKNOWN}"
         fi
+        return 0
+    fi
+    originalCreator="$(oc labels --list "$kind" "$name" | sed -n 's/^created-by=\(.\+\)/\1/p')" 
+
+    if [[ -n "${originalCreator:-}" && "${originalCreator}" != "${creator:-}" ]]; then
+        log 'Not replacing %s/%s created by "%s" with a new object created by "%s".' \
+            "$kind" "$name" "$originalCreator" "$creator"
         return 0
     fi
     args=( -f - )

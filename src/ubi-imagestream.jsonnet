@@ -1,11 +1,11 @@
+local is = import 'imagestream.libsonnet';
+
 {
-  UBIImageStream: {
-    apiVersion: 'v1',
-    kind: 'ImageStream',
-    metadata: {
-      name: 'ubi8',
-      namespace: '${NAMESPACE}',
-    },
+  UBIImageStream: is.ImageStream {
+    local ubiis = self,
+    resourceName: 'ubi8',
+    createdBy:: error 'createdBy must be overridden by a child!',
+
     spec: {
       tags: [
         {
@@ -19,9 +19,6 @@
           },
         },
       ],
-    },
-    status: {
-      dockerImageRepository: '',
     },
   },
 }

@@ -14,9 +14,22 @@
    "objects": [
       {
          "apiVersion": "v1",
+         "kind": "ServiceAccount",
+         "metadata": {
+            "labels": {
+               "created-by": "registry-template",
+               "deploymentconfig": "container-image-registry"
+            },
+            "name": "container-image-registry",
+            "namespace": "${NAMESPACE}"
+         }
+      },
+      {
+         "apiVersion": "v1",
          "kind": "DeploymentConfig",
          "metadata": {
             "labels": {
+               "created-by": "registry-template",
                "deploymentconfig": "container-image-registry"
             },
             "name": "container-image-registry",
@@ -120,21 +133,11 @@
          }
       },
       {
-         "apiVersion": "v1",
-         "kind": "ServiceAccount",
-         "metadata": {
-            "labels": {
-               "deploymentconfig": "container-image-registry"
-            },
-            "name": "container-image-registry",
-            "namespace": "${NAMESPACE}"
-         }
-      },
-      {
          "apiVersion": "build.openshift.io/v1",
          "kind": "BuildConfig",
          "metadata": {
             "labels": {
+               "created-by": "registry-template",
                "deploymentconfig": "container-image-registry"
             },
             "name": "container-image-registry",
@@ -176,10 +179,41 @@
          "apiVersion": "v1",
          "kind": "ImageStream",
          "metadata": {
+            "labels": {
+               "created-by": "registry-template"
+            },
             "name": "container-image-registry",
             "namespace": "${NAMESPACE}"
          },
          "spec": null,
+         "status": {
+            "dockerImageRepository": ""
+         }
+      },
+      {
+         "apiVersion": "v1",
+         "kind": "ImageStream",
+         "metadata": {
+            "labels": {
+               "created-by": "registry-template"
+            },
+            "name": "ubi8",
+            "namespace": "${NAMESPACE}"
+         },
+         "spec": {
+            "tags": [
+               {
+                  "from": {
+                     "kind": "DockerImage",
+                     "name": "registry.redhat.io/ubi8/ubi:latest"
+                  },
+                  "name": "latest",
+                  "referencePolicy": {
+                     "type": "Source"
+                  }
+               }
+            ]
+         },
          "status": {
             "dockerImageRepository": ""
          }

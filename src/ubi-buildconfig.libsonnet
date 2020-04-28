@@ -9,29 +9,35 @@ local ubiis = import 'ubi-imagestream.jsonnet';
     resourceName:: error 'resourceName must be overriden by a child!',
     dockerfile:: error 'dockerfile must be overriden by a child!',
     imageStreamTag:: error 'imageStreamTag must be overriden by a child!',
+    createdBy:: error 'createdBy must be overridden by a child!',
 
-    is:: ubiis.UBIImageStream,
+    ubiIS:: ubiis.UBIImageStream {
+      createdBy: bctmpl.createdBy,
+    },
 
-    bc:: bc.BuildConfig {
+    bcObjects:: bc {
       resourceName: bctmpl.resourceName,
       dstImageStreamTag: bctmpl.imageStreamTag,
-      srcImageStreamTag: bctmpl.is.metadata.name + ':latest',
+      srcImageStreamTag: bctmpl.ubiIS.metadata.name + ':latest',
       dockerfile: bctmpl.dockerfile,
+      createdBy: bctmpl.createdBy,
 
-      spec+: {
-        strategy+: {
-          dockerStrategy+: {
-            pullSecret: {
-              name: '${REDHAT_REGISTRY_SECRET_NAME}',
+      BuildConfig+: {
+        spec+: {
+          strategy+: {
+            dockerStrategy+: {
+              pullSecret: {
+                name: '${REDHAT_REGISTRY_SECRET_NAME}',
+              },
             },
           },
         },
       },
-    },
+    }.Objects,
 
     newParameters:: params.RedHatRegistrySecretParams,
 
-    objects+: [bctmpl.bc, bctmpl.is],
+    objects+: bctmpl.bcObjects + [bctmpl.ubiIS],
     parameters+: bctmpl.newParameters,
   },
 }

@@ -1,36 +1,41 @@
-{
-  BuildConfig: {
-    local bctmpl = self,
-    resourceName:: error 'resourceName must be overriden by a child',
-    srcImageStreamTag:: error 'srcImageStreamTag must be overriden by a child!',
-    dstImageStreamTag:: error 'dstImageStreamTag must be overriden by a child!',
-    dockerfile:: error 'dockerfile must be overriden by a child!',
+local is = import 'imagestream.libsonnet';
 
+{
+  resourceName:: error 'resourceName must be overriden by a child',
+  createdBy:: error 'createdBy must be overridden by a child!',
+  srcImageStreamTag:: error 'srcImageStreamTag must be overriden by a child!',
+  dstImageStreamTag:: $.resourceName + ':latest',
+  dockerfile:: error 'dockerfile must be overriden by a child!',
+
+  Objects: [$.BuildConfig, $.ImageStream],
+
+  BuildConfig: {
     apiVersion: 'build.openshift.io/v1',
     kind: 'BuildConfig',
     metadata: {
       labels: {
-        deploymentconfig: bctmpl.resourceName,
+        deploymentconfig: $.resourceName,
+        'created-by': $.createdBy,
       },
-      name: bctmpl.resourceName,
+      name: $.resourceName,
       namespace: '${NAMESPACE}',
     },
     spec: {
       output: {
         to: {
           kind: 'ImageStreamTag',
-          name: bctmpl.dstImageStreamTag,
+          name: $.dstImageStreamTag,
         },
       },
       runPolicy: 'Serial',
       source: {
-        dockerfile: bctmpl.dockerfile,
+        dockerfile: $.dockerfile,
       },
       strategy: {
         dockerStrategy: {
           from: {
             kind: 'ImageStreamTag',
-            name: bctmpl.srcImageStreamTag,
+            name: $.srcImageStreamTag,
           },
         },
       },
@@ -43,5 +48,10 @@
         },
       ],
     },
+  },
+
+  ImageStream: is.ImageStream {
+    resourceName: $.resourceName,
+    createdBy: $.createdBy,
   },
 }
