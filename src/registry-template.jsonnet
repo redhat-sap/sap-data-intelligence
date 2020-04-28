@@ -23,7 +23,6 @@ base.DCTemplate {
         'https://access.redhat.com/articles/4324391',
     },
   },
-  parametersToExport+: [],
 
   local bc = bctmpl.BuildConfigTemplate {
     resourceName: regtmpl.resourceName,
@@ -173,9 +172,6 @@ base.DCTemplate {
                  namespace: '${NAMESPACE}',
                },
                spec: {
-                 accessModes: [
-                   'ReadWriteOnce',
-                 ],
                  resources: {
                    requests: {
                      storage: '${SDI_REGISTRY_VOLUME_CAPACITY}',
@@ -202,5 +198,11 @@ base.DCTemplate {
     },
   ],
 
-  parameters+: bc.newParameters + params.RegistryParams,
+  parametersToExport: [
+    p
+    for p in super.parametersToExport
+    if p.name != 'DRY_RUN' && p.name != 'NAMESPACE'
+  ],
+  parameters+: [p for p in super.parametersToExport if p.name == 'NAMESPACE']
+               + bc.newParameters + params.RegistryParams,
 }
