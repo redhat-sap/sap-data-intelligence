@@ -170,28 +170,6 @@ base.DCTemplate {
     },
   ],
 
-  parameters+: [
-    {
-      description: |||
-        TODO
-      |||,
-      name: 'SDI_OBSERVER_REPOSITORY',
-      required: true,
-      value: 'https://github.com/redhat-sap/sap-data-intelligence',
-    },
-    {
-      description: |||
-        Revision (e.g. tag, commit or branch) of git repository where SDI Observer's source
-        reside.
-      |||,
-      name: 'SDI_OBSERVER_GIT_REVISION',
-      required: true,
-      value: 'master',
-    },
-  ] + [
-    p
-    for p in params.LetsencryptParams
-    if p.name != 'LETSENCRYPT_ENVIRONMENT'
-  ],
+  parameters+: [p for p in params.LetsencryptParams if p.name != 'LETSENCRYPT_ENVIRONMENT'],
 
 }

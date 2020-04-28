@@ -268,6 +268,12 @@
          "required": true
       },
       {
+         "description": "Minor release of OpenShift Container Platform (e.g. 4.2). This value must match the OCP\nserver version. The biggest tolerated difference between the versions is 1 in the second\ndigit.\n",
+         "name": "OCP_MINOR_RELEASE",
+         "required": true,
+         "value": "4.2"
+      },
+      {
          "description": "URL of SDI Observer's git repository to clone into sdi-observer image.\n",
          "name": "SDI_OBSERVER_REPOSITORY",
          "required": true,

@@ -50,7 +50,7 @@ local bctmpl = import 'ubi-buildconfig.libsonnet';
     ||| + 'CMD ["' + obsbc.command + '"]',
 
     newParameters+: [
-      params.OCPMinorReleaseParam
+      params.OCPMinorReleaseParam,
 
       {
         description: |||
