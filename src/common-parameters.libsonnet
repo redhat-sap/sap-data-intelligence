@@ -93,7 +93,7 @@
         "true".
       |||,
       from: 'user-[a-z0-9]{6}',
-      generage: 'expression',
+      generate: 'expression',
       name: 'SDI_REGISTRY_USERNAME',
       required: false,
     },
@@ -104,7 +104,7 @@
         "true".
       |||,
       from: '[a-zA-Z0-9]{32}',
-      generage: 'expression',
+      generate: 'expression',
       name: 'SDI_REGISTRY_PASSWORD',
       required: false,
     },
@@ -138,7 +138,7 @@
         them.
       |||,
       from: '[a-zA-Z0-9]{32}',
-      generage: 'expression',
+      generate: 'expression',
       name: 'SDI_REGISTRY_HTTP_SECRET',
       required: false,
     },

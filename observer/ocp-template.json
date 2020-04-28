@@ -600,14 +600,14 @@
       {
          "description": "Will be used to generate htpasswd file to provide authentication data to the sdi registry\nservice as long as SDI_REGISTRY_HTPASSWD_SECRET_NAME does not exist or REPLACE_SECRETS is\n\"true\".\n",
          "from": "user-[a-z0-9]{6}",
-         "generage": "expression",
+         "generate": "expression",
          "name": "SDI_REGISTRY_USERNAME",
          "required": false
       },
       {
          "description": "Will be used to generate htpasswd file to provide authentication data to the sdi registry\nservice as long as SDI_REGISTRY_HTPASSWD_SECRET_NAME does not exist or REPLACE_SECRETS is\n\"true\".\n",
          "from": "[a-zA-Z0-9]{32}",
-         "generage": "expression",
+         "generate": "expression",
          "name": "SDI_REGISTRY_PASSWORD",
          "required": false
       },
