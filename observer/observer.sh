@@ -204,7 +204,6 @@ function checkPermissions() {
         readarray -t registryKinds <<<"$(oc process \
             NAMESPACE="${NAMESPACE:-foo}" \
             REDHAT_REGISTRY_SECRET_NAME=foo \
-            OCP_MINOR_RELEASE="${OCP_MINOR_RELEASE:-foo}" \
             -f "$(getRegistryTemplatePath)" -o jsonpath=$'{range .items[*]}{.kind}\n{end}')"
         for kind in "${registryKinds[@],,}"; do
             toCheck+=( "${nmprefix}create/${kind}" )

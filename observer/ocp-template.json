@@ -146,10 +146,6 @@
                               "value": "${SDI_REGISTRY_ROUTE_HOSTNAME}"
                            },
                            {
-                              "name": "SDI_REGISTRY_HTTP_SECRET",
-                              "value": "${SDI_REGISTRY_HTTP_SECRET}"
-                           },
-                           {
                               "name": "SDI_REGISTRY_VOLUME_CAPACITY",
                               "value": "${SDI_REGISTRY_VOLUME_CAPACITY}"
                            },
@@ -624,13 +620,6 @@
       {
          "description": "Desired hostname of the exposed registry service. Defaults to\ncontainer-image-registry-<NAMESPACE>-apps.<cluster_name>.<base_domain>\nOverrides REGISTRY parameter.",
          "name": "SDI_REGISTRY_ROUTE_HOSTNAME",
-         "required": false
-      },
-      {
-         "description": "A random piece of data used to sign state that may be stored with the client to protect\nagainst tampering. If omitted, the registry will automatically generate a secret when it\nstarts. If using multiple replicas of registry, the secret MUST be the same for all of\nthem.\n",
-         "from": "[a-zA-Z0-9]{32}",
-         "generage": "expression",
-         "name": "SDI_REGISTRY_HTTP_SECRET",
          "required": false
       },
       {

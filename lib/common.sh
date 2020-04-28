@@ -302,7 +302,7 @@ function createOrReplace() {
         fi
         return 0
     fi
-    originalCreator="$(oc labels --list "$kind" "$name" | sed -n 's/^created-by=\(.\+\)/\1/p')" 
+    originalCreator="$(oc label --list "$kind" "$name" | sed -n 's/^created-by=\(.\+\)/\1/p')" 
 
     if [[ -n "${originalCreator:-}" && "${originalCreator}" != "${creator:-}" ]]; then
         log 'Not replacing %s/%s created by "%s" with a new object created by "%s".' \

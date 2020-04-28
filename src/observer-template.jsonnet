@@ -89,6 +89,7 @@ base.DCTemplate {
       p { description+: 'Overrides REGISTRY parameter.' }
     else p)
     for p in params.RegistryParams
+    if p.name != 'SDI_REGISTRY_HTTP_SECRET'
   ] + [
     std.prune(params.ExposeWithLetsencryptParam {
       value: null,
