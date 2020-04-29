@@ -31,6 +31,7 @@ local bctmpl = import 'ubi-buildconfig.libsonnet';
           exit 1; \
         fi'
       RUN /bin/bash -c 'tar -C /usr/local/bin/ -xzvf /tmp/openshift-client-linux.tar.gz -T <(printf oc)'
+      RUN rm -rfv /tmp/*
       # TODO: verify signatures as well
       RUN mkdir -p /usr/local/bin /usr/local/share/openshift-acme
       RUN git clone --depth 5 --single-branch \
