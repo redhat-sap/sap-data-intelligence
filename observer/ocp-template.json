@@ -94,6 +94,10 @@
                               "value": "${SDI_NAMESPACE}"
                            },
                            {
+                              "name": "SLCB_NAMESPACE",
+                              "value": "${SLCB_NAMESPACE}"
+                           },
+                           {
                               "name": "MARK_REGISTRY_INSECURE",
                               "value": "${MARK_REGISTRY_INSECURE}"
                            },
@@ -374,6 +378,130 @@
       },
       {
          "apiVersion": "rbac.authorization.k8s.io/v1",
+         "kind": "Role",
+         "metadata": {
+            "labels": {
+               "created-by": "sdi-observer-template",
+               "deploymentconfig": "sdi-observer"
+            },
+            "name": "sdi-observer-for-slcbridge",
+            "namespace": "${SLCB_NAMESPACE}"
+         },
+         "rules": [
+            {
+               "apiGroups": [
+                  "apps",
+                  "extensions"
+               ],
+               "resources": [
+                  "deployments",
+                  "deployments/scale"
+               ],
+               "verbs": [
+                  "get",
+                  "list",
+                  "patch",
+                  "watch"
+               ]
+            },
+            {
+               "apiGroups": [
+                  ""
+               ],
+               "resources": [
+                  "secrets"
+               ],
+               "verbs": [
+                  "get"
+               ]
+            },
+            {
+               "apiGroups": [
+                  ""
+               ],
+               "resources": [
+                  "configmaps"
+               ],
+               "verbs": [
+                  "get",
+                  "list",
+                  "watch",
+                  "patch"
+               ]
+            },
+            {
+               "apiGroups": [
+                  ""
+               ],
+               "resources": [
+                  "namespaces",
+                  "namespaces/status"
+               ],
+               "verbs": [
+                  "create",
+                  "get",
+                  "list",
+                  "watch"
+               ]
+            },
+            {
+               "apiGroups": [
+                  "",
+                  "project.openshift.io"
+               ],
+               "resources": [
+                  "projects"
+               ],
+               "verbs": [
+                  "get"
+               ]
+            },
+            {
+               "apiGroups": [
+                  "",
+                  "authorization.openshift.io",
+                  "rbac.authorization.k8s.io"
+               ],
+               "resources": [
+                  "roles",
+                  "rolebindings",
+                  "serviceaccounts"
+               ],
+               "verbs": [
+                  "get",
+                  "list",
+                  "delete"
+               ]
+            }
+         ]
+      },
+      {
+         "apiVersion": "rbac.authorization.k8s.io/v1",
+         "kind": "RoleBinding",
+         "metadata": {
+            "labels": {
+               "created-by": "sdi-observer-template",
+               "deploymentconfig": "sdi-observer"
+            },
+            "name": "sdi-observer-for-slcbridge",
+            "namespace": "${SLCB_NAMESPACE}"
+         },
+         "roleRef": {
+            "apiGroup": "rbac.authorization.k8s.io",
+            "kind": "Role",
+            "name": "sdi-observer-for-slcbridge",
+            "namespace": "${SLCB_NAMESPACE}"
+         },
+         "subjects": [
+            {
+               "kind": "ServiceAccount",
+               "name": "sdi-observer",
+               "namespace": "${NAMESPACE}"
+            }
+         ]
+      },
+      {
+         "apiVersion": "rbac.authorization.k8s.io/v1",
          "kind": "ClusterRoleBinding",
          "metadata": {
             "labels": {
@@ -544,8 +672,13 @@
          "value": "master"
       },
       {
-         "description": "The name of the SAP Data Hub namespace to manage. Defaults to the current one. It must be\nset only in case the observer is running in a differnt namespace (see NAMESPACE).\n",
+         "description": "The name of the SAP Data Intelligance namespace to manage. Defaults to the current one. It\nmust be set only in case the observer is running in a different namespace (see NAMESPACE).\n",
          "name": "SDI_NAMESPACE"
+      },
+      {
+         "description": "The name of the namespace where SLC Bridge runs.\n",
+         "name": "SLCB_NAMESPACE",
+         "value": "sap-slcbridge"
       },
       {
          "description": "Set to true if the given or configured VFLOW_REGISTRY shall be marked as insecure in all\ninstances of Pipeline Modeler.\n",

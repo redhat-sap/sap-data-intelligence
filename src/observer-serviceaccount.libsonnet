@@ -178,6 +178,133 @@
         },
       ],
     },
+
+    {
+      apiVersion: 'rbac.authorization.k8s.io/v1',
+      kind: 'Role',
+      metadata: {
+        labels: {
+          deploymentconfig: $._resourceName,
+          'created-by': $.createdBy,
+        },
+        name: $._resourceName + '-for-slcbridge',
+        namespace: '${SLCB_NAMESPACE}',
+      },
+      rules: [
+        {
+          apiGroups: [
+            'apps',
+            'extensions',
+          ],
+          resources: [
+            'deployments',
+            'deployments/scale',
+          ],
+          verbs: [
+            'get',
+            'list',
+            'patch',
+            'watch',
+          ],
+        },
+        {
+          apiGroups: [
+            '',
+          ],
+          resources: [
+            'secrets',
+          ],
+          verbs: [
+            'get',
+          ],
+        },
+        {
+          apiGroups: [
+            '',
+          ],
+          resources: [
+            'configmaps',
+          ],
+          verbs: [
+            'get',
+            'list',
+            'watch',
+            'patch',
+          ],
+        },
+        {
+          apiGroups: [
+            '',
+          ],
+          resources: [
+            'namespaces',
+            'namespaces/status',
+          ],
+          verbs: [
+            'create',
+            'get',
+            'list',
+            'watch',
+          ],
+        },
+        {
+          apiGroups: [
+            '',
+            'project.openshift.io',
+          ],
+          resources: [
+            'projects',
+          ],
+          verbs: [
+            'get',
+          ],
+        },
+        {
+          apiGroups: [
+            '',
+            'authorization.openshift.io',
+            'rbac.authorization.k8s.io',
+          ],
+          resources: [
+            'roles',
+            'rolebindings',
+            'serviceaccounts',
+          ],
+          verbs: [
+            'get',
+            'list',
+            'delete',
+          ],
+        },
+      ],
+    },
+
+    {
+      apiVersion: 'rbac.authorization.k8s.io/v1',
+      kind: 'RoleBinding',
+      metadata: {
+        labels: {
+          deploymentconfig: $._resourceName,
+          'created-by': $.createdBy,
+        },
+        name: $._resourceName + '-for-slcbridge',
+        namespace: '${SLCB_NAMESPACE}',
+      },
+      roleRef: {
+        apiGroup: 'rbac.authorization.k8s.io',
+        kind: 'Role',
+        name: $._resourceName + '-for-slcbridge',
+        namespace: '${SLCB_NAMESPACE}',
+      },
+      subjects: [
+        {
+          kind: 'ServiceAccount',
+          name: $._resourceName,
+          namespace: '${NAMESPACE}',
+        },
+      ],
+    },
+
     {
       apiVersion: 'rbac.authorization.k8s.io/v1',
       kind: 'ClusterRoleBinding',

@@ -28,6 +28,17 @@ function getRegistry() {
     printf '%s\n' "$registry"
 }
 
+function _observe() {
+    local namespace="${1%%:*}"
+    local kind="${1##*:}"
+    local jobnumber="$2"
+    namespace="${namespace:-$SDI_NAMESPACE}"
+    oc observe -n "$namespace" --no-headers --listen-addr=":1125$jobnumber" "$kind" \
+        --output=gotemplate --argument '{{.kind}}/{{.metadata.name}}' -- echo
+    
+}
+export -f _observe
+
 # observe() produces a stream of lines where each line stands for a monitor resource changed on
 # OCP's server side. Each line looks like this:
 #   <namespace> <name> <kind>/<name>
@@ -42,9 +53,7 @@ function observe() {
     # updated fast enough and it returns outdated information; instead, each object needs to be
     # fully refetched each time
     tr '[:upper:]' '[:lower:]' <<<"$(printf '%s\n' "$@")" | \
-        parallel --halt now,done=1 --line-buffer -J "$#" \
-            oc observe -n "$SDI_NAMESPACE" --no-headers --listen-addr=":1125{#}" '{}' \
-                --output=gotemplate --argument '{{.kind}}/{{.metadata.name}}' -- echo
+        parallel --halt now,done=1 --line-buffer -J "$#" -i '{}' -- _observe '{}' '{#}'
 }
 
 function mkVsystemIptablesPatchFor() {
@@ -152,11 +161,19 @@ gotmplConfigMap=(
     '{{end}}'
 )
 
+gotmplSlcbConfigMap=(
+    '{{if contains .metadata.name "nginx"}}'
+        # print (string kind)
+        $'{{.kind}}\n'
+    '{{end}}'
+)
+
 declare -A gotmpls=(
     [Deployment]="$(join '' "${gotmplDeployment[@]}")"
     [DaemonSet]="$(join '' "${gotmplDaemonSet[@]}")"
     [StatefulSet]="$(join '' "${gotmplStatefulSet[@]}")"
     [ConfigMap]="$(join '' "${gotmplConfigMap[@]}")"
+    [${SLCB_NAMESPACE}:ConfigMap]="$(join '' "${gotmplSlcbConfigMap[@]}")"
 )
 
 function checkPerm() {
@@ -196,6 +213,10 @@ function checkPermissions() {
         watch/daemonsets
         watch/deployments
         watch/statefulsets
+
+        "$SLCB_NAMESPACE:get/configmaps"
+        "$SLCB_NAMESPACE:patch/configmaps"
+        "$SLCB_NAMESPACE:watch/configmaps"
     )
     local nmprefix=""
     [[ -n "${NAMESPACE:-}" ]] && nmprefix="${NAMESPACE:-}:"
@@ -315,6 +336,7 @@ function deployComponent() {
     for d in "${dirs[@]}"; do
         local pth="$d/$fn"
         if [[ -f "$pth" ]]; then
+            # TODO: filter out clusterrolebindings
             oc process "${args[@]}" -f "$pth" | createOrReplace
             return 0
         fi
@@ -545,6 +567,34 @@ while IFS=' ' read -u 3 -r _ name resource; do
         [[ "${#pods[@]}" == 0 ]] && continue
         log 'Restarting fluentd pods ...'
         runOrLog oc delete --force --grace-period=0 "${pods[@]}"
+        ;;
+
+    configmap/*nginx*)
+        contents="$(oc get -n "$SLCB_NAMESPACE" "$resource" \
+            -o go-template='{{index .data "nginx.conf"}}')"
+        if [[ -z "${contents:-}" ]]; then
+            log "Failed to get contents of nginx.conf configuration file!"
+            continue
+        fi
+        if ! grep 'https\?://localhost' && ! grep '^\s\+listen\s\+\[::'; then
+            log 'No need to patch %s in %s namespace, skipping...' "$resource" "$SLCB_NAMESPACE"
+            continue
+        fi
+        newContents="$(sed -e 's/^\(\s\+\)\(listen\s\+\[::[^]]\+\)/\1#\2/' \
+            -e 's,^\(https\?://\)localhost,\1127.0.0.1,g' <<<"$contents")"
+        # shellcheck disable=SC2001
+        yamlPatch="$(printf '%s\n' "data:" "    nginx.conf: |" \
+            "$(sed 's/^/        /' <<<"$newContents")")"
+        runOrLog oc patch -n "$SLCB_NAMESPACE" "$resource" -p "$yamlPatch"
+        # do not restart any pods managed by slcbridge as it will make slcbridge unresponsive;
+        # replacing cm of any managed pod is done on best effort - we cannot guarantee that the
+        # pod is started and runs with a patched config file
+        readarray -t pods <<<"$(oc get pods -n "$SLCB_NAMESPACE" -o json -l run=slcbridge | \
+            jq -r '.items[] | select(.spec.volumes |
+                    any(.name == "master-nginx-conf")) | .metadata.name')"
+        [[ "${#pods[@]}" == 0 ]] && continue
+        log 'Restarting slcbridge pods ...'
+        runOrLog oc delete -n "$SLCB_NAMESPACE" --force --grace-period=0 "${pods[@]}"
         ;;
 
     *)
