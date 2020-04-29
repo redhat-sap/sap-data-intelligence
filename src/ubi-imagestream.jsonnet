@@ -17,6 +17,9 @@ local is = import 'imagestream.libsonnet';
           referencePolicy: {
             type: 'Source',
           },
+          importPolicy: {
+            scheduled: true,
+          },
         },
       ],
     },

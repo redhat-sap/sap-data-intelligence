@@ -191,6 +191,9 @@
                      "kind": "DockerImage",
                      "name": "registry.redhat.io/ubi8/ubi:latest"
                   },
+                  "importPolicy": {
+                     "scheduled": true
+                  },
                   "name": "latest",
                   "referencePolicy": {
                      "type": "Source"
