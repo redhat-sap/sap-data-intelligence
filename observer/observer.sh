@@ -382,7 +382,7 @@ if [[ -n "${NAMESPACE:-}" && -n "${SDI_NAMESPACE:-}" && "$NAMESPACE" != "$SDI_NA
     oc project "$SDI_NAMESPACE"
 fi
 
-while IFS=' ' read -u 3 -r _ name resource; do
+while IFS=' ' read -u 3 -r namespace name resource; do
     if [[ "${resource:-""}" == '""' ]]; then
         continue
     fi
@@ -395,7 +395,15 @@ while IFS=' ' read -u 3 -r _ name resource; do
     if [[ -z "${kind:-}" || -z "${name:-}" ]]; then
         continue
     fi
-    data="$(oc get "$resource" -o go-template="${gotmpls[$kind]}")" ||:
+    tmpl="${gotmpls[$kind]}"
+    if [[ -z "${tmpl:-}" ]]; then
+        tmpl="${gotmpls[$namespace]}"
+    fi
+    if [[ -z "${tmpl:-}" ]]; then
+        log 'WARNING: Could not find go-template for kind "%s" in namespace "%s"!' "$kind" "$namespace"
+        continue
+    fi
+    data="$(oc get -n "$namespace" "$resource" -o go-template="${gotmpls[$kind]}")" ||:
     if [[ -z "${data:-}" ]]; then
         continue
     fi
