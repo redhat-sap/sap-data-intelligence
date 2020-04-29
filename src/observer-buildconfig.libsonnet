@@ -11,7 +11,7 @@ local bctmpl = import 'ubi-buildconfig.libsonnet';
 
     dockerfile: |||
       FROM openshift/cli:latest
-      RUN dnf update -y
+      RUN dnf update -y --skip-broken --nobest ||:
       # TODO: jq is not yet available in EPEL-8
       RUN dnf install -y \
         https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm && \

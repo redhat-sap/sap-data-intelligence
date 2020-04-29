@@ -48,7 +48,7 @@ base.DCTemplate {
           "gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-$FEDORA_BASE_RELEASE-$(uname -m)" \
           "skip_if_unavailable=False" >/etc/yum.repos.d/fedora-$repo.repo; \
         done'
-      RUN dnf update -y
+      RUN dnf update -y --skip-broken --nobest ||:
       # install the GPG keys first, so we can enable GPG keys checking for
       # the package in question
       RUN dnf install -y \
