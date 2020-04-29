@@ -29,14 +29,14 @@ function getRegistry() {
 }
 
 function _observe() {
-    set -x
-    local namespace="${1%%:*}"
     local kind="${1##*:}"
+    local namespace="$SDI_NAMESPACE"
+    if [[ "$1" =~ ^(.+):(.+)$ ]]; then
+        namespace="${BASH_REMATCH[1]}"
+    fi
     local jobnumber="$2"
-    namespace="${namespace:-$SDI_NAMESPACE}"
     oc observe -n "$namespace" --no-headers --listen-addr=":1125$jobnumber" "$kind" \
         --output=gotemplate --argument '{{.kind}}/{{.metadata.name}}' -- echo
-    set +x
 }
 export -f _observe
 
@@ -53,11 +53,9 @@ function observe() {
     # we cannot call oc observe directly with the desired template because its object cache is not
     # updated fast enough and it returns outdated information; instead, each object needs to be
     # fully refetched each time
-    set -x
     tr '[:upper:]' '[:lower:]' <<<"$(printf '%s\n' "$@")" | \
         parallel --halt now,done=1 --line-buffer -J "$#" -i '{}' -- _observe '{}' '{#}'
     log 'WARNING: Monitoring terminated.'
-    set +x
 }
 
 function mkVsystemIptablesPatchFor() {
