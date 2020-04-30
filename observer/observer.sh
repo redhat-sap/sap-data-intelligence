@@ -50,11 +50,17 @@ function observe() {
         printf 'Nothing to observe!\n' >&2
         return 1
     fi
+    local cpus
+    cpus="$(grep -c processor /proc/cpuinfo)" ||:
+    local N="$#"
+    if [[ "${cpus:-1}" -lt "$N" ]]; then
+        N="+$((N - 1))"
+    fi
     # we cannot call oc observe directly with the desired template because its object cache is not
     # updated fast enough and it returns outdated information; instead, each object needs to be
     # fully refetched each time
     tr '[:upper:]' '[:lower:]' <<<"$(printf '%s\n' "$@")" | \
-        parallel --halt now,done=1 --line-buffer -J "$#" -i '{}' -- _observe '{}' '{#}'
+        parallel --halt now,done=1 --line-buffer --jobs "$N" -i '{}' -- _observe '{}' '{#}'
     log 'WARNING: Monitoring terminated.'
 }
 
@@ -157,25 +163,35 @@ gotmplStatefulSet=(
 )
 
 gotmplConfigMap=(
-    '{{if eq .metadata.name "diagnostics-fluentd-settings"}}'
-        # print (string kind)
-        $'{{.kind}}\n'
-    '{{end}}'
+    $'{{.kind}}\n'
 )
 
-gotmplSlcbConfigMap=(
-    '{{if contains .metadata.name "nginx"}}'
-        # print (string kind)
-        $'{{.kind}}\n'
+# shellcheck disable=SC2016
+gotmplService=(
+    '{{with $s := .}}'
+        '{{with $run := index $s.metadata.labels "run"}}'
+            '{{with $ss := $s.spec}}'
+                '{{if eq $run "slcbridge"}}'
+                # print (string kind)#(string clusterIP)#(string type)#
+                #       (string sessionAffinity)#((string targetPort):)+
+                    '{{$s.kind}}#{{$ss.clusterIP}}#{{$ss.type}}#{{$ss.sessionAffinity}}#'
+                    '{{range $i, $p := $ss.ports}}'
+                        '{{$p.targetPort}}:'
+                    '{{end}}'
+                '{{end}}'
+            '{{end}}'
+           $'\n'
+        '{{end}}'
     '{{end}}'
 )
 
 declare -A gotmpls=(
-    [Deployment]="$(join '' "${gotmplDeployment[@]}")"
-    [DaemonSet]="$(join '' "${gotmplDaemonSet[@]}")"
-    [StatefulSet]="$(join '' "${gotmplStatefulSet[@]}")"
-    [ConfigMap]="$(join '' "${gotmplConfigMap[@]}")"
-    [${SLCB_NAMESPACE}:ConfigMap]="$(join '' "${gotmplSlcbConfigMap[@]}")"
+    [${SDI_NAMESPACE}:Deployment]="$(join '' "${gotmplDeployment[@]}")"
+    [${SDI_NAMESPACE}:DaemonSet]="$(join '' "${gotmplDaemonSet[@]}")"
+    [${SDI_NAMESPACE}:StatefulSet]="$(join '' "${gotmplStatefulSet[@]}")"
+    [${SDI_NAMESPACE}:ConfigMap]="$(join '' "${gotmplConfigMap[@]}")"
+    [${SLCB_NAMESPACE}:ConfigMap]="$(join '' "${gotmplConfigMap[@]}")"
+    [${SLCB_NAMESPACE}:Service]="$(join '' "${gotmplService[@]}")"
 )
 
 function checkPerm() {
@@ -199,27 +215,30 @@ function checkPermissions() {
     declare -a lackingPermissions
     local perm
     local rc=0
-    local toCheck=(
-        get/configmaps
-        get/deployments
+    local toCheck=()
+    for verb in get patch watch; do
+        for resource in configmaps daemonsets deployments statefulsets; do
+            toCheck+=( "$verb/$resource" )
+        done
+    done
+    toCheck+=(
         get/nodes
         get/projects
         get/secrets
-        get/statefulsets
-        patch/configmaps
-        patch/daemonsets
-        patch/deployments
-        patch/statefulsets
         update/daemonsets
-        watch/configmaps
-        watch/daemonsets
-        watch/deployments
-        watch/statefulsets
 
         "$SLCB_NAMESPACE:get/configmaps"
         "$SLCB_NAMESPACE:patch/configmaps"
         "$SLCB_NAMESPACE:watch/configmaps"
+        "$SLCB_NAMESPACE:get/service"
+        "$SLCB_NAMESPACE:create/service"
+        "$SLCB_NAMESPACE:delete/service"
+        "$SLCB_NAMESPACE:create/route"
+        "$SLCB_NAMESPACE:delete/route"
+        "$SLCB_NAMESPACE:get/route"
+        "$SLCB_NAMESPACE:watch/configmaps"
     )
+
     local nmprefix=""
     [[ -n "${NAMESPACE:-}" ]] && nmprefix="${NAMESPACE:-}:"
     if evalBool DEPLOY_SDI_REGISTRY; then
@@ -400,15 +419,12 @@ while IFS=' ' read -u 3 -r namespace name resource; do
     if [[ -z "${kind:-}" || -z "${name:-}" ]]; then
         continue
     fi
-    tmpl="${gotmpls[$kind]}"
-    if [[ -z "${tmpl:-}" ]]; then
-        tmpl="${gotmpls[$namespace]}"
-    fi
+    tmpl="${gotmpls[$namespace:$kind]}"
     if [[ -z "${tmpl:-}" ]]; then
         log 'WARNING: Could not find go-template for kind "%s" in namespace "%s"!' "$kind" "$namespace"
         continue
     fi
-    data="$(oc get -n "$namespace" "$resource" -o go-template="${gotmpls[$kind]}")" ||:
+    data="$(oc get -n "$namespace" "$resource" -o go-template="$tmpl")" ||:
     if [[ -z "${data:-}" ]]; then
         continue
     fi
@@ -589,12 +605,17 @@ while IFS=' ' read -u 3 -r namespace name resource; do
             log "Failed to get contents of nginx.conf configuration file!"
             continue
         fi
-        if ! grep 'https\?://localhost' && ! grep '^\s\+listen\s\+\[::'; then
+        if      ! grep 'https\?://localhost' <<<"$contents" && \
+                ! grep '^\s\+listen\s\+\[::' <<<"$contents";
+        then
             log 'No need to patch %s in %s namespace, skipping...' "$resource" "$SLCB_NAMESPACE"
             continue
         fi
         newContents="$(sed -e 's/^\(\s\+\)\(listen\s\+\[::[^]]\+\)/\1#\2/' \
             -e 's,^\(https\?://\)localhost,\1127.0.0.1,g' <<<"$contents")"
+        # shellcheck disable=SC2001
+        log 'Patching configmap %s in namespace "%s" to disable IPv4 for nginx frontend ...' \
+            "$name" "$namespace"
         # shellcheck disable=SC2001
         yamlPatch="$(printf '%s\n' "data:" "    nginx.conf: |" \
             "$(sed 's/^/        /' <<<"$newContents")")"
@@ -608,6 +629,94 @@ while IFS=' ' read -u 3 -r namespace name resource; do
         [[ "${#pods[@]}" == 0 ]] && continue
         log 'Restarting slcbridge pods ...'
         runOrLog oc delete -n "$SLCB_NAMESPACE" --force --grace-period=0 "${pods[@]}"
+        ;;
+
+    configmap/*)
+        continue
+        ;;
+
+    service/*)
+        IFS='#' read -r clusterIP _type sessionAffinity _ <<<"${rest:-}"
+        if [[ "${_type:-}" == "ClusterIP" && "${sessionAffinity:-}" == "ClientIP" ]]; then
+            log 'Service %s in namespace %s already patched to be ClusterIP, skipping ...' \
+                "$name" "$namespace"
+        else
+            log 'Patching service %s in namespace %s to become clusterIP, ...' \
+                "$name" "$namespace"
+            oc get -n "$namespace" -o json "$resource" | \
+                jq '.spec.clusterIP |= "'"$clusterIP"'" | .spec.type |= "ClusterIP" |
+                    .spec.sessionAffinity |= "ClientIP" |
+                    walk(if type == "object" then
+                                delpaths([["nodePort"],["externalTrafficPolicy"]])
+                         else . end)' | createOrReplace -n "$namespace"
+        fi
+
+        desiredTermination="passthrough"
+        evalBool EXPOSE_WITH_LETSENCRYPT && desiredTermination=reencrypt
+
+        routes="$(oc get route -n "$namespace" -l "run=slcbridge" -o json)"
+        for routeName in $(jq -r '.items[] | .metadata.name' <<<"$routes"); do
+            IFS=: read -r termination toKind toName host <<<"$(jq -r '.items[] |
+                select(.metadata.name == "'"$routeName"'") |
+                    "\(.spec.tls.termination):\(.spec.to.kind):\(.spec.to.name):\(.spec.host)"' \
+                                <<<"$routes")"
+            if [[   "${termination:-}" == "$desiredTermination" && \
+                    "${toKind:-}" == "Service" && \
+                    "${toName:-}" == "$routeName" && \
+                    ( -z "${SLCB_ROUTE_HOSTNAME:-}" || \
+                    "${host:-}" == "${SLCB_ROUTE_HOSTNAME}" ) ]];
+            then
+                log -n 'Service %s in namespace %s is already exposed at %s via route %s' \
+                    "$name" "$namespace" "${host:-}" "$routeName"
+                log -d ' not exposing again ...'
+                continue 2
+            fi
+        done
+
+        args=( "$desiredTermination" --namespace="$namespace" --service="$name"
+            --dry-run -o json
+            --insecure-policy=Redirect 
+        )
+
+        if [[ -z "${SLCB_ROUTE_HOSTNAME:-}" ]]; then
+            domain="$(oc get -o jsonpath='{.spec.domain}' \
+                ingresses.config.openshift.io/cluster)" ||:
+            if [[ -z "${domain:-}" ]]; then
+                log 'Failed to determine ingress'"'"' wildcard address!'
+            else
+                SLCB_ROUTE_HOSTNAME="slcb.$domain"
+            fi
+        fi
+        if [[ -n "${SLCB_ROUTE_HOSTNAME:-}" ]]; then
+            args+=( --host="${SLCB_ROUTE_HOSTNAME:-}" )
+            log 'Exposing service %s in namespace %s at %s via route, ...' \
+                "$name" "$namespace" "$SLCB_ROUTE_HOSTNAME"
+        else
+            log 'Exposing service %s in namespace %s via route, ...' \
+                "$name" "$namespace"
+        fi
+        if [[ -n "${SLCB_ROUTE_HOSTNAME:-}" ]]; then
+            readarray -t toDelete <<<"$(jq -r '.items[] | select(
+                .metadata.name != "'"$routeName"'" and
+                .spec.host == "'"$SLCB_ROUTE_HOSTNAME"'") | .metadata.name')"
+            for r in "${toDelete[@]}"; do
+                [[ -z "${r:-}" ]] && continue
+                log 'Deleting conflicting route "%s" with having the same host "%s"!' \
+                    "$SLCB_ROUTE_HOSTNAME"
+                printf '%s\n' "$r"
+            done | parallel -- runOrLog oc delete -n "$namespace"
+        fi
+
+        if evalBool DRY_RUN; then
+            runOrLog oc create "${args[@]}"
+        else
+            object="$(oc create "${args[@]}")"
+            if evalBool EXPOSE_WITH_LETSENCRYPT; then
+                object="$(jq '.metadata.annotations["kubernetes.io/tls-acme"] |= "true"' \
+                    <<<"$object")"
+            fi
+            createOrReplace <<<"$object"
+        fi
         ;;
 
     *)

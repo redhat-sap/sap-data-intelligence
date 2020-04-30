@@ -87,6 +87,14 @@ base.DCTemplate {
       required: false,
       value: 'false',
     },
+    {
+      description: |||
+        Expose SLC Bridge's service at the provided hostname using a route. If not given, it will
+        be exposed at slcb.apps.<clustername>.<basedomainname>.
+      |||,
+      name: 'SLCB_ROUTE_HOSTNAME',
+      required: false,
+    },
   ] + [
     params.NotRequired(p)
     for p in params.LetsencryptParams

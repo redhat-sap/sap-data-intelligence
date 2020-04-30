@@ -98,6 +98,9 @@ function log() {
         local fmt="${1:-}\n"
         shift
         printf "$fmt" "$@" >&2
+        if [[ "${reenableDebug}" == 1 ]]; then
+            set -x
+        fi
         return 0
     fi
     printf "$@" >&2

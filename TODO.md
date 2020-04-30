@@ -1,0 +1,7 @@
+- [ ] - expose vsystem service by default
+- [ ] - add job or webhook for observer's automated updates
+- [ ] - break resource handling in observer's loop into separate modules
+- [ ] - add job for updating registry's ca bundle in image config
+    - make observer observe router-ca secret in openshift-ingress-operator namespace
+- [ ] - observer to grant necessary SCCs
+- [ ]  - observer to granc admin role in sdi namespace to vora crd instance

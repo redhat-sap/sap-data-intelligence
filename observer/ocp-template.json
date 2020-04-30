@@ -122,6 +122,10 @@
                               "value": "${DEPLOY_LETSENCRYPT}"
                            },
                            {
+                              "name": "SLCB_ROUTE_HOSTNAME",
+                              "value": "${SLCB_ROUTE_HOSTNAME}"
+                           },
+                           {
                               "name": "LETSENCRYPT_ENVIRONMENT",
                               "value": "${LETSENCRYPT_ENVIRONMENT}"
                            },
@@ -223,6 +227,50 @@
       },
       {
          "apiVersion": "rbac.authorization.k8s.io/v1",
+         "kind": "ClusterRole",
+         "metadata": {
+            "name": "sdi-observer-cluster-access"
+         },
+         "rules": [
+            {
+               "apiGroups": [
+                  "config.openshift.io"
+               ],
+               "resources": [
+                  "ingresses"
+               ],
+               "verbs": [
+                  "get",
+                  "list",
+                  "watch"
+               ]
+            }
+         ]
+      },
+      {
+         "apiVersion": "rbac.authorization.k8s.io/v1",
+         "kind": "ClusterRoleBinding",
+         "metadata": {
+            "labels": {
+               "deploymentconfig": "sdi-observer"
+            },
+            "name": "sdi-observer-cluster-access"
+         },
+         "roleRef": {
+            "apiGroup": "rbac.authorization.k8s.io",
+            "kind": "ClusterRole",
+            "name": "sdi-observer-cluster-access"
+         },
+         "subjects": [
+            {
+               "kind": "ServiceAccount",
+               "name": "sdi-observer",
+               "namespace": "${NAMESPACE}"
+            }
+         ]
+      },
+      {
+         "apiVersion": "rbac.authorization.k8s.io/v1",
          "kind": "Role",
          "metadata": {
             "labels": {
@@ -235,47 +283,15 @@
          "rules": [
             {
                "apiGroups": [
-                  "apps",
-                  "extensions"
-               ],
-               "resources": [
-                  "deployments",
-                  "deployments/scale",
-                  "statefulsets",
-                  "statefulsets/scale"
-               ],
-               "verbs": [
-                  "get",
-                  "list",
-                  "patch",
-                  "watch"
-               ]
-            },
-            {
-               "apiGroups": [
-                  "apps",
-                  "extensions"
-               ],
-               "resources": [
-                  "daemonsets"
-               ],
-               "verbs": [
-                  "get",
-                  "list",
-                  "patch",
-                  "update",
-                  "watch"
-               ]
-            },
-            {
-               "apiGroups": [
                   ""
                ],
                "resources": [
                   "secrets"
                ],
                "verbs": [
-                  "get"
+                  "get",
+                  "list",
+                  "watch"
                ]
             },
             {
@@ -289,7 +305,29 @@
                   "get",
                   "list",
                   "watch",
-                  "patch"
+                  "patch",
+                  "update"
+               ]
+            },
+            {
+               "apiGroups": [
+                  "",
+                  "authorization.openshift.io",
+                  "rbac.authorization.k8s.io"
+               ],
+               "resources": [
+                  "roles",
+                  "rolebindings",
+                  "serviceaccounts"
+               ],
+               "verbs": [
+                  "get",
+                  "list",
+                  "watch",
+                  "patch",
+                  "update",
+                  "created",
+                  "delete"
                ]
             },
             {
@@ -303,7 +341,8 @@
                "verbs": [
                   "get",
                   "list",
-                  "watch"
+                  "watch",
+                  "create"
                ]
             },
             {
@@ -321,6 +360,41 @@
             {
                "apiGroups": [
                   "apps",
+                  "extensions"
+               ],
+               "resources": [
+                  "deployments",
+                  "deployments/scale",
+                  "statefulsets",
+                  "statefulsets/scale"
+               ],
+               "verbs": [
+                  "get",
+                  "list",
+                  "watch",
+                  "patch",
+                  "update"
+               ]
+            },
+            {
+               "apiGroups": [
+                  "apps",
+                  "extensions"
+               ],
+               "resources": [
+                  "daemonsets"
+               ],
+               "verbs": [
+                  "get",
+                  "list",
+                  "watch",
+                  "patch",
+                  "update"
+               ]
+            },
+            {
+               "apiGroups": [
+                  "apps",
                   "deploymentconfigs.apps.openshift.io"
                ],
                "resources": [
@@ -329,23 +403,7 @@
                "verbs": [
                   "get",
                   "list",
-                  "delete"
-               ]
-            },
-            {
-               "apiGroups": [
-                  "",
-                  "authorization.openshift.io",
-                  "rbac.authorization.k8s.io"
-               ],
-               "resources": [
-                  "roles",
-                  "rolebindings",
-                  "serviceaccounts"
-               ],
-               "verbs": [
-                  "get",
-                  "list",
+                  "watch",
                   "delete"
                ]
             }
@@ -390,26 +448,11 @@
          "rules": [
             {
                "apiGroups": [
-                  "apps",
-                  "extensions"
+                  "",
+                  "project.openshift.io"
                ],
                "resources": [
-                  "deployments",
-                  "deployments/scale"
-               ],
-               "verbs": [
-                  "get",
-                  "list",
-                  "patch",
-                  "watch"
-               ]
-            },
-            {
-               "apiGroups": [
-                  ""
-               ],
-               "resources": [
-                  "secrets"
+                  "projects"
                ],
                "verbs": [
                   "get"
@@ -426,34 +469,8 @@
                   "get",
                   "list",
                   "watch",
-                  "patch"
-               ]
-            },
-            {
-               "apiGroups": [
-                  ""
-               ],
-               "resources": [
-                  "namespaces",
-                  "namespaces/status"
-               ],
-               "verbs": [
-                  "create",
-                  "get",
-                  "list",
-                  "watch"
-               ]
-            },
-            {
-               "apiGroups": [
-                  "",
-                  "project.openshift.io"
-               ],
-               "resources": [
-                  "projects"
-               ],
-               "verbs": [
-                  "get"
+                  "patch",
+                  "update"
                ]
             },
             {
@@ -470,6 +487,59 @@
                "verbs": [
                   "get",
                   "list",
+                  "watch",
+                  "patch",
+                  "update",
+                  "created",
+                  "delete"
+               ]
+            },
+            {
+               "apiGroups": [
+                  "route.openshift.io/v1"
+               ],
+               "resources": [
+                  "routes"
+               ],
+               "verbs": [
+                  "get",
+                  "list",
+                  "watch",
+                  "patch",
+                  "update",
+                  "created",
+                  "delete"
+               ]
+            },
+            {
+               "apiGroups": [
+                  ""
+               ],
+               "resources": [
+                  "namespaces",
+                  "namespaces/status"
+               ],
+               "verbs": [
+                  "get",
+                  "list",
+                  "watch",
+                  "create"
+               ]
+            },
+            {
+               "apiGroups": [
+                  ""
+               ],
+               "resources": [
+                  "service"
+               ],
+               "verbs": [
+                  "get",
+                  "list",
+                  "watch",
+                  "patch",
+                  "update",
+                  "created",
                   "delete"
                ]
             }
@@ -715,6 +785,11 @@
          "name": "DEPLOY_LETSENCRYPT",
          "required": false,
          "value": "false"
+      },
+      {
+         "description": "Expose SLC Bridge's service at the provided hostname using a route. If not given, it will\nbe exposed at slcb.apps.<clustername>.<basedomainname>.\n",
+         "name": "SLCB_ROUTE_HOSTNAME",
+         "required": false
       },
       {
          "description": "Either \"live\" or \"staging\". Use the latter when debugging SDI Observer's deployment.\n",

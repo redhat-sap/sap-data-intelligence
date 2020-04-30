@@ -1,9 +1,84 @@
 {
-  _resourceName: 'sdi-observer',
+  resourceName:: 'sdi-observer',
   createdBy:: error 'createdBy must be overridden by a child!',
 
   Objects: [$.ObserverServiceAccount] + $.ObserverRBAC,
   ObjectsForSDI: $.Objects + $.ObserverRBACForSDI,
+
+  rbac:: {
+    role: {
+      local role = self,
+
+      watch:: {
+        apiGroups: [],
+        resources: [],
+        verbs: [
+          'get',
+          'list',
+          'watch',
+        ],
+      },
+
+      patch:: role.watch {
+        verbs+: ['patch', 'update'],
+      },
+
+      manage:: role.patch {
+        verbs+: ['created', 'delete'],
+      },
+
+      ManageRoutes: role.manage {
+        apiGroups: ['route.openshift.io/v1'],
+        resources: ['routes'],
+      },
+      CreateNamespaces: role.watch {
+        apiGroups: [''],
+        resources: [
+          'namespaces',
+          'namespaces/status',
+        ],
+        verbs+: ['create'],
+      },
+      GetProjects: {
+        apiGroups: [
+          '',
+          'project.openshift.io',
+        ],
+        resources: ['projects'],
+        verbs: ['get'],
+      },
+      ManageRBAC: role.manage {
+        apiGroups: [
+          '',
+          'authorization.openshift.io',
+          'rbac.authorization.k8s.io',
+        ],
+        resources: [
+          'roles',
+          'rolebindings',
+          'serviceaccounts',
+        ],
+      },
+      WatchSecrets: role.watch {
+        apiGroups: [''],
+        resources: ['secrets'],
+      },
+      PatchDeployments: role.patch {
+        apiGroups: [
+          'apps',
+          'extensions',
+        ],
+        resources: [
+          'deployments',
+          'deployments/scale',
+        ],
+      },
+      PatchConfigmaps: role.patch {
+        apiGroups: [''],
+        resources: ['configmaps'],
+      },
+    },
+  },
 
   ObserverServiceAccount: {
     local sa = self,
@@ -13,10 +88,10 @@
     kind: 'ServiceAccount',
     metadata: {
       labels: {
-        deploymentconfig: $._resourceName,
+        deploymentconfig: $.resourceName,
         'created-by': $.createdBy,
       },
-      name: $._resourceName,
+      name: $.resourceName,
       namespace: '${NAMESPACE}',
     },
   },
@@ -27,32 +102,25 @@
       kind: 'Role',
       metadata: {
         labels: {
-          deploymentconfig: $._resourceName,
+          deploymentconfig: $.resourceName,
           'created-by': $.createdBy,
         },
-        name: $._resourceName,
+        name: $.resourceName,
         namespace: '${SDI_NAMESPACE}',
       },
       rules: [
-        {
-          apiGroups: [
-            'apps',
-            'extensions',
-          ],
-          resources: [
-            'deployments',
-            'deployments/scale',
+        $.rbac.role.WatchSecrets,
+        $.rbac.role.PatchConfigmaps,
+        $.rbac.role.ManageRBAC,
+        $.rbac.role.CreateNamespaces,
+        $.rbac.role.GetProjects,
+        $.rbac.role.PatchDeployments {
+          resources+: [
             'statefulsets',
             'statefulsets/scale',
           ],
-          verbs: [
-            'get',
-            'list',
-            'patch',
-            'watch',
-          ],
         },
-        {
+        $.rbac.role.patch {
           apiGroups: [
             'apps',
             'extensions',
@@ -60,66 +128,8 @@
           resources: [
             'daemonsets',
           ],
-          verbs: [
-            'get',
-            'list',
-            'patch',
-            'update',
-            'watch',
-          ],
         },
-        {
-          apiGroups: [
-            '',
-          ],
-          resources: [
-            'secrets',
-          ],
-          verbs: [
-            'get',
-          ],
-        },
-        {
-          apiGroups: [
-            '',
-          ],
-          resources: [
-            'configmaps',
-          ],
-          verbs: [
-            'get',
-            'list',
-            'watch',
-            'patch',
-          ],
-        },
-        {
-          apiGroups: [
-            '',
-          ],
-          resources: [
-            'namespaces',
-            'namespaces/status',
-          ],
-          verbs: [
-            'get',
-            'list',
-            'watch',
-          ],
-        },
-        {
-          apiGroups: [
-            '',
-            'project.openshift.io',
-          ],
-          resources: [
-            'projects',
-          ],
-          verbs: [
-            'get',
-          ],
-        },
-        {
+        $.rbac.role.watch {
           apiGroups: [
             'apps',
             'deploymentconfigs.apps.openshift.io',
@@ -127,28 +137,7 @@
           resources: [
             'deploymentconfigs',
           ],
-          verbs: [
-            'get',
-            'list',
-            'delete',
-          ],
-        },
-        {
-          apiGroups: [
-            '',
-            'authorization.openshift.io',
-            'rbac.authorization.k8s.io',
-          ],
-          resources: [
-            'roles',
-            'rolebindings',
-            'serviceaccounts',
-          ],
-          verbs: [
-            'get',
-            'list',
-            'delete',
-          ],
+          verbs+: ['delete'],
         },
       ],
     },
@@ -158,22 +147,22 @@
       kind: 'RoleBinding',
       metadata: {
         labels: {
-          deploymentconfig: $._resourceName,
+          deploymentconfig: $.resourceName,
           'created-by': $.createdBy,
         },
-        name: $._resourceName,
+        name: $.resourceName,
         namespace: '${SDI_NAMESPACE}',
       },
       roleRef: {
         apiGroup: 'rbac.authorization.k8s.io',
         kind: 'Role',
-        name: $._resourceName,
+        name: $.resourceName,
         namespace: '${SDI_NAMESPACE}',
       },
       subjects: [
         {
           kind: 'ServiceAccount',
-          name: $._resourceName,
+          name: $.resourceName,
           namespace: '${NAMESPACE}',
         },
       ],
@@ -184,97 +173,21 @@
       kind: 'Role',
       metadata: {
         labels: {
-          deploymentconfig: $._resourceName,
+          deploymentconfig: $.resourceName,
           'created-by': $.createdBy,
         },
-        name: $._resourceName + '-for-slcbridge',
+        name: $.resourceName + '-for-slcbridge',
         namespace: '${SLCB_NAMESPACE}',
       },
       rules: [
-        {
-          apiGroups: [
-            'apps',
-            'extensions',
-          ],
-          resources: [
-            'deployments',
-            'deployments/scale',
-          ],
-          verbs: [
-            'get',
-            'list',
-            'patch',
-            'watch',
-          ],
-        },
-        {
-          apiGroups: [
-            '',
-          ],
-          resources: [
-            'secrets',
-          ],
-          verbs: [
-            'get',
-          ],
-        },
-        {
-          apiGroups: [
-            '',
-          ],
-          resources: [
-            'configmaps',
-          ],
-          verbs: [
-            'get',
-            'list',
-            'watch',
-            'patch',
-          ],
-        },
-        {
-          apiGroups: [
-            '',
-          ],
-          resources: [
-            'namespaces',
-            'namespaces/status',
-          ],
-          verbs: [
-            'create',
-            'get',
-            'list',
-            'watch',
-          ],
-        },
-        {
-          apiGroups: [
-            '',
-            'project.openshift.io',
-          ],
-          resources: [
-            'projects',
-          ],
-          verbs: [
-            'get',
-          ],
-        },
-        {
-          apiGroups: [
-            '',
-            'authorization.openshift.io',
-            'rbac.authorization.k8s.io',
-          ],
-          resources: [
-            'roles',
-            'rolebindings',
-            'serviceaccounts',
-          ],
-          verbs: [
-            'get',
-            'list',
-            'delete',
-          ],
+        $.rbac.role.GetProjects,
+        $.rbac.role.PatchConfigmaps,
+        $.rbac.role.ManageRBAC,
+        $.rbac.role.ManageRoutes,
+        $.rbac.role.CreateNamespaces,
+        $.rbac.role.manage {
+          apiGroups: [''],
+          resources: ['service'],
         },
       ],
     },
@@ -284,22 +197,22 @@
       kind: 'RoleBinding',
       metadata: {
         labels: {
-          deploymentconfig: $._resourceName,
+          deploymentconfig: $.resourceName,
           'created-by': $.createdBy,
         },
-        name: $._resourceName + '-for-slcbridge',
+        name: $.resourceName + '-for-slcbridge',
         namespace: '${SLCB_NAMESPACE}',
       },
       roleRef: {
         apiGroup: 'rbac.authorization.k8s.io',
         kind: 'Role',
-        name: $._resourceName + '-for-slcbridge',
+        name: $.resourceName + '-for-slcbridge',
         namespace: '${SLCB_NAMESPACE}',
       },
       subjects: [
         {
           kind: 'ServiceAccount',
-          name: $._resourceName,
+          name: $.resourceName,
           namespace: '${NAMESPACE}',
         },
       ],
@@ -310,9 +223,9 @@
       kind: 'ClusterRoleBinding',
       metadata: {
         labels: {
-          deploymentconfig: $._resourceName,
+          deploymentconfig: $.resourceName,
         },
-        name: $._resourceName + '-node-reader',
+        name: $.resourceName + '-node-reader',
       },
       roleRef: {
         apiGroup: 'rbac.authorization.k8s.io',
@@ -322,7 +235,7 @@
       subjects: [
         {
           kind: 'ServiceAccount',
-          name: $._resourceName,
+          name: $.resourceName,
           namespace: '${NAMESPACE}',
         },
       ],
@@ -340,9 +253,9 @@
       kind: 'ClusterRoleBinding',
       metadata: {
         labels: {
-          deploymentconfig: $._resourceName,
+          deploymentconfig: $.resourceName,
         },
-        name: $._resourceName + '-admin',
+        name: $.resourceName + '-admin',
       },
       roleRef: {
         apiGroup: 'rbac.authorization.k8s.io',
@@ -352,7 +265,44 @@
       subjects: [
         {
           kind: 'ServiceAccount',
-          name: $._resourceName,
+          name: $.resourceName,
+          namespace: '${NAMESPACE}',
+        },
+      ],
+    },
+
+    {
+      apiVersion: 'rbac.authorization.k8s.io/v1',
+      kind: 'ClusterRole',
+      metadata: {
+        name: $.resourceName + '-cluster-access',
+      },
+      rules: [
+        $.rbac.role.watch {
+          apiGroups: ['config.openshift.io'],
+          resources: ['ingresses'],
+        },
+      ],
+    },
+
+    {
+      apiVersion: 'rbac.authorization.k8s.io/v1',
+      kind: 'ClusterRoleBinding',
+      metadata: {
+        labels: {
+          deploymentconfig: $.resourceName,
+        },
+        name: $.resourceName + '-cluster-access',
+      },
+      roleRef: {
+        apiGroup: 'rbac.authorization.k8s.io',
+        kind: 'ClusterRole',
+        name: $.resourceName + '-cluster-access',
+      },
+      subjects: [
+        {
+          kind: 'ServiceAccount',
+          name: $.resourceName,
           namespace: '${NAMESPACE}',
         },
       ],
