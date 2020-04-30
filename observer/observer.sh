@@ -186,6 +186,10 @@ gotmplService=(
     '{{end}}'
 )
 
+if [[ -z "${SLCB_NAMESPACE:-}" ]]; then
+    export SLCB_NAMESPACE=sap-slcbridge
+fi
+
 declare -A gotmpls=(
     [${SDI_NAMESPACE}:Deployment]="$(join '' "${gotmplDeployment[@]}")"
     [${SDI_NAMESPACE}:DaemonSet]="$(join '' "${gotmplDaemonSet[@]}")"
@@ -600,7 +604,7 @@ while IFS=' ' read -u 3 -r namespace name resource; do
         ;;
 
     configmap/*nginx*)
-        contents="$(oc get -n "$SLCB_NAMESPACE" "$resource" \
+        contents="$(oc get -n "$namespace" "$resource" \
             -o go-template='{{index .data "nginx.conf"}}')"
         if [[ -z "${contents:-}" ]]; then
             log "Failed to get contents of nginx.conf configuration file!"
@@ -612,8 +616,8 @@ while IFS=' ' read -u 3 -r namespace name resource; do
             log 'No need to patch %s in %s namespace, skipping...' "$resource" "$SLCB_NAMESPACE"
             continue
         fi
-        newContents="$(sed -e 's/^\(\s\+\)\(listen\s\+\[::[^]]\+\)/\1#\2/' \
-            -e 's,^\(https\?://\)localhost,\1127.0.0.1,g' <<<"$contents")"
+        newContents="$(sed -e 's/^\([[:space:]]\+\)\(listen[[:space:]]\+\[::\)/\1#\2/' \
+            -e 's,\(https\?://\)localhost,\1127.0.0.1,g' <<<"$contents")"
         # shellcheck disable=SC2001
         log 'Patching configmap %s in namespace "%s" to disable IPv4 for nginx frontend ...' \
             "$name" "$namespace"
@@ -626,13 +630,13 @@ while IFS=' ' read -u 3 -r namespace name resource; do
         # pod is started and runs with a patched config file
         readarray -t pods <<<"$(oc get pods -n "$SLCB_NAMESPACE" -o json -l run=slcbridge | \
             jq -r '.items[] | select(.spec.volumes |
-                    any(.name == "master-nginx-conf")) | .metadata.name')"
+                any(.name == "master-nginx-conf")) | "pod/\(.metadata.name)"')"
         for ((i = $((${#pods[@]} - 1)); i >= 0; i--)); do
             [[ -z "$(tr -d '[:space:]' <<<"${pods[$i]}")" ]] && unset pods["$i"]
         done
         [[ "${#pods[@]}" == 0 ]] && continue
         log 'Restarting slcbridge pods ...'
-        runOrLog oc delete -n "$SLCB_NAMESPACE" --force --grace-period=0 "${pods[@]}"
+        runOrLog oc delete -n "$namespace" --force --grace-period=0 "${pods[@]}" ||:
         ;;
 
     configmap/*)
@@ -647,14 +651,12 @@ while IFS=' ' read -u 3 -r namespace name resource; do
         else
             log 'Patching service %s in namespace %s to become clusterIP, ...' \
                 "$name" "$namespace"
-            set -x
             oc get -n "$namespace" -o json "$resource" | \
                 jq '.spec.clusterIP |= "'"$clusterIP"'" | .spec.type |= "ClusterIP" |
                     .spec.sessionAffinity |= "ClientIP" |
                     walk(if type == "object" then
                                 delpaths([["nodePort"],["externalTrafficPolicy"]])
                          else . end)' | createOrReplace -n "$namespace"
-            set +x
         fi
 
         desiredTermination="passthrough"
@@ -694,7 +696,7 @@ while IFS=' ' read -u 3 -r namespace name resource; do
             fi
         fi
         if [[ -n "${SLCB_ROUTE_HOSTNAME:-}" ]]; then
-            args+=( --host="${SLCB_ROUTE_HOSTNAME:-}" )
+            args+=( --hostname="${SLCB_ROUTE_HOSTNAME:-}" )
             log 'Exposing service %s in namespace %s at %s via route, ...' \
                 "$name" "$namespace" "$SLCB_ROUTE_HOSTNAME"
         else
@@ -704,7 +706,8 @@ while IFS=' ' read -u 3 -r namespace name resource; do
         if [[ -n "${SLCB_ROUTE_HOSTNAME:-}" ]]; then
             readarray -t toDelete <<<"$(jq -r '.items[] | select(
                 .metadata.name != "'"$name"'" and
-                .spec.host == "'"$SLCB_ROUTE_HOSTNAME"'") | .metadata.name')"
+                .spec.host == "'"$SLCB_ROUTE_HOSTNAME"'") | .metadata.name' \
+                    <<<"$routes")"
             for r in "${toDelete[@]}"; do
                 [[ -z "$(tr -d '[:space:]' <<<"${r:-}")" ]] && continue
                 log 'Deleting conflicting route "%s" with having the same host "%s"!' \
@@ -714,9 +717,9 @@ while IFS=' ' read -u 3 -r namespace name resource; do
         fi
 
         if evalBool DRY_RUN; then
-            runOrLog oc create "${args[@]}"
+            runOrLog oc create route "${args[@]}"
         else
-            object="$(oc create "${args[@]}")"
+            object="$(oc create route "${args[@]}")"
             if evalBool EXPOSE_WITH_LETSENCRYPT; then
                 object="$(jq '.metadata.annotations["kubernetes.io/tls-acme"] |= "true"' \
                     <<<"$object")"
