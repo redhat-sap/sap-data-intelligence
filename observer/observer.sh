@@ -60,7 +60,8 @@ function observe() {
     # updated fast enough and it returns outdated information; instead, each object needs to be
     # fully refetched each time
     tr '[:upper:]' '[:lower:]' <<<"$(printf '%s\n' "$@")" | \
-        parallel --halt now,done=1 --line-buffer --jobs "$N" -i '{}' -- _observe '{}' '{#}'
+        parallel --halt now,done=1 --termseq KILL,25 --line-buffer \
+            --jobs "$N" -i '{}' -- _observe '{}' '{#}'
     log 'WARNING: Monitoring terminated.'
 }
 
@@ -605,8 +606,8 @@ while IFS=' ' read -u 3 -r namespace name resource; do
             log "Failed to get contents of nginx.conf configuration file!"
             continue
         fi
-        if      ! grep 'https\?://localhost' <<<"$contents" && \
-                ! grep '^\s\+listen\s\+\[::' <<<"$contents";
+        if      ! grep -q 'https\?://localhost' <<<"$contents" && \
+                ! grep -q '^\s\+listen\s\+\[::' <<<"$contents";
         then
             log 'No need to patch %s in %s namespace, skipping...' "$resource" "$SLCB_NAMESPACE"
             continue
@@ -626,6 +627,9 @@ while IFS=' ' read -u 3 -r namespace name resource; do
         readarray -t pods <<<"$(oc get pods -n "$SLCB_NAMESPACE" -o json -l run=slcbridge | \
             jq -r '.items[] | select(.spec.volumes |
                     any(.name == "master-nginx-conf")) | .metadata.name')"
+        for ((i = $((${#pods[@]} - 1)); i >= 0; i--)); do
+            [[ -z "$(tr -d '[:space:]' <<<"${pods[$i]}")" ]] && unset pods["$i"]
+        done
         [[ "${#pods[@]}" == 0 ]] && continue
         log 'Restarting slcbridge pods ...'
         runOrLog oc delete -n "$SLCB_NAMESPACE" --force --grace-period=0 "${pods[@]}"
@@ -643,12 +647,14 @@ while IFS=' ' read -u 3 -r namespace name resource; do
         else
             log 'Patching service %s in namespace %s to become clusterIP, ...' \
                 "$name" "$namespace"
+            set -x
             oc get -n "$namespace" -o json "$resource" | \
                 jq '.spec.clusterIP |= "'"$clusterIP"'" | .spec.type |= "ClusterIP" |
                     .spec.sessionAffinity |= "ClientIP" |
                     walk(if type == "object" then
                                 delpaths([["nodePort"],["externalTrafficPolicy"]])
                          else . end)' | createOrReplace -n "$namespace"
+            set +x
         fi
 
         desiredTermination="passthrough"
@@ -697,10 +703,10 @@ while IFS=' ' read -u 3 -r namespace name resource; do
         fi
         if [[ -n "${SLCB_ROUTE_HOSTNAME:-}" ]]; then
             readarray -t toDelete <<<"$(jq -r '.items[] | select(
-                .metadata.name != "'"$routeName"'" and
+                .metadata.name != "'"$name"'" and
                 .spec.host == "'"$SLCB_ROUTE_HOSTNAME"'") | .metadata.name')"
             for r in "${toDelete[@]}"; do
-                [[ -z "${r:-}" ]] && continue
+                [[ -z "$(tr -d '[:space:]' <<<"${r:-}")" ]] && continue
                 log 'Deleting conflicting route "%s" with having the same host "%s"!' \
                     "$SLCB_ROUTE_HOSTNAME"
                 printf '%s\n' "$r"
