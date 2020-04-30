@@ -14,6 +14,8 @@ if [[ "${_SDI_LIB_SOURCED:-0}" == 0 ]]; then
 fi
 common_init
 
+readonly CLUSTERIP_SERVICE_NAME="slcbridge-clusterip"
+
 registry="${REGISTRY:-}"
 function getRegistry() {
     if [[ -z "${registry:-}" ]]; then
@@ -173,8 +175,8 @@ gotmplService=(
         '{{with $run := index $s.metadata.labels "run"}}'
             '{{with $ss := $s.spec}}'
                 '{{if eq $run "slcbridge"}}'
-                # print (string kind)#(string clusterIP)#(string type)#
-                #       (string sessionAffinity)#((string targetPort):)+
+                    # print (string kind)#(string clusterIP)#(string type)#
+                    #       (string sessionAffinity)#((string targetPort):)+
                     '{{$s.kind}}#{{$ss.clusterIP}}#{{$ss.type}}#{{$ss.sessionAffinity}}#'
                     '{{range $i, $p := $ss.ports}}'
                         '{{$p.targetPort}}:'
@@ -282,6 +284,46 @@ function checkPermissions() {
         done
         return "$rc"
     fi
+}
+
+function processSLCBService() {
+    local namespace="$1"
+    local name="$2"
+    local _type="$3"
+    local sessionAffinity="$4"
+    if [[ "$name" == "$CLUSTERIP_SERVICE_NAME" && \
+          "${_type:-}" == "ClusterIP" &&
+          "${sessionAffinity:-}" == "ClientIP" ]];
+    then
+        log 'Service %s in namespace %s already exists, skipping ...' \
+            "$name" "$namespace"
+        return 0
+    fi
+
+    if [[ "$name" == "$CLUSTERIP_SERVICE_NAME" ]]; then
+        log 'Patching service %s in namespace %s to become clusterIP, ...' \
+            "$name" "$namespace"
+        oc get -n "$namespace" -o json "service/$name" | \
+            jq '.spec.type |= "ClusterIP" |
+                .spec.sessionAffinity |= "ClientIP" |
+                walk(if type == "object" then
+                            delpaths([["nodePort"],["externalTrafficPolicy"]])
+                     else . end)' | createOrReplace -n "$namespace"
+        return 0
+    fi
+    if oc get -n "$namespace" "service/$CLUSTERIP_SERVICE_NAME" -o name >/dev/null 2>&1; then
+        log 'Service %s in namespace %s already exists, ignoring event for service %s ...' \
+            "$CLUSTERIP_SERVICE_NAME" "$namespace" "$name"
+        return 0
+    fi
+
+    log 'Creating service %s in namespace %s, ...' "$CLUSTERIP_SERVICE_NAME" "$namespace"
+    oc get -n "$namespace" -o json "service/$name" | \
+        jq '.spec.type |= "ClusterIP" | .metadata.name |= "'"$CLUSTERIP_SERVICE_NAME"'" |
+            .spec.sessionAffinity |= "ClientIP" | del(.spec.clusterIP) |
+            walk(if type == "object" then
+                        delpaths([["nodePort"],["externalTrafficPolicy"]])
+                 else . end)' | createOrReplace -n "$namespace"
 }
 
 function getJobImage() {
@@ -600,7 +642,7 @@ while IFS=' ' read -u 3 -r namespace name resource; do
         readarray -t pods <<<"$(oc get pods -l datahub.sap.com/app-component=fluentd -o name)"
         [[ "${#pods[@]}" == 0 ]] && continue
         log 'Restarting fluentd pods ...'
-        runOrLog oc delete --force --grace-period=0 "${pods[@]}"
+        runOrLog oc delete --force --grace-period=0 "${pods[@]}" ||:
         ;;
 
     configmap/*nginx*)
@@ -625,6 +667,9 @@ while IFS=' ' read -u 3 -r namespace name resource; do
         yamlPatch="$(printf '%s\n' "data:" "    nginx.conf: |" \
             "$(sed 's/^/        /' <<<"$newContents")")"
         runOrLog oc patch -n "$SLCB_NAMESPACE" "$resource" -p "$yamlPatch"
+
+        # do not restart slcbridge if modifyin secrets of other pods
+        [[ "$name" =~ master-nginx ]] || continue
         # do not restart any pods managed by slcbridge as it will make slcbridge unresponsive;
         # replacing cm of any managed pod is done on best effort - we cannot guarantee that the
         # pod is started and runs with a patched config file
@@ -644,20 +689,8 @@ while IFS=' ' read -u 3 -r namespace name resource; do
         ;;
 
     service/*)
-        IFS='#' read -r clusterIP _type sessionAffinity _ <<<"${rest:-}"
-        if [[ "${_type:-}" == "ClusterIP" && "${sessionAffinity:-}" == "ClientIP" ]]; then
-            log 'Service %s in namespace %s already patched to be ClusterIP, skipping ...' \
-                "$name" "$namespace"
-        else
-            log 'Patching service %s in namespace %s to become clusterIP, ...' \
-                "$name" "$namespace"
-            oc get -n "$namespace" -o json "$resource" | \
-                jq '.spec.clusterIP |= "'"$clusterIP"'" | .spec.type |= "ClusterIP" |
-                    .spec.sessionAffinity |= "ClientIP" |
-                    walk(if type == "object" then
-                                delpaths([["nodePort"],["externalTrafficPolicy"]])
-                         else . end)' | createOrReplace -n "$namespace"
-        fi
+        IFS='#' read -r _ _type sessionAffinity _ <<<"${rest:-}"
+        processSLCBService "$namespace" "$name" "$_type" "$sessionAffinity"
 
         desiredTermination="passthrough"
         evalBool EXPOSE_WITH_LETSENCRYPT && desiredTermination=reencrypt
@@ -670,18 +703,19 @@ while IFS=' ' read -u 3 -r namespace name resource; do
                                 <<<"$routes")"
             if [[   "${termination:-}" == "$desiredTermination" && \
                     "${toKind:-}" == "Service" && \
-                    "${toName:-}" == "$routeName" && \
+                    "${toName:-}" == "$CLUSTERIP_SERVICE_NAME" && \
                     ( -z "${SLCB_ROUTE_HOSTNAME:-}" || \
                     "${host:-}" == "${SLCB_ROUTE_HOSTNAME}" ) ]];
             then
                 log -n 'Service %s in namespace %s is already exposed at %s via route %s' \
-                    "$name" "$namespace" "${host:-}" "$routeName"
+                    "$CLUSTERIP_SERVICE_NAME" "$namespace" "${host:-}" "$routeName"
                 log -d ' not exposing again ...'
                 continue 2
             fi
         done
 
-        args=( "$desiredTermination" --namespace="$namespace" --service="$name"
+        args=( "$desiredTermination" --namespace="$namespace"
+            --service="$CLUSTERIP_SERVICE_NAME"
             --dry-run -o json
             --insecure-policy=Redirect 
         )
@@ -698,21 +732,21 @@ while IFS=' ' read -u 3 -r namespace name resource; do
         if [[ -n "${SLCB_ROUTE_HOSTNAME:-}" ]]; then
             args+=( --hostname="${SLCB_ROUTE_HOSTNAME:-}" )
             log 'Exposing service %s in namespace %s at %s via route, ...' \
-                "$name" "$namespace" "$SLCB_ROUTE_HOSTNAME"
+                "$CLUSTERIP_SERVICE_NAME" "$namespace" "$SLCB_ROUTE_HOSTNAME"
         else
             log 'Exposing service %s in namespace %s via route, ...' \
-                "$name" "$namespace"
+                "$CLUSTERIP_SERVICE_NAME" "$namespace"
         fi
         if [[ -n "${SLCB_ROUTE_HOSTNAME:-}" ]]; then
             readarray -t toDelete <<<"$(jq -r '.items[] | select(
-                .metadata.name != "'"$name"'" and
+                .metadata.name != "'"$CLUSTERIP_SERVICE_NAME"'" and
                 .spec.host == "'"$SLCB_ROUTE_HOSTNAME"'") | .metadata.name' \
                     <<<"$routes")"
             for r in "${toDelete[@]}"; do
                 [[ -z "$(tr -d '[:space:]' <<<"${r:-}")" ]] && continue
-                log 'Deleting conflicting route "%s" with having the same host "%s"!' \
-                    "$SLCB_ROUTE_HOSTNAME"
-                printf '%s\n' "$r"
+                log 'Deleting conflicting route "%s" having the same hostname "%s"!' \
+                    "$r" "$SLCB_ROUTE_HOSTNAME"
+                printf 'route/%s\n' "$r"
             done | parallel -- runOrLog oc delete -n "$namespace"
         fi
 
