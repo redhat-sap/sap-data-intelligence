@@ -724,7 +724,7 @@ while IFS=' ' read -u 3 -r namespace name resource; do
                 object="$(jq '.metadata.annotations["kubernetes.io/tls-acme"] |= "true"' \
                     <<<"$object")"
             fi
-            createOrReplace <<<"$object"
+            createOrReplace -n "$namespace" <<<"$object"
         fi
         ;;
 
