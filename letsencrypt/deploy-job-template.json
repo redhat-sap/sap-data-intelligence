@@ -191,7 +191,8 @@
                   "pullSecret": {
                      "name": "${REDHAT_REGISTRY_SECRET_NAME}"
                   }
-               }
+               },
+               "imageOptimizationPolicy": "SkipLayers"
             },
             "triggers": [
                {

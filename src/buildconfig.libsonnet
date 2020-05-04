@@ -38,6 +38,7 @@ local is = import 'imagestream.libsonnet';
             name: $.srcImageStreamTag,
           },
         },
+        imageOptimizationPolicy: 'SkipLayers',
       },
       triggers: [
         {
