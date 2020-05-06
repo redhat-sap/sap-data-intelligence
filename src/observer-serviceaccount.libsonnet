@@ -20,11 +20,11 @@
       },
 
       patch:: role.watch {
-        verbs+: ['patch', 'update'],
+        verbs+: ['patch', 'update', 'delete'],
       },
 
       manage:: role.patch {
-        verbs+: ['created', 'delete'],
+        verbs+: ['create', 'delete'],
       },
 
       ManageRoutes: role.manage {
@@ -63,6 +63,9 @@
         apiGroups: [''],
         resources: ['secrets'],
       },
+      ManageSecrets: $.rbac.role.WatchSecrets {
+        verbs: $.rbac.role.manage.verbs,
+      },
       PatchDeployments: role.patch {
         apiGroups: [
           'apps',
@@ -72,6 +75,10 @@
           'deployments',
           'deployments/scale',
         ],
+      },
+      PatchJobs: role.patch {
+        apiGroups: ['batch/v1'],
+        resources: ['jobs'],
       },
       PatchConfigmaps: role.patch {
         apiGroups: [''],
@@ -109,7 +116,7 @@
         namespace: '${SDI_NAMESPACE}',
       },
       rules: [
-        $.rbac.role.WatchSecrets,
+        $.rbac.role.ManageSecrets,
         $.rbac.role.PatchConfigmaps,
         $.rbac.role.ManageRBAC,
         $.rbac.role.CreateNamespaces,
@@ -120,6 +127,7 @@
             'statefulsets/scale',
           ],
         },
+        $.rbac.role.PatchJobs,
         $.rbac.role.patch {
           apiGroups: [
             'apps',

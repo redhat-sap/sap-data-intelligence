@@ -15,6 +15,19 @@ fi
 common_init
 
 readonly CLUSTERIP_SERVICE_NAME="slcbridge-clusterip"
+readonly SDI_CABUNDLE_SECRET_NAME="sdi-observer-cabundle"
+readonly CABUNDLE_VOLUME_NAME="sdi-observer-cabundle"
+readonly CABUNDLE_VOLUME_MOUNT_PATH="/mnt/sdi-observer/cabundle"
+readonly CHECKPOINT_CHECK_JOBNAME="datahub.checks.checkpoint"
+readonly UPDATE_CA_TRUST_CONTAINER_NAME="sdi-observer-update-ca-certificates"
+
+# the annotation represents a cabundle that has been successfully injected into the resource
+#   the value is a triple joined by colons:
+#     <secret-namespace>:<secret-name>:<secret-uid>
+readonly CABUNDLE_INJECTED_ANNOTATION="sdi-observer-injected-cabundle"
+# the annotation represents a desired cabundle to be injected into the resource; value is the same
+# as for the injected annotation
+readonly CABUNDLE_INJECT_ANNOTATION="sdi-observer-inject-cabundle"
 
 registry="${REGISTRY:-}"
 function getRegistry() {
@@ -41,6 +54,12 @@ function _observe() {
         --output=gotemplate --argument '{{.kind}}/{{.metadata.name}}' -- echo
 }
 export -f _observe
+
+function _cleanup() {
+    jobs -r -p | xargs -r kill -KILL ||:
+    common_cleanup
+}
+trap _cleanup EXIT
 
 # observe() produces a stream of lines where each line stands for a monitor resource changed on
 # OCP's server side. Each line looks like this:
@@ -188,6 +207,28 @@ gotmplService=(
     '{{end}}'
 )
 
+gotmplSecret=()
+
+# shellcheck disable=SC2016
+gotmplJob=(
+    '{{with $j := .}}'
+        '{{if eq $j.metadata.name "'"$CHECKPOINT_CHECK_JOBNAME"'"}}'
+            # print (string kind)#(string injected-cabundle)#((int volumeIndex):)*
+            '{{$j.kind}}#'
+            '{{if $j.metadata.annotations}}'
+                '{{with $cab := index $j.metadata.annotations "'"$CABUNDLE_INJECTED_ANNOTATION"'"}}'
+                    '{{$cab}}'
+                '{{end}}'
+            '{{end}}#'
+            '{{range $i, $v := $j.spec.template.spec.volumes}}'
+                '{{if eq $v.name "'"$CABUNDLE_VOLUME_NAME"'"}}'
+                    '{{$i}}:'
+                '{{end}}'
+            '{{end}}'
+        $'{{end}}\n'
+    '{{end}}'
+)
+
 if [[ -z "${SLCB_NAMESPACE:-}" ]]; then
     export SLCB_NAMESPACE=sap-slcbridge
 fi
@@ -197,9 +238,26 @@ declare -A gotmpls=(
     [${SDI_NAMESPACE}:DaemonSet]="$(join '' "${gotmplDaemonSet[@]}")"
     [${SDI_NAMESPACE}:StatefulSet]="$(join '' "${gotmplStatefulSet[@]}")"
     [${SDI_NAMESPACE}:ConfigMap]="$(join '' "${gotmplConfigMap[@]}")"
+    [${SDI_NAMESPACE}:Job]="$(join '' "${gotmplJob[@]}")"
     [${SLCB_NAMESPACE}:ConfigMap]="$(join '' "${gotmplConfigMap[@]}")"
     [${SLCB_NAMESPACE}:Service]="$(join '' "${gotmplService[@]}")"
 )
+
+if evalBool INJECT_CABUNDLE; then
+    if [[ -z "${CABUNDLE_SECRET_NAME:-}" ]]; then
+        CABUNDLE_SECRET_NAME="openshift-ingress-operator/router-ca"
+    fi
+    CABUNDLE_SECRET_NAMESPACE="${CABUNDLE_SECRET_NAME%%/*}"
+    CABUNDLE_SECRET_NAME="${CABUNDLE_SECRET_NAME##*/}"
+    CABUNDLE_SECRET_NAMESPACE="${CABUNDLE_SECRET_NAMESPACE:-$NAMESPACE}"
+    gotmplSecret=(
+        '{{if and (eq .metadata.name "'"$CABUNDLE_SECRET_NAME"'")'
+                 ' (eq .metadata.namespace "'"$CABUNDLE_SECRET_NAMESPACE"'")}}'
+            $'{{.kind}}#{{.metadata.uid}}\n'
+        '{{end}}'
+    )
+    gotmpls[${CABUNDLE_SECRET_NAMESPACE}:Secret]="$(join '' "${gotmplSecret[@]}")"
+fi
 
 function checkPerm() {
     local perm="$1"
@@ -224,7 +282,7 @@ function checkPermissions() {
     local rc=0
     local toCheck=()
     for verb in get patch watch; do
-        for resource in configmaps daemonsets deployments statefulsets; do
+        for resource in configmaps daemonsets deployments statefulsets jobs; do
             toCheck+=( "$verb/$resource" )
         done
     done
@@ -245,6 +303,9 @@ function checkPermissions() {
         "$SLCB_NAMESPACE:get/route"
         "$SLCB_NAMESPACE:watch/configmaps"
     )
+    if [[ -n "${CABUNDLE_SECRET_NAMESPACE:-}" ]]; then
+        toCheck+=( "${CABUNDLE_SECRET_NAMESPACE:-}:get/secrets" )
+    fi
 
     local nmprefix=""
     [[ -n "${NAMESPACE:-}" ]] && nmprefix="${NAMESPACE:-}:"
@@ -338,6 +399,86 @@ function getJobImage() {
     printf '%s' "${JOB_IMAGE}"
 }
 
+function addUpdateCaTrustInitContainer() {
+	local arr=() object scriptLines=() script
+    mapfile -d $'\0' arr
+    object="${arr[0]:-}"
+	# shellcheck disable=SC2016
+    # 
+	scriptLines=(
+		'mkdir -pv /etc/pki/ca-trust/source/anchors/ ||:'
+		'k8scacert=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt'
+        # copy a standard k8s cabundle generated and mounted by OCP platform
+        # TODO: make this optional - may not be desirable
+		'if [[ -e "$k8scacert" ]]; then'
+		'  cp -aLv "$k8scacert" /etc/pki/ca-trust/source/anchors/k8s-ca.crt'
+		'fi'
+        # copy also the desired CA certificate bundle
+		'cp -aLv '"$CABUNDLE_VOLUME_MOUNT_PATH"'/cabundle.crt /etc/pki/ca-trust/source/anchors/'
+        # the command is named differently on RHEL and SLES, support both
+		'cmd=update-ca-trust'
+		'if command -v update-ca-certificates >/dev/null; then'
+		'  cmd=update-ca-certificates'
+		'fi'
+		'"$cmd"'
+        # copy the generated updated CA certificates to an empty dir volume which will be mounted
+        # to the injected container at /etc/pki
+        'cd /etc/pki'
+        'cp -av * /mnt/etc-pki/'
+#        "$(join ' ' 'find -L -type f |' \
+#            ' grep -v -F -f <(find -L -type l) |' \
+#            ' xargs -n 1 -r -i install --preserve-context -p -D -v "{}" "/mnt/etc-pki/{}"')"
+	)
+
+	script="$(printf '%s\\n' "${scriptLines[@]//\"/\\\"}")"
+    # TODO: report that equivalend `oc set volume --local -f - ...` command results in a traceback
+    # shellcheck disable=SC2016
+    local patches=(
+        '.spec.template.spec.initContainers |= (. // [] | [.[] |
+                select(.name != "'"$UPDATE_CA_TRUST_CONTAINER_NAME"'")]) + [
+            {
+              "command": [
+                "/bin/bash",
+                "-c",
+                "'"$script"'"
+              ],
+              "image": "'"$(getJobImage)"'",
+              "name": "'"$UPDATE_CA_TRUST_CONTAINER_NAME"'"
+            }]'
+
+        '.spec.template.spec |= (. | walk(if type == "object" and has("image") and has("name") then
+                . as $c | .volumeMounts |= (. // [] |
+                    [.[] | select(.name != "'"$CABUNDLE_VOLUME_NAME"'" and .name != "etc-pki")] + [
+                        {
+                            "mountPath": "'"$CABUNDLE_VOLUME_MOUNT_PATH"'",
+                            "name": "'"$CABUNDLE_VOLUME_NAME"'",
+                            "readOnly": true
+                        }, {
+                            "mountPath": (if $c.name == "'"$UPDATE_CA_TRUST_CONTAINER_NAME"'" then
+                                "/mnt/etc-pki"
+                            else
+                                "/etc/pki"
+                            end),
+                            "name": "etc-pki",
+                        }
+                    ])
+                else . end))'
+
+        '.spec.template.spec.volumes |= (. // [] | [.[] | 
+            select(.name != "'"$CABUNDLE_VOLUME_NAME"'" and .name != "etc-pki")] + [
+                {
+                    "name": "etc-pki",
+                    "emptyDir": {}
+                }, {
+                    "name": "'"$CABUNDLE_VOLUME_NAME"'",
+                    "secret": {
+                        "secretName": "'"$SDI_CABUNDLE_SECRET_NAME"'"
+                    }
+                }])'
+    )
+    jq "$(join '|' "${patches[@]}")" <<<"$object"
+}
+
 function deployComponent() {
     local component="$1"
     local dirs=(
@@ -384,7 +525,6 @@ function deployComponent() {
                 "PROJECTS_TO_MONITOR=$(join , "${projects[@]}")"
                 "LETSENCRYPT_ENVIRONMENT=${LETSENCRYPT_ENVIRONMENT:-}"
             )
-            
             ;;
     esac
 
@@ -759,6 +899,95 @@ while IFS=' ' read -u 3 -r namespace name resource; do
                     <<<"$object")"
             fi
             createOrReplace -n "$namespace" <<<"$object"
+        fi
+        ;;
+
+    secret/*)
+        if [[ "$name" != "$CABUNDLE_SECRET_NAME" || \
+              "$namespace" != "$CABUNDLE_SECRET_NAMESPACE" ]];
+        then
+            continue
+        fi
+        uid="${rest:-}"
+        current="$(oc get secret -o json "$SDI_CABUNDLE_SECRET_NAME")" ||:
+        if [[ -n "${current:-}" ]]; then
+            currentSource="$(jq -r '.metadata.annotations["source-secret-key"]' <<<"${current}")"
+            IFS=: read -r nm _name _uid <<<"${currentSource:-}"
+            if [[ "$nm" == "$namespace" && "$_name" == "$name" && "$_uid" == "$uid" ]];
+            then
+                log 'CA bundle is up to date, no need to update.'
+                continue
+            fi
+        fi
+        
+        bundleData="$(oc get -o json -n "$namespace" "$resource" | \
+            jq -r '.data as $d | $d | keys[] | select(test("\\.crt$")) | $d[.] | @base64d')" ||:
+        if [[ -z "$(tr -d '[:space:]' <<<"${bundleData:-}")" ]]; then
+            log 'Failed to get any ca certificates out of secret %s in namespace %s!' \
+                "$name" "$namespace"
+            continue
+        fi
+
+        log -n 'Creating %s secret in %s namespace containing' "$SDI_CABUNDLE_SECRET_NAME" \
+            "$SDI_NAMESPACE"
+        log -d ' cabundle that shall be injected into SDI pods.' 
+        oc create secret generic "$SDI_CABUNDLE_SECRET_NAME" --dry-run -o json \
+            --from-literal=cabundle.crt="$bundleData" | \
+            oc annotate -f - --local -o json source-secret-key="$namespace:$name:$uid" | \
+            createOrReplace
+        if evalBool DRY_RUN; then
+            continue
+        fi
+        uid="$(oc get secret "$SDI_CABUNDLE_SECRET_NAME" -o jsonpath='{.metadata.uid}')"
+        key="$namespace:$name:$uid"
+        log 'Annotating resources where cabundle needs to be injected.'
+        runOrLog oc annotate --overwrite job/datahub.checks.checkpoint \
+            "$CABUNDLE_INJECT_ANNOTATION=$key"
+        ;;
+
+    job/*)
+        if ! evalBool INJECT_CABUNDLE || [[ "$name" != "$CHECKPOINT_CHECK_JOBNAME" ]]; then
+            continue
+        fi
+        IFS='#' read -r injectedKey _ <<<"${rest}"
+        contents="$(oc get -o json "$resource")"
+        injectKey="$(jq -r '.metadata.annotations["'"$CABUNDLE_INJECT_ANNOTATION"'"]' \
+                <<<"$contents")" ||:
+        if [[ -n "${injectedKey:-}" && "${injectedKey}" == "${injectKey:-}" ]]; then
+            log 'Job %s is using the latest cabundle secret, skipping ...' "$name"
+            continue
+        fi
+
+        cabundleKey="$(oc get secret -o go-template="$(join '' \
+            '{{if .metadata.annotations}}' \
+                    '{{index .metadata.annotations "source-secret-key"}}{{end}}')" \
+            "$SDI_CABUNDLE_SECRET_NAME" 2>/dev/null)" ||:
+        if ! [[ "${cabundleKey:-}" =~ ^.+:.+:.+$ ]]; then
+            log 'Not patching job %s because the %s secret does not exist yet.' \
+                "$name" "$SDI_CABUNDLE_SECRET_NAME"
+            continue
+        fi
+        log 'Mounting %s secret into job %s ...' "$SDI_CABUNDLE_SECRET_NAME" "$name"
+		oc get -o json "$resource" |
+            oc annotate --overwrite -f - --local -o json \
+                "$CABUNDLE_INJECT_ANNOTATION=$cabundleKey"  \
+                "$CABUNDLE_INJECTED_ANNOTATION=$cabundleKey" | \
+                jq '. | del(.spec.selector) | del(.status) |
+                        del(.spec.template.metadata.labels."controller-uid")' | \
+            addUpdateCaTrustInitContainer | \
+                createOrReplace
+        jobuid="$(jq -r '.metadata.uid' <<<"${contents}")" ||:
+        if [[ -z "${jobuid:-}" ]]; then
+            log 'Could not get jobuid out of Job %s, not terminating its pods ...' "$name"
+            continue
+        fi
+        if evalBool DRY_RUN; then
+            log 'Deleting pods belonging to job(name=%s, uid=%s)' "$name" "$jobuid"
+        else
+            oc get pods -o json -l "job-name=$name" | \
+                jq -r '.items[] | select((.metadata.ownerReferences // []) | any(
+                    .name == "'"$name"'" and .uid == "'"$jobuid"'")) | "pod/\(.metadata.name)"' | \
+                xargs -r oc delete ||:
         fi
         ;;
 

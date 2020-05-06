@@ -95,6 +95,34 @@ base.DCTemplate {
       name: 'SLCB_ROUTE_HOSTNAME',
       required: false,
     },
+    {
+      description: |||
+        Inject CA certificate bundle into SAP Data Intelligence pods. The bundle can
+        be specified with CABUNDLE_SECRET_NAME. It is needed if either registry or s3 endpoint
+        is secured by a self-signed certificate.
+      |||,
+      required: false,
+      name: 'INJECT_CABUNDLE',
+      value: 'false',
+    },
+    {
+      description: |||
+        The name of the secret containing certificate authority bundle that shall be injected
+        into Data Intelligence pods. The default, the secret bundle is obtained from
+        openshift-ingress-operator namespace where the router-ca secret contains a certificate
+        authority used to signed all edge and reencrypt routes that are among others used for
+        SDI_REGISTRY and NooBaa S3 API services. The secret name may be optionally prefixed with
+        $namespace/. For example in the default value "openshift-ingress-operator/router-ca",
+        the "openshift-ingress-operator" stands for secret's namespace and "router-ca" stands for
+        secret's name.
+        If no $namespace prefix is given, the secret is expected to reside in NAMESPACE where the
+        SDI observer runs. All the entries present in the "data" field having ".crt" suffix  will
+        be concated to form the resulting cabundle.crt file.
+      |||,
+      required: false,
+      name: 'CABUNDLE_SECRET_NAME',
+      value: 'openshift-ingress-operator/router-ca',
+    },
   ] + [
     params.NotRequired(p)
     for p in params.LetsencryptParams
