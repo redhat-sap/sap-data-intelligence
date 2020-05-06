@@ -126,6 +126,14 @@
                               "value": "${SLCB_ROUTE_HOSTNAME}"
                            },
                            {
+                              "name": "INJECT_CABUNDLE",
+                              "value": "${INJECT_CABUNDLE}"
+                           },
+                           {
+                              "name": "CABUNDLE_SECRET_NAME",
+                              "value": "${CABUNDLE_SECRET_NAME}"
+                           },
+                           {
                               "name": "LETSENCRYPT_ENVIRONMENT",
                               "value": "${LETSENCRYPT_ENVIRONMENT}"
                            },
@@ -291,7 +299,12 @@
                "verbs": [
                   "get",
                   "list",
-                  "watch"
+                  "watch",
+                  "patch",
+                  "update",
+                  "delete",
+                  "create",
+                  "delete"
                ]
             },
             {
@@ -306,7 +319,8 @@
                   "list",
                   "watch",
                   "patch",
-                  "update"
+                  "update",
+                  "delete"
                ]
             },
             {
@@ -326,7 +340,8 @@
                   "watch",
                   "patch",
                   "update",
-                  "created",
+                  "delete",
+                  "create",
                   "delete"
                ]
             },
@@ -373,7 +388,24 @@
                   "list",
                   "watch",
                   "patch",
-                  "update"
+                  "update",
+                  "delete"
+               ]
+            },
+            {
+               "apiGroups": [
+                  "batch/v1"
+               ],
+               "resources": [
+                  "jobs"
+               ],
+               "verbs": [
+                  "get",
+                  "list",
+                  "watch",
+                  "patch",
+                  "update",
+                  "delete"
                ]
             },
             {
@@ -389,7 +421,8 @@
                   "list",
                   "watch",
                   "patch",
-                  "update"
+                  "update",
+                  "delete"
                ]
             },
             {
@@ -470,7 +503,8 @@
                   "list",
                   "watch",
                   "patch",
-                  "update"
+                  "update",
+                  "delete"
                ]
             },
             {
@@ -490,7 +524,8 @@
                   "watch",
                   "patch",
                   "update",
-                  "created",
+                  "delete",
+                  "create",
                   "delete"
                ]
             },
@@ -507,7 +542,8 @@
                   "watch",
                   "patch",
                   "update",
-                  "created",
+                  "delete",
+                  "create",
                   "delete"
                ]
             },
@@ -539,7 +575,8 @@
                   "watch",
                   "patch",
                   "update",
-                  "created",
+                  "delete",
+                  "create",
                   "delete"
                ]
             }
@@ -791,6 +828,18 @@
          "description": "Expose SLC Bridge's service at the provided hostname using a route. If not given, it will\nbe exposed at slcb.apps.<clustername>.<basedomainname>.\n",
          "name": "SLCB_ROUTE_HOSTNAME",
          "required": false
+      },
+      {
+         "description": "Inject CA certificate bundle into SAP Data Intelligence pods. The bundle can\nbe specified with CABUNDLE_SECRET_NAME. It is needed if either registry or s3 endpoint\nis secured by a self-signed certificate.\n",
+         "name": "INJECT_CABUNDLE",
+         "required": false,
+         "value": "false"
+      },
+      {
+         "description": "The name of the secret containing certificate authority bundle that shall be injected\ninto Data Intelligence pods. The default, the secret bundle is obtained from\nopenshift-ingress-operator namespace where the router-ca secret contains a certificate\nauthority used to signed all edge and reencrypt routes that are among others used for\nSDI_REGISTRY and NooBaa S3 API services. The secret name may be optionally prefixed with\n$namespace/. For example in the default value \"openshift-ingress-operator/router-ca\",\nthe \"openshift-ingress-operator\" stands for secret's namespace and \"router-ca\" stands for\nsecret's name.\nIf no $namespace prefix is given, the secret is expected to reside in NAMESPACE where the\nSDI observer runs. All the entries present in the \"data\" field having \".crt\" suffix  will\nbe concated to form the resulting cabundle.crt file.\n",
+         "name": "CABUNDLE_SECRET_NAME",
+         "required": false,
+         "value": "openshift-ingress-operator/router-ca"
       },
       {
          "description": "Either \"live\" or \"staging\". Use the latter when debugging SDI Observer's deployment.\n",
