@@ -50,7 +50,8 @@ function _observe() {
         namespace="${BASH_REMATCH[1]}"
     fi
     local jobnumber="$2"
-    oc observe -n "$namespace" --no-headers --listen-addr=":1125$jobnumber" "$kind" \
+    local portnumber="$((11251 + jobnumber))"
+    oc observe -n "$namespace" --no-headers --listen-addr=":$portnumber" "$kind" \
         --output=gotemplate --argument '{{.kind}}/{{.metadata.name}}' -- echo
 }
 export -f _observe
@@ -106,6 +107,10 @@ function mkVsystemIptablesPatchFor() {
             "$containerIndex" "$name"
     fi
 }
+
+if [[ -z "${SLCB_NAMESPACE:-}" ]]; then
+    export SLCB_NAMESPACE=sap-slcbridge
+fi
 
 # shellcheck disable=SC2016
 gotmplDeployment=(
@@ -208,6 +213,21 @@ gotmplService=(
 )
 
 gotmplSecret=()
+if evalBool INJECT_CABUNDLE || [[ -n "${REDHAT_REGISTRY_SECRET_NAME:-}" ]]; then
+    if [[ -z "${CABUNDLE_SECRET_NAME:-}" ]]; then
+        CABUNDLE_SECRET_NAME="openshift-ingress-operator/router-ca"
+    fi
+    CABUNDLE_SECRET_NAMESPACE="${CABUNDLE_SECRET_NAME%%/*}"
+    CABUNDLE_SECRET_NAME="${CABUNDLE_SECRET_NAME##*/}"
+    CABUNDLE_SECRET_NAMESPACE="${CABUNDLE_SECRET_NAMESPACE:-$NAMESPACE}"
+    gotmplSecret=(
+        '{{if or (and (eq .metadata.name "'"$CABUNDLE_SECRET_NAME"'")'
+                    ' (eq .metadata.namespace "'"$CABUNDLE_SECRET_NAMESPACE"'"))'
+               ' (eq .metadata.name "'"$REDHAT_REGISTRY_SECRET_NAME"'")}}'
+            $'{{.kind}}#{{.metadata.uid}}\n'
+        '{{end}}'
+    )
+fi
 
 # shellcheck disable=SC2016
 gotmplJob=(
@@ -229,34 +249,23 @@ gotmplJob=(
     '{{end}}'
 )
 
-if [[ -z "${SLCB_NAMESPACE:-}" ]]; then
-    export SLCB_NAMESPACE=sap-slcbridge
-fi
-
 declare -A gotmpls=(
-    [${SDI_NAMESPACE}:Deployment]="$(join '' "${gotmplDeployment[@]}")"
-    [${SDI_NAMESPACE}:DaemonSet]="$(join '' "${gotmplDaemonSet[@]}")"
-    [${SDI_NAMESPACE}:StatefulSet]="$(join '' "${gotmplStatefulSet[@]}")"
-    [${SDI_NAMESPACE}:ConfigMap]="$(join '' "${gotmplConfigMap[@]}")"
-    [${SDI_NAMESPACE}:Job]="$(join '' "${gotmplJob[@]}")"
-    [${SLCB_NAMESPACE}:ConfigMap]="$(join '' "${gotmplConfigMap[@]}")"
-    [${SLCB_NAMESPACE}:Service]="$(join '' "${gotmplService[@]}")"
+    ["${SDI_NAMESPACE}:Deployment"]="$(join '' "${gotmplDeployment[@]}")"
+    ["${SDI_NAMESPACE}:DaemonSet"]="$(join '' "${gotmplDaemonSet[@]}")"
+    ["${SDI_NAMESPACE}:StatefulSet"]="$(join '' "${gotmplStatefulSet[@]}")"
+    ["${SDI_NAMESPACE}:ConfigMap"]="$(join '' "${gotmplConfigMap[@]}")"
+    ["${SDI_NAMESPACE}:Job"]="$(join '' "${gotmplJob[@]}")"
+    ["${SLCB_NAMESPACE}:ConfigMap"]="$(join '' "${gotmplConfigMap[@]}")"
+    ["${SLCB_NAMESPACE}:Service"]="$(join '' "${gotmplService[@]}")"
 )
 
 if evalBool INJECT_CABUNDLE; then
-    if [[ -z "${CABUNDLE_SECRET_NAME:-}" ]]; then
-        CABUNDLE_SECRET_NAME="openshift-ingress-operator/router-ca"
-    fi
-    CABUNDLE_SECRET_NAMESPACE="${CABUNDLE_SECRET_NAME%%/*}"
-    CABUNDLE_SECRET_NAME="${CABUNDLE_SECRET_NAME##*/}"
-    CABUNDLE_SECRET_NAMESPACE="${CABUNDLE_SECRET_NAMESPACE:-$NAMESPACE}"
-    gotmplSecret=(
-        '{{if and (eq .metadata.name "'"$CABUNDLE_SECRET_NAME"'")'
-                 ' (eq .metadata.namespace "'"$CABUNDLE_SECRET_NAMESPACE"'")}}'
-            $'{{.kind}}#{{.metadata.uid}}\n'
-        '{{end}}'
-    )
-    gotmpls[${CABUNDLE_SECRET_NAMESPACE}:Secret]="$(join '' "${gotmplSecret[@]}")"
+    gotmpls["${CABUNDLE_SECRET_NAMESPACE}:Secret"]="$(join '' "${gotmplSecret[@]}")"
+fi
+if [[ -n "${REDHAT_REGISTRY_SECRET_NAME:-}" ]]; then
+    for nm in ${REDHAT_REGISTRY_SECRET_NAMESPACE} "${SDI_NAMESPACE}" "${SLCB_NAMESPACE}"; do
+        gotmpls["${nm}:Secret"]="$(join '' "${gotmplSecret[@]}")"
+    done
 fi
 
 function checkPerm() {
@@ -430,6 +439,14 @@ function addUpdateCaTrustInitContainer() {
 #            ' xargs -n 1 -r -i install --preserve-context -p -D -v "{}" "/mnt/etc-pki/{}"')"
 	)
 
+    local namespace saName
+    IFS=: read -r namespace saName <<<"$(jq -r \
+        '"\(.metadata.namespace // "'"$SDI_NAMESPACE"'"):\(.spec.template.spec.serviceAccountName)"' \
+            <<<"$object")"
+    local pullSecretName
+    pullSecretName="$(oc get -n "$namespace" "sa/$saName" -o json | \
+        jq -r '.secrets[] | select(.name | test("-dockercfg-")) | .name')"
+
 	script="$(printf '%s\\n' "${scriptLines[@]//\"/\\\"}")"
     # TODO: report that equivalend `oc set volume --local -f - ...` command results in a traceback
     # shellcheck disable=SC2016
@@ -475,6 +492,9 @@ function addUpdateCaTrustInitContainer() {
                         "secretName": "'"$SDI_CABUNDLE_SECRET_NAME"'"
                     }
                 }])'
+
+        '.spec.template.spec.imagePullSecrets |= ((. // []) | [.[] | select(.name !=
+            "sdi-observer-registry")] + [{"name":"'"$pullSecretName"'"}])'
     )
     jq "$(join '|' "${patches[@]}")" <<<"$object"
 }
@@ -497,7 +517,7 @@ function deployComponent() {
         REPLACE_SECRETS="${REPLACE_SECRETS:-}"
         JOB_IMAGE="$(getJobImage)"
         OCP_MINOR_RELEASE="${OCP_MINOR_RELEASE:-}"
-        REDHAT_REGISTRY_SECRET_NAME="${REDHAT_REGISTRY_SECRET_NAME:-}"
+        REDHAT_REGISTRY_SECRET_NAME="${REDHAT_REGISTRY_SECRET_NAMESPACE:-}/${REDHAT_REGISTRY_SECRET_NAME:-}"
         # passed as an argument instead
         #WAIT_UNTIL_ROLLEDOUT=true
     )
@@ -606,7 +626,7 @@ while IFS=' ' read -u 3 -r namespace name resource; do
     if [[ -z "${kind:-}" || -z "${name:-}" ]]; then
         continue
     fi
-    tmpl="${gotmpls[$namespace:$kind]}"
+    tmpl="${gotmpls["$namespace:$kind"]}"
     if [[ -z "${tmpl:-}" ]]; then
         log 'WARNING: Could not find go-template for kind "%s" in namespace "%s"!' "$kind" "$namespace"
         continue
@@ -832,6 +852,11 @@ while IFS=' ' read -u 3 -r namespace name resource; do
         IFS='#' read -r _ _type sessionAffinity _ <<<"${rest:-}"
         processSLCBService "$namespace" "$name" "$_type" "$sessionAffinity"
 
+        # TODO: find out why SLC Bridge is not usable behind router
+        # right now can be used only via the default NodePort (on-premise solution) or the
+        # default LoadBalancer services
+        continue
+
         desiredTermination="passthrough"
         evalBool EXPOSE_WITH_LETSENCRYPT && desiredTermination=reencrypt
 
@@ -902,12 +927,7 @@ while IFS=' ' read -u 3 -r namespace name resource; do
         fi
         ;;
 
-    secret/*)
-        if [[ "$name" != "$CABUNDLE_SECRET_NAME" || \
-              "$namespace" != "$CABUNDLE_SECRET_NAMESPACE" ]];
-        then
-            continue
-        fi
+    "secret/${CABUNDLE_SECRET_NAME:-}")
         uid="${rest:-}"
         current="$(oc get secret -o json "$SDI_CABUNDLE_SECRET_NAME")" ||:
         if [[ -n "${current:-}" ]]; then
@@ -933,7 +953,8 @@ while IFS=' ' read -u 3 -r namespace name resource; do
         log -d ' cabundle that shall be injected into SDI pods.' 
         oc create secret generic "$SDI_CABUNDLE_SECRET_NAME" --dry-run -o json \
             --from-literal=cabundle.crt="$bundleData" | \
-            oc annotate -f - --local -o json source-secret-key="$namespace:$name:$uid" | \
+            oc annotate -f - --local -o json \
+                "$(mkSourceKeyAnnotation "$namespace" "$name" "$uid")" | \
             createOrReplace
         if evalBool DRY_RUN; then
             continue
@@ -943,6 +964,16 @@ while IFS=' ' read -u 3 -r namespace name resource; do
         log 'Annotating resources where cabundle needs to be injected.'
         runOrLog oc annotate --overwrite job/datahub.checks.checkpoint \
             "$CABUNDLE_INJECT_ANNOTATION=$key"
+        ensurePullsFromNamespace
+        ;;
+
+    "secret/${REDHAT_REGISTRY_SECRET_NAME:-}")
+        ensureRedHatRegistrySecret "$namespace"
+        ensurePullsFromNamespace "$NAMESPACE" default "$namespace"
+        ;;
+
+    secret/*)
+        log 'Ignoring secret "%s" in namespace %s.' "$name" "$namespace"
         ;;
 
     job/*)
@@ -950,7 +981,8 @@ while IFS=' ' read -u 3 -r namespace name resource; do
             continue
         fi
         IFS='#' read -r injectedKey _ <<<"${rest}"
-        contents="$(oc get -o json "$resource")"
+        contents="$(oc get -o json "$resource")" ||:
+        [[ -z "${contents:-}" ]] && continue
         injectKey="$(jq -r '.metadata.annotations["'"$CABUNDLE_INJECT_ANNOTATION"'"]' \
                 <<<"$contents")" ||:
         if [[ -n "${injectedKey:-}" && "${injectedKey}" == "${injectKey:-}" ]]; then
@@ -976,6 +1008,9 @@ while IFS=' ' read -u 3 -r namespace name resource; do
                         del(.spec.template.metadata.labels."controller-uid")' | \
             addUpdateCaTrustInitContainer | \
                 createOrReplace
+        ensurePullsFromNamespace "$NAMESPACE" \
+            "$(jq -r '.spec.template.spec.serviceAccountName' <<<"$contents")" \
+            "$namespace"
         jobuid="$(jq -r '.metadata.uid' <<<"${contents}")" ||:
         if [[ -z "${jobuid:-}" ]]; then
             log 'Could not get jobuid out of Job %s, not terminating its pods ...' "$name"

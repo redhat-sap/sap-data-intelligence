@@ -13,7 +13,7 @@ readonly LETSENCRYPT_DEPLOY_FILES=(
 # shellcheck disable=SC2034
 readonly DEFAULT_SDI_REGISTRY_HTPASSWD_SECRET_NAME="container-image-registry-htpasswd"
 readonly SDI_REGISTRY_TEMPLATE_FILE_NAME=ocp-template.json
-
+readonly SOURCE_KEY_ANNOTATION=source-secret-key
 
 function join() { local IFS="${1:-}"; shift; echo "$*"; }
 export -f join
@@ -72,13 +72,81 @@ if [[ -z "${NODE_LOG_FORMAT:-}" ]]; then
 fi
 export NODE_LOG_FORMAT
 
+function matchDictEntries() {
+    # Arguments:
+    #  Attribute      - an path in object to a dictionary that shall be matched
+    #                   e.g.: metadata.annotations
+    #  key=value ...  - entries that must be included in the JSON object read from stdin
+    # Result:
+    #  The JSON object itself and exit code 0 if all the entries are included in the Attribute;
+    #  empty string otherwise.
+    local attribute="$1"
+    shift
+    local out
+    out="$(jq '. as $o |
+            if ['"$(join , "$(printf '"%s"' "$@")")"'] | [
+                .[] | match("(.+)=(.+)") |
+                        {"key": .captures[0].string, "value": .captures[1].string}
+                ] | reduce .[] as $item ({}; . + {"\($item.key)": $item.value}) |
+                    to_entries |
+                    all((($o.'"$attribute"' // {})[.key] // "") == .value)
+            then
+                $o
+            else
+                ""
+            end')"
+    if [[ "$out" == '""' ]]; then
+        return 1
+    fi
+    printf '%s' "$out"
+}
+export -f matchDictEntries
+
 function doesResourceExist() {
     local cmd=oc args=( get )
-    if [[ "${1:-}" == "-n" ]]; then
-        args+=( "-n" "$2" )
-        shift 2
+    local matchLabels=() matchAnnotations=()
+    while [[ $# -gt 0 ]]; do
+        case "${1:-}" in
+        -n)
+            args+=( "-n" "$2" )
+            shift 2
+            ;;
+        -l)
+            matchLabels+=( "$2" )
+            shift 2
+            ;;
+        -a)
+            matchAnnotations+=( "$2" )
+            shift 2
+            ;;
+        *)
+            break
+            ;;
+        esac
+    done
+
+    if [[ "${#matchLabels[@]}${#matchAnnotations[@]}" == 00 ]]; then
+        $cmd "${args[@]}" "$@" >/dev/null 2>&1
+        return $?
     fi
-    $cmd "${args[@]}" "$@" >/dev/null 2>&1
+
+    args+=( -o json )
+    local contents
+    contents="$($cmd "${args[@]}" "$@" 2>/dev/null)"
+    if [[ -z "${contents:-}" ]]; then
+        return 1
+    fi
+
+    if [[ "${#matchAnnotations[@]}" -gt 0 ]]; then
+        matchDictEntries metadata.annotations "${matchAnnotations[@]}" >/dev/null \
+            <<<"$contents" || return $?
+    fi
+                
+    if [[ "${#matchLabels[@]}" -gt 0 ]]; then
+        matchDictEntries metadata.labels "${matchLabels[@]}" >/dev/null \
+            <<<"$contents" || return $?
+    fi
+    return 0
 }
 export -f doesResourceExist
 
@@ -166,7 +234,6 @@ function common_init() {
     [[ -z "${NAMESPACE:-}" ]] && NAMESPACE="$(oc project -q)"
     export NAMESPACE
 
-
     if [[ -z "${SDI_NAMESPACE:-}" ]]; then
         SDI_NAMESPACE="$NAMESPACE"
     fi
@@ -178,6 +245,16 @@ function common_init() {
         [[ -z "${val:-}" ]] && continue
         eval 'export '"$var"'="$val"'
     done
+
+    if [[ -n "${REDHAT_REGISTRY_SECRET_NAMESPACE:-}" ]]; then
+        REDHAT_REGISTRY_SECRET_NAME="${REDHAT_REGISTRY_SECRET_NAME##*/}"
+    elif [[ "$REDHAT_REGISTRY_SECRET_NAME" =~ ^([^/]+)/(.*) ]]; then
+        REDHAT_REGISTRY_SECRET_NAME="${BASH_REMATCH[2]}"
+        REDHAT_REGISTRY_SECRET_NAMESPACE="${BASH_REMATCH[1]}"
+    else
+        REDHAT_REGISTRY_SECRET_NAMESPACE="$NAMESPACE"
+    fi
+    export REDHAT_REGISTRY_SECRET_NAME REDHAT_REGISTRY_SECRET_NAMESPACE
 
     _common_init_performed=1
 }
@@ -370,5 +447,94 @@ function getRegistryTemplatePath() {
 export -f getRegistryTemplatePath
 
 export LETSENCRYPT_ENVIRONMENT="${LETSENCRYPT_ENVIRONMENT:-live}"
+
+function mkSourceKeyAnnotation() {
+    local namespace="$1"
+    local name="$2"
+    local uid="$3"
+    printf '%s=%s:%s:%s' "$SOURCE_KEY_ANNOTATION" "$namespace" "$name" "$uid"
+}
+export -f mkSourceKeyAnnotation
+
+function ensurePullsFromNamespace() {
+    local sourceNamespace="${1:-$NAMESPACE}"
+    local saName="${2:-default}"
+    local saNamespace="${3:-$SDI_NAMESPACE}"
+    local secretName token
+    if [[ "$sourceNamespace" == "$saNamespace" ]]; then
+        return 0
+    fi
+    secretName="$(oc get -o json -n "$saNamespace" "sa/$saName" | \
+        jq -r '.secrets[] | select(.name | test("token")).name')"
+    token="$(oc get -n "$saNamespace" -o jsonpath='{.data.token}' "secret/$secretName" | \
+        base64 -d)"
+    if [[ -z "${token:-}" ]]; then
+        log 'ERROR: failed to get a token of service account %s in namespace %s' \
+            "$saName" "$saNamespace"
+        return 1
+    fi
+    if oc --token="$token" auth can-i -n "$sourceNamespace" get \
+            imagestreams/layers >/dev/null
+    then
+        log 'Service account %s in %s namespace can already pull images from %s namespace.' \
+            "$saName" "$saNamespace" "$sourceNamespace"
+        return 0
+    fi
+    log -n 'Granting privileges to the %s service account in %s namespace to pull' \
+        "$saName" "$saNamespace"
+    log -d ' images from %s namespace' "$sourceNamespace"
+    runOrLog oc policy add-role-to-user \
+        system:image-puller "system:serviceaccount:$saNamespace:$saName" \
+        --namespace="$sourceNamespace"
+}
+
+function ensureRedHatRegistrySecret() {
+    local namespace="${1:-}"
+    if [[ -z "${REDHAT_REGISTRY_SECRET_NAME:-}" ]]; then
+        log 'FATAL: REDHAT_REGISTRY_SECRET_NAME must be provided!'
+        exit 1
+    fi
+
+    if [[ -n "${REDHAT_REGISTRY_SECRET_NAMESPACE:-}" ]]; then
+        REDHAT_REGISTRY_SECRET_NAME="${REDHAT_REGISTRY_SECRET_NAME##*/}"
+    elif [[ "$REDHAT_REGISTRY_SECRET_NAME" =~ ^([^/]+)/(.*) ]]; then
+        REDHAT_REGISTRY_SECRET_NAME="${BASH_REMATCH[2]}"
+        REDHAT_REGISTRY_SECRET_NAMESPACE="${BASH_REMATCH[1]}"
+    fi
+    local existArgs=()
+    if [[ -n "${REDHAT_REGISTRY_SECRET_NAMESPACE:-}" ]]; then
+        existArgs+=( -n "${REDHAT_REGISTRY_SECRET_NAMESPACE}" )
+    fi
+    existArgs+=( "secret/$REDHAT_REGISTRY_SECRET_NAME" )
+    # (because existArgs may be empty which would result in an empty string being passed to the
+    # function)
+    if ! doesResourceExist "${existArgs[@]}"; then
+        log 'FATAL: REDHAT_REGISTRY_SECRET_NAME (secret/%s) does not exist!' \
+            "$REDHAT_REGISTRY_SECRET_NAME"
+        exit 1
+    fi
+    local contents
+    contents="$(oc get -o json "${existArgs[@]}")"
+    local uid
+    uid="$(jq -r '.metadata.uid' <<<"$contents")"
+    namespace="${namespace:-$NAMESPACE}"
+    if [[ "${REDHAT_REGISTRY_SECRET_NAMESPACE:-$NAMESPACE}" != "${namespace}" ]]; then
+        local ann
+        ann="$(mkSourceKeyAnnotation "$REDHAT_REGISTRY_SECRET_NAMESPACE" \
+            "$REDHAT_REGISTRY_SECRET_NAME" "$uid")"
+        if doesResourceExist -a "$ann" -n "$namespace" "secret/$REDHAT_REGISTRY_SECRET_NAME"; then
+            log -n 'Secret "%s" to pull images from Red Hat registry already' \
+                "$REDHAT_REGISTRY_SECRET_NAME"
+            log -d ' exists in the target namespace "%s"' "$namespace"
+        else
+            log 'Copying secret "%s" from namespace "%s" to namespace "%s".' \
+                "$REDHAT_REGISTRY_SECRET_NAME" "$REDHAT_REGISTRY_SECRET_NAMESPACE" "$namespace"
+            createOrReplace -f -n "$namespace" < <(jq '.metadata.annotations |= ((. // {}) +
+                {"'"${ann%%=*}"'": "'"${ann##*=}"'"}) | del(.metadata.uid)' <<<"$contents")
+        fi
+    fi
+    runOrLog oc secrets add default -n "$namespace" "$REDHAT_REGISTRY_SECRET_NAME" --for=pull
+}
+export -f ensureRedHatRegistrySecret
 
 export _SDI_LIB_SOURCED=1

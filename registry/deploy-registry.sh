@@ -161,39 +161,6 @@ function createOrReplaceObjectFromTemplate() {
 }
 export -f createOrReplaceObjectFromTemplate
 
-function ensureRedHatRegistrySecret() {
-    if [[ -z "${REDHAT_REGISTRY_SECRET_NAME:-}" ]]; then
-        log 'FATAL: REDHAT_REGISTRY_SECRET_NAME must be provided!'
-        exit 1
-    fi
-
-    if [[ -n "${REDHAT_REGISTRY_SECRET_NAMESPACE:-}" ]]; then
-        REDHAT_REGISTRY_SECRET_NAME="${REDHAT_REGISTRY_SECRET_NAME##*/}"
-    elif [[ "$REDHAT_REGISTRY_SECRET_NAME" =~ ^([^/]+)/(.*) ]]; then
-        REDHAT_REGISTRY_SECRET_NAME="${BASH_REMATCH[2]}"
-        REDHAT_REGISTRY_SECRET_NAMESPACE="${BASH_REMATCH[1]}"
-    fi
-    existArgs=()
-    if [[ -n "${REDHAT_REGISTRY_SECRET_NAMESPACE:-}" ]]; then
-        existArgs+=( -n "${REDHAT_REGISTRY_SECRET_NAMESPACE}" )
-    fi
-    # shellcheck disable=SC2068
-    # (because existArgs may be empty which would result in an empty string being passed to the
-    # function)
-    if ! doesResourceExist ${existArgs[@]} "secret/$REDHAT_REGISTRY_SECRET_NAME"; then
-        log 'FATAL: REDHAT_REGISTRY_SECRET_NAME (secret/%s) does not exist!' \
-            "$REDHAT_REGISTRY_SECRET_NAME"
-        exit 1
-    fi
-    if [[ "${REDHAT_REGISTRY_SECRET_NAMESPACE:-$NAMESPACE}" != "${NAMESPACE}" ]]; then
-        # shellcheck disable=SC2086
-        oc  get -n "${REDHAT_REGISTRY_SECRET_NAMESPACE:-$NAMESPACE}" -o json \
-            "secret/$REDHAT_REGISTRY_SECRET_NAME" | \
-            createOrReplace -n "$NAMESPACE"
-    fi
-    runOrLog oc secrets add default "$REDHAT_REGISTRY_SECRET_NAME" --for=pull
-}
-
 function deployRegistry() {
     ensureRedHatRegistrySecret
     getOrCreateHtpasswdSecret
