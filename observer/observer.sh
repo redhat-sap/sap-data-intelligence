@@ -143,10 +143,10 @@ gotmplDeployment=(
 # shellcheck disable=SC2016
 gotmplDaemonSet=( 
     '{{with $ds := .}}'
-        '{{if eq .metadata.name "diagnostics-fluentd"}}'
             # print (string kind)#((int containerIndex):(string containerName):(bool unprivileged)
             #            :(int volumeindex):(string varlibdockercontainers volumehostpath)
             #            :(int volumeMount index):(string varlibdockercontainers volumeMount path)#)+
+        '{{if eq .metadata.name "diagnostics-fluentd"}}'
             '{{$ds.kind}}#'
             '{{range $i, $c := $ds.spec.template.spec.containers}}'
                 '{{if eq $c.name "diagnostics-fluentd"}}'
@@ -162,8 +162,7 @@ gotmplDaemonSet=(
                         '{{end}}'
                     '{{end}}#'
                 '{{end}}'
-            '{{end}}'
-            $'\n'
+            $'{{end}}\n'
         '{{end}}'
     '{{end}}'
 )
@@ -182,9 +181,20 @@ gotmplStatefulSet=(
                             ':{{$vm.name}}'
                         '{{end}}'
                     '{{end}}'
+                '{{end}}#'
+            $'{{end}}\n'
+        '{{else if eq .metadata.name "vora-disk"}}'
+            '{{$ss.kind}}#'
+            '{{if $ss.metadata.annotations}}'
+                '{{with $cab := index $ss.metadata.annotations "'"$CABUNDLE_INJECTED_ANNOTATION"'"}}'
+                    '{{$cab}}'
                 '{{end}}'
             '{{end}}#'
-           $'\n'
+            '{{range $i, $v := $ss.spec.template.spec.volumes}}'
+                '{{if eq $v.name "'"$CABUNDLE_VOLUME_NAME"'"}}'
+                    '{{$i}}:'
+                '{{end}}'
+            $'{{end}}\n'
         '{{end}}'
     '{{end}}'
 )
@@ -573,6 +583,72 @@ function deployComponent() {
     return 1
 }
 
+function injectCABundle() {
+    local namespace="$1"
+    local kind="$2"
+    local name="$3"
+    local resource="${kind,,}/$name"
+    local podLabelSelector="$4"
+    # value '""' stands for unset, empty stands for unknown
+    local injectedKey="${5:-}"
+    local contents injectKey cabundleKey namespace objuid
+
+    contents="$(oc get -o json "$resource")" ||:
+    [[ -z "${contents:-}" ]] && return 1
+    injectKey="$(jq -r '.metadata.annotations["'"$CABUNDLE_INJECT_ANNOTATION"'"] | if .
+        then . else "" end' <<<"$contents")" ||:
+    if [[ -z "${injectedKey:-}" ]]; then
+        injectedKey="$(jq -r '.metadata.annotations["'"$CABUNDLE_INJECTED_ANNOTATION"'"] | if .
+            then . else "" end' <<<"$contents")" ||:
+    elif [[ "${injectedKey}" == '""' ]]; then
+        injectedKey=''
+    fi
+    if [[ -n "${injectedKey:-}" && "${injectedKey}" == "${injectKey:-}" ]]; then
+        log '%s %s is using the latest cabundle secret, skipping ...' "$kind" "$name"
+        return 0
+    fi
+
+    cabundleKey="$(oc get secret -o go-template="$(join '' \
+        '{{if .metadata.annotations}}' \
+                '{{index .metadata.annotations "source-secret-key"}}{{end}}')" \
+        "$SDI_CABUNDLE_SECRET_NAME" 2>/dev/null)" ||:
+    if ! [[ "${cabundleKey:-}" =~ ^.+:.+:.+$ ]]; then
+        log 'Not patching %s %s because the %s secret does not exist yet.' \
+            "${kind,,}" "$name" "$SDI_CABUNDLE_SECRET_NAME"
+        return 0
+    fi
+    log 'Mounting %s secret into %s %s ...' "$SDI_CABUNDLE_SECRET_NAME" "${kind,,}" "$name"
+    local jqPatch='.'
+    if [[ "${kind,,}" == job ]]; then
+        jqPatch='. | del(.spec.selector) | del(.status) |
+                     del(.spec.template.metadata.labels."controller-uid")'
+    fi
+    oc get -o json "$resource" |
+        oc annotate --overwrite -f - --local -o json \
+            "$CABUNDLE_INJECT_ANNOTATION=$cabundleKey"  \
+            "$CABUNDLE_INJECTED_ANNOTATION=$cabundleKey" | \
+            jq "${jqPatch}" | \
+        addUpdateCaTrustInitContainer | \
+            createOrReplace
+    ensurePullsFromNamespace "$NAMESPACE" \
+        "$(jq -r '.spec.template.spec.serviceAccountName' <<<"$contents")" \
+        "$namespace"
+    objuid="$(jq -r '.metadata.uid' <<<"${contents}")" ||:
+    if [[ -z "${objuid:-}" ]]; then
+        log 'WARNING: Could not get uid out of %s %s, not terminating its pods ...' \
+            "$kind" "$name"
+        return 1
+    fi
+    if evalBool DRY_RUN; then
+        log 'Deleting pods belonging to %s(name=%s, uid=%s)' "$kind" "$name" "$objuid"
+    else
+        oc get pods -o json -l "$podLabelSelector" | \
+            jq -r '.items[] | select((.metadata.ownerReferences // []) | any(
+                .name == "'"$name"'" and .uid == "'"$objuid"'")) | "pod/\(.metadata.name)"' | \
+            xargs -r oc delete ||:
+    fi
+}
+
 checkPermissions
 
 if evalBool DEPLOY_SDI_REGISTRY; then
@@ -739,6 +815,22 @@ while IFS=' ' read -u 3 -r namespace name resource; do
             dsSpec="$(oc patch -o json --local -f - --type "$patchType" -p "${patch}" <<<"${dsSpec}")"
         done
         createOrReplace <<<"${dsSpec}"
+        ;;
+
+    statefulset/vora-disk)
+        if ! evalBool INJECT_CABUNDLE; then
+            continue
+        fi
+        continue
+        set -x
+        IFS='#' read -r injectedKey _ <<<"${rest}"
+        if ! injectCABundle "$namespace" "$kind" "$name" \
+                datahub.sap.com/app-component=disk "${injectedKey:-""}";
+        then
+            log 'WARNING: Failed to inject CA bundle into %s in namespace %s!' \
+                "$resource" "$namespace"
+        fi
+        set +x
         ;;
 
     statefulset/*)
@@ -963,7 +1055,7 @@ while IFS=' ' read -u 3 -r namespace name resource; do
         key="$namespace:$name:$uid"
         log 'Annotating resources where cabundle needs to be injected.'
         runOrLog oc annotate --overwrite job/datahub.checks.checkpoint \
-            "$CABUNDLE_INJECT_ANNOTATION=$key"
+            "$CABUNDLE_INJECT_ANNOTATION=$key" ||:
         ensurePullsFromNamespace
         ;;
 
@@ -981,48 +1073,10 @@ while IFS=' ' read -u 3 -r namespace name resource; do
             continue
         fi
         IFS='#' read -r injectedKey _ <<<"${rest}"
-        contents="$(oc get -o json "$resource")" ||:
-        [[ -z "${contents:-}" ]] && continue
-        injectKey="$(jq -r '.metadata.annotations["'"$CABUNDLE_INJECT_ANNOTATION"'"]' \
-                <<<"$contents")" ||:
-        if [[ -n "${injectedKey:-}" && "${injectedKey}" == "${injectKey:-}" ]]; then
-            log 'Job %s is using the latest cabundle secret, skipping ...' "$name"
-            continue
-        fi
-
-        cabundleKey="$(oc get secret -o go-template="$(join '' \
-            '{{if .metadata.annotations}}' \
-                    '{{index .metadata.annotations "source-secret-key"}}{{end}}')" \
-            "$SDI_CABUNDLE_SECRET_NAME" 2>/dev/null)" ||:
-        if ! [[ "${cabundleKey:-}" =~ ^.+:.+:.+$ ]]; then
-            log 'Not patching job %s because the %s secret does not exist yet.' \
-                "$name" "$SDI_CABUNDLE_SECRET_NAME"
-            continue
-        fi
-        log 'Mounting %s secret into job %s ...' "$SDI_CABUNDLE_SECRET_NAME" "$name"
-		oc get -o json "$resource" |
-            oc annotate --overwrite -f - --local -o json \
-                "$CABUNDLE_INJECT_ANNOTATION=$cabundleKey"  \
-                "$CABUNDLE_INJECTED_ANNOTATION=$cabundleKey" | \
-                jq '. | del(.spec.selector) | del(.status) |
-                        del(.spec.template.metadata.labels."controller-uid")' | \
-            addUpdateCaTrustInitContainer | \
-                createOrReplace
-        ensurePullsFromNamespace "$NAMESPACE" \
-            "$(jq -r '.spec.template.spec.serviceAccountName' <<<"$contents")" \
-            "$namespace"
-        jobuid="$(jq -r '.metadata.uid' <<<"${contents}")" ||:
-        if [[ -z "${jobuid:-}" ]]; then
-            log 'Could not get jobuid out of Job %s, not terminating its pods ...' "$name"
-            continue
-        fi
-        if evalBool DRY_RUN; then
-            log 'Deleting pods belonging to job(name=%s, uid=%s)' "$name" "$jobuid"
-        else
-            oc get pods -o json -l "job-name=$name" | \
-                jq -r '.items[] | select((.metadata.ownerReferences // []) | any(
-                    .name == "'"$name"'" and .uid == "'"$jobuid"'")) | "pod/\(.metadata.name)"' | \
-                xargs -r oc delete ||:
+        if ! injectCABundle "$namespace" "$kind" "$name" job-name="$name" \
+                "${injectedKey:-""}"; then
+            log 'WARNING: Failed to inject CA bundle into %s in namespace %s!' \
+                "$resource" "$namespace"
         fi
         ;;
 
