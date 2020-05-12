@@ -665,7 +665,7 @@ function updateVoraCABundle() {
     local content
     content="$(oc get secret -o json "$name")" || :
     if [[ -z "${content:-}" ]]; then
-        log 'WARNING: Failed to get content of %s secret!' "$VORA_CABUNDLE_SECRET_NAME"
+        log 'Failed to get content of %s secret.' "$VORA_CABUNDLE_SECRET_NAME"
         return 1
     fi
     local currentSource newSource
