@@ -15,20 +15,11 @@ fi
 common_init
 
 readonly CLUSTERIP_SERVICE_NAME="slcbridge-clusterip"
-readonly SDI_CABUNDLE_SECRET_NAME="sdi-observer-cabundle"
 readonly CABUNDLE_VOLUME_NAME="sdi-observer-cabundle"
 readonly CABUNDLE_VOLUME_MOUNT_PATH="/mnt/sdi-observer/cabundle"
 readonly CHECKPOINT_CHECK_JOBNAME="datahub.checks.checkpoint"
 readonly UPDATE_CA_TRUST_CONTAINER_NAME="sdi-observer-update-ca-certificates"
 readonly VORA_CABUNDLE_SECRET_NAME="ca-bundle.pem"
-
-# the annotation represents a cabundle that has been successfully injected into the resource
-#   the value is a triple joined by colons:
-#     <secret-namespace>:<secret-name>:<secret-uid>
-readonly CABUNDLE_INJECTED_ANNOTATION="sdi-observer-injected-cabundle"
-# the annotation represents a desired cabundle to be injected into the resource; value is the same
-# as for the injected annotation
-readonly CABUNDLE_INJECT_ANNOTATION="sdi-observer-inject-cabundle"
 
 registry="${REGISTRY:-}"
 function getRegistry() {
@@ -52,8 +43,30 @@ function _observe() {
     fi
     local jobnumber="$2"
     local portnumber="$((11251 + jobnumber))"
-    oc observe -n "$namespace" --no-headers --listen-addr=":$portnumber" "$kind" \
-        --output=gotemplate --argument '{{.kind}}/{{.metadata.name}}' -- echo
+    if [[ "${kind,,}" != voracluster ]]; then
+        oc observe -n "$namespace" --no-headers --listen-addr=":$portnumber" "$kind" \
+            --output=gotemplate --argument '{{.kind}}/{{.metadata.name}}' -- echo
+        return 0
+    fi
+    # VoraCluster does not have an associated VoraClusterList registered so it cannot be observed
+    local resourceVersion=""
+    local data newRV
+    while true; do
+        local info="$(oc get voracluster -n "$namespace" -o \
+            go-template="$(join '' \
+                '{{range .items}}' \
+                    '{{.kind}}/{{.metadata.name}}#{{.metadata.resourceVersion}}' \
+                    '{{end}}')" 2>/dev/null)" ||:
+        if [[ -z "${info:-}" ]]; then
+            continue
+        fi
+        IFS='#' read -r data newRV <<<"${info}"
+        if [[ -n "${newRV:-}" && "${newRV:-}" != "${resourceVersion:-}" ]]; then
+            resourceVersion="${newRV:-}"
+            echo "$namespace" "${data##*/}" "${data}"
+        fi
+        sleep 1
+    done
 }
 export -f _observe
 
@@ -234,12 +247,11 @@ if evalBool INJECT_CABUNDLE || [[ -n "${REDHAT_REGISTRY_SECRET_NAME:-}" ]]; then
     gotmplSecret=(
         '{{if or (and (eq .metadata.name "'"$CABUNDLE_SECRET_NAME"'")'
                     ' (eq .metadata.namespace "'"$CABUNDLE_SECRET_NAMESPACE"'"))'
-               ' (or  (eq .metadata.name "'"$REDHAT_REGISTRY_SECRET_NAME"'")'
-                    ' (and (eq .metadata.name "'"$VORA_CABUNDLE_SECRET_NAME"'")'
-                         ' (eq .metadata.namespace "'"$SDI_NAMESPACE"'")))}}'
+               ' (eq .metadata.name "'"$REDHAT_REGISTRY_SECRET_NAME"'")}}'
             $'{{.kind}}#{{.metadata.uid}}\n'
         '{{end}}'
     )
+    export CABUNDLE_SECRET_NAMESPACE CABUNDLE_SECRET_NAME INJECT_CABUNDLE
 fi
 
 # shellcheck disable=SC2016
@@ -262,6 +274,10 @@ gotmplJob=(
     '{{end}}'
 )
 
+gotmplVoraCluster=(
+    $'{{.kind}}#{{.spec.docker.image}}#{{.spec.globalParameters.security.image}}\n'
+)
+
 declare -A gotmpls=(
     ["${SDI_NAMESPACE}:Deployment"]="$(join '' "${gotmplDeployment[@]}")"
     ["${SDI_NAMESPACE}:DaemonSet"]="$(join '' "${gotmplDaemonSet[@]}")"
@@ -274,6 +290,7 @@ declare -A gotmpls=(
 
 if evalBool INJECT_CABUNDLE; then
     gotmpls["${CABUNDLE_SECRET_NAMESPACE}:Secret"]="$(join '' "${gotmplSecret[@]}")"
+    gotmpls["${SDI_NAMESPACE}:VoraCluster"]="$(join '' "${gotmplVoraCluster[@]}")"
 fi
 if [[ -n "${REDHAT_REGISTRY_SECRET_NAME:-}" ]]; then
     for nm in ${REDHAT_REGISTRY_SECRET_NAMESPACE} "${SDI_NAMESPACE}" "${SLCB_NAMESPACE}"; do
@@ -652,73 +669,6 @@ function injectCABundle() {
     fi
 }
 
-function updateVoraCABundle() {
-    local name="$VORA_CABUNDLE_SECRET_NAME"
-    local contentToInject
-    contentToInject="$(oc get secret -o json "$SDI_CABUNDLE_SECRET_NAME")" ||:
-    if [[ -z "${contentToInject:-}" ]]; then
-        log 'Nothing to inject to %s secret. Skipping ...'
-        # the "secret/${CABUNDLE_SECRET_NAME:-}" may not exist yet
-        return 0
-    fi
-
-    local content
-    content="$(oc get secret -o json "$name")" || :
-    if [[ -z "${content:-}" ]]; then
-        log 'Failed to get content of %s secret.' "$VORA_CABUNDLE_SECRET_NAME"
-        return 1
-    fi
-    local currentSource newSource
-    newSource="$(jq -r '.metadata.annotations["'"$SOURCE_KEY_ANNOTATION"'"]' \
-        <<<"$contentToInject")"
-    currentSource="$(jq -r '.metadata.annotations["'"$SOURCE_KEY_ANNOTATION"'"] |
-            if . then . else "" end' <<<"${content}")"
-    if [[ -n "${currentSource:-}" ]] && [[ "$currentSource" == "$newSource" ]];
-    then
-        log 'CA bundle in %s secret is up to date, no need to update.' "$name"
-        return 0
-    fi
-        
-    local originalData
-    originalData="$(jq -r '.data["ca-bundle.pem"] | if . then . | @base64d else "" end' \
-        <<<"$content" | grep -v '^[[:space:]]*$')" ||:
-    if [[ -z "${originalData:-}" ]]; then
-        log 'ERROR: Failed to get bundle data from secret %s!' "$name"
-        return 1
-    fi
-    local originalContentLines
-    originalContentLines="$(wc -l <<<"$originalData")"
-    if [[ -n "${currentSource:-}" ]]; then
-        originalContentLines="$(jq -r '.data["original-cabundle-line-count"]' \
-            <<<"$content")"
-        originalData="$(head -n "$originalContentLines" <<<"$originalData")"
-    fi
-
-    local bundleData
-    bundleData="${originalData}"
-    if [[ "${bundleData: -1:1}" != $'\n' ]]; then
-        bundleData+=$'\n'
-    fi
-    local additionalData
-    additionalData="$(jq -r '.data as $d | $d | keys[] | select(test("\\.crt$")) |
-        $d[.] | @base64d' <<<"${contentToInject}" | grep -v '^[[:space:]]*$')" ||:
-    if [[ -z "${additionalData:-}" ]]; then
-        log 'Failed to get any ca certificates out of secret %s in namespace %s!' \
-            "$SDI_CABUNDLE_SECRET_NAME" "$SDI_NAMESPACE"
-        return 1
-    fi
-    bundleData+="${additionalData}"
-    bundleData="$(base64 -w0 <<<"$bundleData")"
-
-    log 'Updating Vora'"'"'s CA bundle data with the contents of secret %s in namespace %s.' \
-        "${CABUNDLE_SECRET_NAME:-}" "${CABUNDLE_SECRET_NAMESPACE:-}"
-    jq '.data["ca-bundle.pem"] |= "'"$bundleData"'"' <<<"$content" | \
-        oc annotate --overwrite -f - --local -o json \
-            "$SOURCE_KEY_ANNOTATION=${newSource}" \
-            "original-cabundle-line-count=$originalContentLines" | \
-        createOrReplace -f
-}
-
 checkPermissions
 
 if evalBool DEPLOY_SDI_REGISTRY; then
@@ -989,6 +939,8 @@ while IFS=' ' read -u 3 -r namespace name resource; do
             "$(sed 's/^/        /' <<<"$newContents")")"
         runOrLog oc patch -n "$SLCB_NAMESPACE" "$resource" -p "$yamlPatch"
 
+        ensureCABundleSecret
+
         # do not restart slcbridge if modifyin secrets of other pods
         [[ "$name" =~ master-nginx ]] || continue
         # do not restart any pods managed by slcbridge as it will make slcbridge unresponsive;
@@ -1089,62 +1041,13 @@ while IFS=' ' read -u 3 -r namespace name resource; do
         ;;
 
     "secret/${CABUNDLE_SECRET_NAME:-}" | "secret/$VORA_CABUNDLE_SECRET_NAME")
-        current="$(oc get secret -o json "$SDI_CABUNDLE_SECRET_NAME")" ||:
-        uid="$(oc get secret -o jsonpath='{.metadata.uid}' \
-                  -n "$CABUNDLE_SECRET_NAMESPACE" "$CABUNDLE_SECRET_NAME")"
-        if [[ -n "${current:-}" ]]; then
-            currentSource="$(jq -r '.metadata.annotations["'"$SOURCE_KEY_ANNOTATION"'"]' \
-                <<<"${current}")"
-            IFS=: read -r nm _name _uid <<<"${currentSource:-}"
-            if [[ "$nm" == "$CABUNDLE_SECRET_NAMESPACE" && \
-                  "$_name" == "$CABUNDLE_SECRET_NAME" && "$_uid" == "$uid" ]];
-            then
-                log 'CA bundle in %s secret is up to date, no need to update.' \
-                    "$CABUNDLE_SECRET_NAME"
-                updateVoraCABundle ||:
-                continue
-            fi
-        fi
-        
-        bundleData="$(oc get -o json -n "$CABUNDLE_SECRET_NAMESPACE" "$kind" \
-            "$CABUNDLE_SECRET_NAME" | \
-            jq -r '.data as $d | $d | keys[] | select(test("\\.crt$")) | $d[.] | @base64d')" ||:
-        if [[ -z "$(tr -d '[:space:]' <<<"${bundleData:-}")" ]]; then
-            log 'Failed to get any ca certificates out of secret %s in namespace %s!' \
-                "$CABUNDLE_SECRET_NAME" "$CABUNDLE_SECRET_NAMESPACE"
-            continue
-        fi
-
-        log -n 'Creating %s secret in %s namespace containing' "$SDI_CABUNDLE_SECRET_NAME" \
-            "$SDI_NAMESPACE"
-        log -d ' cabundle that shall be injected into SDI pods.' 
-        oc create secret generic "$SDI_CABUNDLE_SECRET_NAME" --dry-run -o json \
-            --from-literal=cabundle.crt="$bundleData" | \
-            oc annotate --overwrite -f - --local -o json \
-                "$(mkSourceKeyAnnotation "$CABUNDLE_SECRET_NAMESPACE" \
-                    "$CABUNDLE_SECRET_NAME" "$uid")" | \
-            createOrReplace
-        if evalBool DRY_RUN; then
-            continue
-        fi
-        uid="$(oc get secret "$SDI_CABUNDLE_SECRET_NAME" -o jsonpath='{.metadata.uid}')"
-        key="$namespace:$CABUNDLE_SECRET_NAME:$uid"
-        log 'Annotating resources where cabundle needs to be injected.'
-        runOrLog oc annotate --overwrite job/datahub.checks.checkpoint \
-            "$CABUNDLE_INJECT_ANNOTATION=$key" ||:
-        ensurePullsFromNamespace
+        ensureCABundleSecret ||:
         ;&  # fallthrough to the next secret/$VORA_CABUNDLE_SECRET_NAME
-
-    "secret/$VORA_CABUNDLE_SECRET_NAME")
-        if [[ "$name" != "$VORA_CABUNDLE_SECRET_NAME" ]]; then
-            continue
-        fi
-        updateVoraCABundle ||:
-        ;;
 
     "secret/${REDHAT_REGISTRY_SECRET_NAME:-}")
         ensureRedHatRegistrySecret "$namespace"
-        ensurePullsFromNamespace "$NAMESPACE" default "$namespace"
+        ensurePullsFromNamespace "$NAMESPACE" default "$SLCB_NAMESPACE"
+        ensurePullsFromNamespace "$NAMESPACE" default "$SDI_NAMESPACE"
         ;;
 
     secret/*)
@@ -1161,6 +1064,32 @@ while IFS=' ' read -u 3 -r namespace name resource; do
             log 'WARNING: Failed to inject CA bundle into %s in namespace %s!' \
                 "$resource" "$namespace"
         fi
+        ;;
+
+    voracluster/*)
+        IFS='#' read -r dqpImage securityImage <<<"${rest:-}"
+        suffix=sdi-observer8
+        set -x
+        if grep -q -- "-${suffix}\$" <<<"$dqpImage" && \
+                grep -q -- "-${suffix}\$" <<<"$securityImage";
+        then
+            log '%s already patched. Skipping ...' "$resource"
+            set +x
+            continue
+        fi
+        if ! doesResourceExist "statefulset/vora-deployment-operator" && \
+            ! doesResourceExist "deployment/vora-deployment-operator";
+        then
+            log 'Not patching %s until vora-deployment-operator appears' "$resource"
+            set +x
+            continue
+        fi
+        log 'Patching %s to use images injected with CA bundle...' "$resource"
+        oc get -o json -n "$namespace" "$resource" | jq "$(join '|' \
+            '.spec.docker.image |= (. + "-" + "'"$suffix"'")' \
+            '.spec.globalParameters.security.image |= (. + "-" + "'"$suffix"'")')" | \
+            createOrReplace -f
+        set +x
         ;;
 
     *)
