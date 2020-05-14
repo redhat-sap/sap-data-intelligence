@@ -147,6 +147,18 @@
           ],
           verbs+: ['delete'],
         },
+        $.rbac.role.manage {
+          apiGroups: [
+            'installers.datahub.sap.com',
+          ],
+          resources: [
+            'layerstrategyresources',
+            'solutionresources',
+            'tenantresources',
+            'vsystemdeployments',
+            'vsystems',
+          ],
+        },
       ],
     },
 

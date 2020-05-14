@@ -439,6 +439,28 @@
                   "watch",
                   "delete"
                ]
+            },
+            {
+               "apiGroups": [
+                  "installers.datahub.sap.com"
+               ],
+               "resources": [
+                  "layerstrategyresources",
+                  "solutionresources",
+                  "tenantresources",
+                  "vsystemdeployments",
+                  "vsystems"
+               ],
+               "verbs": [
+                  "get",
+                  "list",
+                  "watch",
+                  "patch",
+                  "update",
+                  "delete",
+                  "create",
+                  "delete"
+               ]
             }
          ]
       },

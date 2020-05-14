@@ -258,21 +258,22 @@ fi
 # shellcheck disable=SC2016
 gotmplJob=(
     '{{with $j := .}}'
-    '{{if or (eq $j.metadata.name "'"$CHECKPOINT_CHECK_JOBNAME"'")'
-           ' (eq (index $j.metadata.labels "job-type") "'"$INSTALLER_JOB_TYPE_LABEL"'")}}'
-            # print (string kind)#(string injected-cabundle)#((int volumeIndex):)*
-            '{{$j.kind}}#'
-            '{{if $j.metadata.annotations}}'
-                '{{with $cab := index $j.metadata.annotations "'"$CABUNDLE_INJECTED_ANNOTATION"'"}}'
-                    '{{$cab}}'
-                '{{end}}'
-            '{{end}}#'
-            '{{range $i, $v := $j.spec.template.spec.volumes}}'
-                '{{if eq $v.name "'"$CABUNDLE_VOLUME_NAME"'"}}'
-                    '{{$i}}:'
-                '{{end}}'
+        '{{with $t := index $j.metadata.labels "job-type"}}'
+            '{{if eq $t "'"$INSTALLER_JOB_TYPE_LABEL"'"}}'
+                # print (string kind)#(string injected-cabundle)#((int volumeIndex):)*
+                '{{$j.kind}}#'
+                '{{if $j.metadata.annotations}}'
+                    '{{with $cab := index $j.metadata.annotations "'"$CABUNDLE_INJECTED_ANNOTATION"'"}}'
+                        '{{$cab}}'
+                    '{{end}}'
+                '{{end}}#'
+                '{{range $i, $v := $j.spec.template.spec.volumes}}'
+                    '{{if eq $v.name "'"$CABUNDLE_VOLUME_NAME"'"}}'
+                        '{{$i}}:'
+                    '{{end}}'
+                $'{{end}}\n'
             '{{end}}'
-        $'{{end}}\n'
+        '{{end}}'
     '{{end}}'
 )
 
@@ -1062,7 +1063,7 @@ while IFS=' ' read -u 3 -r namespace name resource; do
         log 'Ignoring secret "%s" in namespace %s.' "$name" "$namespace"
         ;;
 
-    job/*)
+    job/*checkpoint*)
         if ! evalBool INJECT_CABUNDLE; then
             continue
         fi
@@ -1072,6 +1073,11 @@ while IFS=' ' read -u 3 -r namespace name resource; do
             log 'WARNING: Failed to inject CA bundle into %s in namespace %s!' \
                 "$resource" "$namespace"
         fi
+        ;;
+
+    job/*)
+        #log 'Ignoring job "%s"' "$name"
+        continue
         ;;
 
     voracluster/*)
