@@ -278,6 +278,9 @@ gotmplVoraCluster=(
     $'{{.kind}}#{{.spec.docker.image}}#{{.spec.globalParameters.security.image}}\n'
 )
 
+# Defines all the resource types that shall be monitored accross different namespaces.
+# The associated value is a go-template producing an output the will be passed to the observer
+# loop.
 declare -A gotmpls=(
     ["${SDI_NAMESPACE}:Deployment"]="$(join '' "${gotmplDeployment[@]}")"
     ["${SDI_NAMESPACE}:DaemonSet"]="$(join '' "${gotmplDaemonSet[@]}")"
@@ -290,7 +293,8 @@ declare -A gotmpls=(
 
 if evalBool INJECT_CABUNDLE; then
     gotmpls["${CABUNDLE_SECRET_NAMESPACE}:Secret"]="$(join '' "${gotmplSecret[@]}")"
-    gotmpls["${SDI_NAMESPACE}:VoraCluster"]="$(join '' "${gotmplVoraCluster[@]}")"
+    # TODO: uncomment and shape up
+    #gotmpls["${SDI_NAMESPACE}:VoraCluster"]="$(join '' "${gotmplVoraCluster[@]}")"
 fi
 if [[ -n "${REDHAT_REGISTRY_SECRET_NAME:-}" ]]; then
     for nm in ${REDHAT_REGISTRY_SECRET_NAMESPACE} "${SDI_NAMESPACE}" "${SLCB_NAMESPACE}"; do
@@ -841,6 +845,8 @@ while IFS=' ' read -u 3 -r namespace name resource; do
         if ! evalBool INJECT_CABUNDLE; then
             continue
         fi
+        # TODO: debug
+        log 'DEBUG: ignoring vora-disk for now'
         continue
         IFS='#' read -r injectedKey _ <<<"${rest}"
         if ! injectCABundle "$namespace" "$kind" "$name" \
@@ -1058,6 +1064,8 @@ while IFS=' ' read -u 3 -r namespace name resource; do
         if ! evalBool INJECT_CABUNDLE || [[ "$name" != "$CHECKPOINT_CHECK_JOBNAME" ]]; then
             continue
         fi
+        # TODO: debug
+        continue
         IFS='#' read -r injectedKey _ <<<"${rest}"
         if ! injectCABundle "$namespace" "$kind" "$name" job-name="$name" \
                 "${injectedKey:-""}"; then

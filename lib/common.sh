@@ -267,6 +267,7 @@ function common_init() {
     export REDHAT_REGISTRY_SECRET_NAME REDHAT_REGISTRY_SECRET_NAMESPACE
 
     _common_init_performed=1
+    export _common_init_performed
 }
 
 function convertObjectToJSON() {
