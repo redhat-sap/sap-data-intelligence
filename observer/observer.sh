@@ -18,6 +18,7 @@ readonly CLUSTERIP_SERVICE_NAME="slcbridge-clusterip"
 readonly CABUNDLE_VOLUME_NAME="sdi-observer-cabundle"
 readonly CABUNDLE_VOLUME_MOUNT_PATH="/mnt/sdi-observer/cabundle"
 readonly CHECKPOINT_CHECK_JOBNAME="datahub.checks.checkpoint"
+readonly INSTALLER_JOB_TYPE_LABEL="com.sap.datahub.installers.scripts"
 readonly UPDATE_CA_TRUST_CONTAINER_NAME="sdi-observer-update-ca-certificates"
 readonly VORA_CABUNDLE_SECRET_NAME="ca-bundle.pem"
 
@@ -257,7 +258,8 @@ fi
 # shellcheck disable=SC2016
 gotmplJob=(
     '{{with $j := .}}'
-        '{{if eq $j.metadata.name "'"$CHECKPOINT_CHECK_JOBNAME"'"}}'
+    '{{if or (eq $j.metadata.name "'"$CHECKPOINT_CHECK_JOBNAME"'")'
+           ' (eq (index $j.metadata.labels "job-type") "'"$INSTALLER_JOB_TYPE_LABEL"'")}}'
             # print (string kind)#(string injected-cabundle)#((int volumeIndex):)*
             '{{$j.kind}}#'
             '{{if $j.metadata.annotations}}'
@@ -1061,11 +1063,9 @@ while IFS=' ' read -u 3 -r namespace name resource; do
         ;;
 
     job/*)
-        if ! evalBool INJECT_CABUNDLE || [[ "$name" != "$CHECKPOINT_CHECK_JOBNAME" ]]; then
+        if ! evalBool INJECT_CABUNDLE; then
             continue
         fi
-        # TODO: debug
-        continue
         IFS='#' read -r injectedKey _ <<<"${rest}"
         if ! injectCABundle "$namespace" "$kind" "$name" job-name="$name" \
                 "${injectedKey:-""}"; then
