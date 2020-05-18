@@ -15,6 +15,16 @@ readonly DEFAULT_SDI_REGISTRY_HTPASSWD_SECRET_NAME="container-image-registry-htp
 readonly SDI_REGISTRY_TEMPLATE_FILE_NAME=ocp-template.json
 readonly SOURCE_KEY_ANNOTATION=source-secret-key
 
+# the annotation represents a cabundle that has been successfully injected into the resource
+#   the value is a triple joined by colons:
+#     <secret-namespace>:<secret-name>:<secret-uid>
+readonly CABUNDLE_INJECTED_ANNOTATION="sdi-observer-injected-cabundle"
+# the annotation represents a desired cabundle to be injected into the resource; value is the same
+# as for the injected annotation
+readonly CABUNDLE_INJECT_ANNOTATION="sdi-observer-inject-cabundle"
+readonly SDI_CABUNDLE_SECRET_NAME="sdi-observer-cabundle"
+
+
 function join() { local IFS="${1:-}"; shift; echo "$*"; }
 export -f join
 
@@ -257,6 +267,7 @@ function common_init() {
     export REDHAT_REGISTRY_SECRET_NAME REDHAT_REGISTRY_SECRET_NAMESPACE
 
     _common_init_performed=1
+    export _common_init_performed
 }
 
 function convertObjectToJSON() {
@@ -391,13 +402,21 @@ function createOrReplace() {
         return 0
     fi
     args=( -f - )
-    if _forceReplace "$kind" "$force" "${err:-}"; then
-        args+=( --force )
+    err="$(oc replace "${args[@]}" <<<"$object" 2>&1)" && rc=0 || rc=$?
+    if [[ $rc == 0 ]] || ! _forceReplace "$kind" "$force" "${err:-}"; then
+        printf '%s\n' "$err" >&2
+        if [[ $rc != 0 ]] && ! grep -q 'Conflict\|Forbidden\|field is immutable' <<<"${err:-}";
+        then
+            return "$rc"
+        fi
+        return 0
     fi
+
+    args+=( --force )
     err="$(oc replace "${args[@]}" <<<"$object" 2>&1)" && rc=0 || rc=$?
     printf '%s\n' "$err" >&2
-    if [[ $rc == 0 ]] || ! grep -q 'Conflict\|Forbidden\|field is immutable' <<<"${err:-}"; then
-        return $rc
+    if [[ $rc != 0 ]] && ! grep -q 'Conflict\|Forbidden\|field is immutable' <<<"${err:-}"; then
+        return "$rc"
     fi
     return 0
 }
@@ -536,5 +555,57 @@ function ensureRedHatRegistrySecret() {
     runOrLog oc secrets add default -n "$namespace" "$REDHAT_REGISTRY_SECRET_NAME" --for=pull
 }
 export -f ensureRedHatRegistrySecret
+
+function ensureCABundleSecret() {
+    if ! evalBool INJECT_CABUNDLE; then
+        return 0
+    fi
+    local uid current currentSource bundleData key nm _name _uid
+    current="$(oc get secret -o json "$SDI_CABUNDLE_SECRET_NAME")" ||:
+    uid="$(oc get secret -o jsonpath='{.metadata.uid}' \
+              -n "$CABUNDLE_SECRET_NAMESPACE" "$CABUNDLE_SECRET_NAME")"
+    if [[ -n "${current:-}" ]]; then
+        currentSource="$(jq -r '.metadata.annotations["'"$SOURCE_KEY_ANNOTATION"'"]' \
+            <<<"${current}")"
+        IFS=: read -r nm _name _uid <<<"${currentSource:-}"
+        if [[ "$nm" == "$CABUNDLE_SECRET_NAMESPACE" && \
+              "$_name" == "$CABUNDLE_SECRET_NAME" && "$_uid" == "$uid" ]];
+        then
+            log 'CA bundle in %s secret is up to date, no need to update.' \
+                "$CABUNDLE_SECRET_NAME"
+            return 0
+        fi
+    fi
+    
+    bundleData="$(oc get -o json -n "$CABUNDLE_SECRET_NAMESPACE" "$kind" \
+        "$CABUNDLE_SECRET_NAME" | \
+        jq -r '.data as $d | $d | keys[] | select(test("\\.crt$")) | $d[.] | @base64d')" ||:
+    if [[ -z "$(tr -d '[:space:]' <<<"${bundleData:-}")" ]]; then
+        log 'Failed to get any ca certificates out of secret %s in namespace %s!' \
+            "$CABUNDLE_SECRET_NAME" "$CABUNDLE_SECRET_NAMESPACE"
+        return 1
+    fi
+
+    log -n 'Creating %s secret in %s namespace containing' "$SDI_CABUNDLE_SECRET_NAME" \
+        "$SDI_NAMESPACE"
+    log -d ' cabundle that shall be injected into SDI pods.' 
+    oc create secret generic "$SDI_CABUNDLE_SECRET_NAME" --dry-run -o json \
+        --from-literal=cabundle.crt="$bundleData" | \
+        oc annotate --overwrite -f - --local -o json \
+            "$(mkSourceKeyAnnotation "$CABUNDLE_SECRET_NAMESPACE" \
+                "$CABUNDLE_SECRET_NAME" "$uid")" | \
+        createOrReplace
+    if evalBool DRY_RUN; then
+        return 0
+    fi
+    uid="$(oc get secret "$SDI_CABUNDLE_SECRET_NAME" -o jsonpath='{.metadata.uid}')"
+    key="$CABUNDLE_SECRET_NAMESPACE:$CABUNDLE_SECRET_NAME:$uid"
+    log 'Annotating resources where cabundle needs to be injected.'
+    runOrLog oc annotate --overwrite job/datahub.checks.checkpoint \
+        "$CABUNDLE_INJECT_ANNOTATION=$key" ||:
+    # shellcheck disable=SC2119
+    ensurePullsFromNamespace
+}
+export -f ensureCABundleSecret
 
 export _SDI_LIB_SOURCED=1
