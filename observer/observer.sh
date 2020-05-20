@@ -164,7 +164,8 @@ gotmplDaemonSet=(
 gotmplStatefulSet=(
     '{{with $ss := .}}'
         '{{if eq $ss.metadata.name "vsystem-vrep"}}'
-            # print (string kind)#((int containerIndex)(:(string volumeMountName))*#)+
+            # print (string kind)#((int containerIndex)
+            #       (:(string volumeMountName),(string medium))*#)+
             '{{$ss.kind}}#'
             '{{range $i, $c := $ss.spec.template.spec.containers}}'
                 '{{if eq $c.name "vsystem-vrep"}}'
@@ -172,6 +173,11 @@ gotmplStatefulSet=(
                     '{{range $vmi, $vm := $c.volumeMounts}}'
                         '{{if eq $vm.mountPath "/exports"}}'
                             ':{{$vm.name}}'
+                            '{{range $vi, $v := $ss.spec.template.spec.volumes}}'
+                                '{{if eq $v.name $vm.name}}'
+                                    ',{{$v.emptyDir.medium}}'
+                                '{{end}}'
+                            '{{end}}'
                         '{{end}}'
                     '{{end}}'
                 '{{end}}'
@@ -807,12 +813,22 @@ while IFS=' ' read -u 3 -r namespace name resource; do
 
     statefulset/*)
         IFS=: read -r cindex vmName <<<"${rest:-}"
-        if [[ -n "${cindex:-}" && -n "${vmName:-}" ]]; then
+        vmMedium="${vmName##*,}"
+        vmName="${vmName%%,*}"
+        if [[ -n "${cindex:-}" && -n "${vmName:-}" && "${vmMedium:-}" == "Memory" ]]; then
             log 'statefulset/vsystem-vrep already patched, skipping ...'
         else
             log 'Adding emptyDir volume to statefulset/vsystem-vrep ...'
-            runOrLog oc set volume "$resource" --add --type emptyDir \
-                --mount-path=/exports --name exports-volume
+            args=( --add --dry-run -o json )
+            if [[ -n "${vmName:-}" ]]; then
+                args+=( "--overwrite" )
+            fi
+            oc set volume "${args[@]}" "$resource" --type emptyDir \
+                --mount-path=/exports --name exports-volume | \
+                jq "$(join ' ' '.spec.template.spec.volumes |=' \
+                            'walk(if type == "object" and .name == "exports-volume"' \
+                                    'then .emptyDir.medium |= "Memory"' \
+                                    'else . end)')" | createOrReplace
         fi
         ;;
 
