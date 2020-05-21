@@ -21,6 +21,7 @@ readonly CHECKPOINT_CHECK_JOBNAME="datahub.checks.checkpoint"
 readonly INSTALLER_JOB_TYPE_LABEL="com.sap.datahub.installers.scripts"
 readonly UPDATE_CA_TRUST_CONTAINER_NAME="sdi-observer-update-ca-certificates"
 readonly VORA_CABUNDLE_SECRET_NAME="ca-bundle.pem"
+readonly VREP_EXPORTS_VOLUME_SIZE="500Mi"
 
 registry="${REGISTRY:-}"
 function getRegistry() {
@@ -165,7 +166,7 @@ gotmplStatefulSet=(
     '{{with $ss := .}}'
         '{{if eq $ss.metadata.name "vsystem-vrep"}}'
             # print (string kind)#((int containerIndex)
-            #       (:(string volumeMountName),(string medium))*#)+
+            #       (:(string volumeMountName),(string claimVolumeSize))*#)+
             '{{$ss.kind}}#'
             '{{range $i, $c := $ss.spec.template.spec.containers}}'
                 '{{if eq $c.name "vsystem-vrep"}}'
@@ -173,9 +174,9 @@ gotmplStatefulSet=(
                     '{{range $vmi, $vm := $c.volumeMounts}}'
                         '{{if eq $vm.mountPath "/exports"}}'
                             ':{{$vm.name}}'
-                            '{{range $vi, $v := $ss.spec.template.spec.volumes}}'
-                                '{{if eq $v.name $vm.name}}'
-                                    ',{{$v.emptyDir.medium}}'
+                            '{{range $vcti, $vct := $ss.spec.volumeClaimTemplates}}'
+                                '{{if eq $vct.metadata.name $vm.name}}'
+                                    ',{{$vct.spec.resources.requests.storage}}'
                                 '{{end}}'
                             '{{end}}'
                         '{{end}}'
@@ -452,7 +453,7 @@ function addUpdateCaTrustInitContainer() {
         jq -r '.secrets[] | select(.name | test("-dockercfg-")) | .name')"
 
     script="$(printf '%s\\n' "${scriptLines[@]//\"/\\\"}")"
-    # TODO: report that equivalend `oc set volume --local -f - ...` command results in a traceback
+    # TODO: report that equivalent `oc set volume --local -f - ...` command results in a traceback
     # shellcheck disable=SC2016
     local patches=(
         '.spec.template.spec.initContainers |= (. // [] | [.[] |
@@ -643,6 +644,60 @@ function injectCABundle() {
     fi
 }
 
+function addPvToStatefulSet() {
+    local name="$1"
+    local volumeName="$2"
+    local mountPath="$3"
+    local volumeSize="$4"
+
+    # shellcheck disable=SC2016
+    local patches=( "$(join ' ' '.spec.volumeClaimTemplates |=' \
+        '(. // [] | [.[] | select(.metadata.name != "'"$volumeName"'")] | . as $filtered | . +' \
+        '[if isempty($filtered) then {' \
+                '"metadata": {' \
+                    '"creationTimestamp": null,' \
+                    '"labels": {' \
+                        '"app": "vora",' \
+                        '"datahub.sap.com/app": "vsystem",' \
+                        '"datahub.sap.com/app-component": "vrep",' \
+                        '"datahub.sap.com/bdh-uninstall": "delete",' \
+                        '"vora-component": "vsystem-vrep"' \
+                    '},' \
+                    '"name": "'"$volumeName"'"' \
+                '},' \
+                '"spec": {' \
+                    '"resources": {' \
+                        '"requests": {"storage": "'"$volumeSize"'"}' \
+                    '},' \
+                    '"volumeMode": "Filesystem"' \
+                '},' \
+                '"status": {"phase": "Pending"}' \
+            '} else $filtered[0] | .metadata.name |= "'"$volumeName"'" |' \
+                '.spec.resources.requests.storage |= "'"$volumeSize"'" |' \
+                '.spec.volumeMode |= "Filesystem" |' \
+                '.metadata.labels["datahub.sap.com/bdh-uninstall"] |= "delete"' \
+        'end])')"
+    )
+    
+    patches+=( "$(join ' ' '.spec.template.spec |= walk(' \
+        'if (. | type) == "object" and has("name") and has("image") then' \
+            '.volumeMounts |= (. // [] | [.[] |' \
+                    'select(.name != "'"$volumeName"'" and' \
+                            '.mountPath != "'"$mountPath"'")] + ' \
+                '[{"mountPath":"'"$mountPath"'", "name":"'"$volumeName"'"}])' \
+        'else . end)')"
+    )
+    
+    patches+=( "$(join ' ' '.spec.template.spec.volumes |=' \
+        '(. // [] | [.[] | select(.name != "'"$volumeName"'")])')"
+    )
+
+    log 'Mounting a new PV volume named %s of size %s at %s in %s ...' "$volumeName" \
+        "$volumeSize" "$mountPath" "$resource"
+    # changes to the .spec.volumeClaimTemplates need to be forced
+    oc get -o json "$resource" | jq "$(join "|" "${patches[@]}")" | createOrReplace -f
+}
+
 checkPermissions
 
 if evalBool DEPLOY_SDI_REGISTRY; then
@@ -816,19 +871,10 @@ while IFS=' ' read -u 3 -r namespace name resource; do
         vmMedium="${vmName##*,}"
         vmName="${vmName%%,*}"
         if [[ -n "${cindex:-}" && -n "${vmName:-}" && "${vmMedium:-}" == "Memory" ]]; then
-            log 'statefulset/vsystem-vrep already patched, skipping ...'
+            log '%s already patched, skipping ...' "$resource"
         else
-            log 'Adding emptyDir volume to statefulset/vsystem-vrep ...'
-            args=( --add --dry-run -o json )
-            if [[ -n "${vmName:-}" ]]; then
-                args+=( "--overwrite" )
-            fi
-            oc set volume "${args[@]}" "$resource" --type emptyDir \
-                --mount-path=/exports --name exports-volume | \
-                jq "$(join ' ' '.spec.template.spec.volumes |=' \
-                            'walk(if type == "object" and .name == "exports-volume"' \
-                                    'then .emptyDir.medium |= "Memory"' \
-                                    'else . end)')" | createOrReplace
+            addPvToStatefulSet "$resource" "exports-volume" "/exports" \
+                "$VREP_EXPORTS_VOLUME_SIZE"
         fi
         ;;
 
