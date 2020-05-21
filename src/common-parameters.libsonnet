@@ -1,3 +1,5 @@
+local urls = import 'urls.jsonnet';
+
 {
   ReplaceSecretsParam: {
     description: |||
@@ -156,9 +158,11 @@
     {
       description: |||
         Name of the secret with credentials for registry.redhat.io registry. Please visit
-        https://access.redhat.com/terms-based-registry/ to obtain the OpenShift secret. For
-        more details, please refer to https://access.redhat.com/RegistryAuthentication.'
-      |||,
+        %(token)s to obtain the OpenShift secret. For more details, please refer to %(howto)s
+      ||| % {
+        token: urls.rhtRegistryToken,
+        howto: urls.rhtRegistryAuthentication,
+      },
       name: 'REDHAT_REGISTRY_SECRET_NAME',
       required: true,
     },

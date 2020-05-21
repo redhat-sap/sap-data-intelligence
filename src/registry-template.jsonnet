@@ -1,6 +1,7 @@
 local params = import 'common-parameters.libsonnet';
 local base = import 'dc-template.libsonnet';
 local bctmpl = import 'ubi-buildconfig.libsonnet';
+local urls = import 'urls.jsonnet';
 
 base.DCTemplate {
   local regtmpl = self,
@@ -19,8 +20,7 @@ base.DCTemplate {
       'openshift.io/display-name': "Docker's Container Image Registry",
       'openshift.io/provider-display-name': 'Red Hat, Inc.',
       // TODO: update KB article when published
-      'openshift.io/documentation-url':
-        'https://access.redhat.com/articles/4324391',
+      'openshift.io/documentation-url': urls.rhtKbSdhOnOCP4,
     },
   },
 

@@ -430,7 +430,9 @@ function addUpdateCaTrustInitContainer() {
         '  cp -aLv "$k8scacert" /etc/pki/ca-trust/source/anchors/k8s-ca.crt'
         'fi'
         # copy also the desired CA certificate bundle
-        'cp -aLv '"$CABUNDLE_VOLUME_MOUNT_PATH"'/cabundle.crt /etc/pki/ca-trust/source/anchors/'
+        "$(join ' ' 'cp -aLv' \
+            '"'"$CABUNDLE_VOLUME_MOUNT_PATH/$SDI_CABUNDLE_SECRET_FILE_NAME"'"' \
+            '/etc/pki/ca-trust/source/anchors/')"
         # the command is named differently on RHEL and SLES, support both
         'cmd=update-ca-trust'
         'if command -v update-ca-certificates >/dev/null; then'

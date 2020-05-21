@@ -22,7 +22,8 @@ readonly CABUNDLE_INJECTED_ANNOTATION="sdi-observer-injected-cabundle"
 # the annotation represents a desired cabundle to be injected into the resource; value is the same
 # as for the injected annotation
 readonly CABUNDLE_INJECT_ANNOTATION="sdi-observer-inject-cabundle"
-readonly SDI_CABUNDLE_SECRET_NAME="sdi-observer-cabundle"
+readonly SDI_CABUNDLE_SECRET_NAME="cmcertificates"
+readonly SDI_CABUNDLE_SECRET_FILE_NAME="cert"
 
 
 function join() { local IFS="${1:-}"; shift; echo "$*"; }
@@ -579,7 +580,7 @@ function ensureCABundleSecret() {
     
     bundleData="$(oc get -o json -n "$CABUNDLE_SECRET_NAMESPACE" "$kind" \
         "$CABUNDLE_SECRET_NAME" | \
-        jq -r '.data as $d | $d | keys[] | select(test("\\.crt$")) | $d[.] | @base64d')" ||:
+        jq -r '.data as $d | $d | keys[] | select(test("\\.(?:crt|pem)$")) | $d[.] | @base64d')" ||:
     if [[ -z "$(tr -d '[:space:]' <<<"${bundleData:-}")" ]]; then
         log 'Failed to get any ca certificates out of secret %s in namespace %s!' \
             "$CABUNDLE_SECRET_NAME" "$CABUNDLE_SECRET_NAMESPACE"
@@ -590,7 +591,7 @@ function ensureCABundleSecret() {
         "$SDI_NAMESPACE"
     log -d ' cabundle that shall be injected into SDI pods.' 
     oc create secret generic "$SDI_CABUNDLE_SECRET_NAME" --dry-run -o json \
-        --from-literal=cabundle.crt="$bundleData" | \
+        --from-literal="${SDI_CABUNDLE_SECRET_FILE_NAME}=$bundleData" | \
         oc annotate --overwrite -f - --local -o json \
             "$(mkSourceKeyAnnotation "$CABUNDLE_SECRET_NAMESPACE" \
                 "$CABUNDLE_SECRET_NAME" "$uid")" | \

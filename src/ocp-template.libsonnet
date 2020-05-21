@@ -1,3 +1,5 @@
+local urls = import 'urls.jsonnet';
+
 // Base OpenShift Template class
 {
   OCPTemplate: {
@@ -11,8 +13,7 @@
       annotations: {
         description: 'TODO',
         'openshift.io/display-name': 'TODO',
-        'openshift.io/documentation-url':
-          'https://access.redhat.com/articles/4324391',
+        'openshift.io/documentation-url': urls.rhtKbSdhOnOCP4,
         'openshift.io/provider-display-name': 'Red Hat, Inc.',
       },
       name: template.resourceName,

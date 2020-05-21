@@ -3,6 +3,7 @@ local base = import 'dc-template.libsonnet';
 local is = import 'imagestream.libsonnet';
 local obsbc = import 'observer-buildconfig.libsonnet';
 local obssa = import 'observer-serviceaccount.libsonnet';
+local urls = import 'urls.jsonnet';
 
 base.DCTemplate {
   local obstmpl = self,
@@ -108,17 +109,17 @@ base.DCTemplate {
     {
       description: |||
         The name of the secret containing certificate authority bundle that shall be injected
-        into Data Intelligence pods. The default, the secret bundle is obtained from
-        openshift-ingress-operator namespace where the router-ca secret contains a certificate
-        authority used to signed all edge and reencrypt routes that are among others used for
+        into Data Intelligence pods. By default, the secret bundle is obtained from
+        openshift-ingress-operator namespace where the router-ca secret contains the certificate
+        authority used to signed all the edge and reencrypt routes that are inter alia used for
         SDI_REGISTRY and NooBaa S3 API services. The secret name may be optionally prefixed with
-        $namespace/. For example in the default value "openshift-ingress-operator/router-ca",
+        $namespace/. For example, in the default value "openshift-ingress-operator/router-ca",
         the "openshift-ingress-operator" stands for secret's namespace and "router-ca" stands for
-        secret's name.
-        If no $namespace prefix is given, the secret is expected to reside in NAMESPACE where the
-        SDI observer runs. All the entries present in the "data" field having ".crt" suffix  will
-        be concated to form the resulting cabundle.crt file.
-      |||,
+        secret's name. If no $namespace prefix is given, the secret is expected to reside in
+        NAMESPACE where the SDI observer runs. All the entries present in the "data" field having
+        ".crt" or ".pem" suffix will be concated to form the resulting "cert" file. This bundle
+        will also be used to create cmcertificates secret in SDI_NAMESPACE according to %s
+      ||| % (urls.sapSdiSettingUpCertificates),
       required: false,
       name: 'CABUNDLE_SECRET_NAME',
       value: 'openshift-ingress-operator/router-ca',
