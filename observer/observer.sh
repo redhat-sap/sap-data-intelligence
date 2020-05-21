@@ -21,6 +21,8 @@ readonly CHECKPOINT_CHECK_JOBNAME="datahub.checks.checkpoint"
 readonly INSTALLER_JOB_TYPE_LABEL="com.sap.datahub.installers.scripts"
 readonly UPDATE_CA_TRUST_CONTAINER_NAME="sdi-observer-update-ca-certificates"
 readonly VORA_CABUNDLE_SECRET_NAME="ca-bundle.pem"
+readonly VREP_EXPORTS_VOLUME_OBSOLETE_NAMES=( "exports-volume" )
+readonly VREP_EXPORTS_VOLUME_NAME="exports"
 readonly VREP_EXPORTS_VOLUME_SIZE="500Mi"
 
 registry="${REGISTRY:-}"
@@ -649,10 +651,19 @@ function addPvToStatefulSet() {
     local volumeName="$2"
     local mountPath="$3"
     local volumeSize="$4"
+    shift 4
+    declare -A removeVolumeNames=( ["$volumeName"]=1 )
+    while [[ $# -gt 0 ]]; do
+        removeVolumeNames["$1"]=1
+        shift
+    done
+    # shellcheck disable=SC2046
+    removeSet='{'"$(join "," $(printf '"%s":null\n' "${!removeVolumeNames[@]}"))"'}'
 
     # shellcheck disable=SC2016
     local patches=( "$(join ' ' '.spec.volumeClaimTemplates |=' \
-        '(. // [] | [.[] | select(.metadata.name != "'"$volumeName"'")] | . as $filtered | . +' \
+        '(. // [] | [.[] | select(.metadata.name | in('"${removeSet}"') | not)] |' \
+        '. as $filtered | . +' \
         '[if isempty($filtered) then {' \
                 '"metadata": {' \
                     '"creationTimestamp": null,' \
@@ -682,14 +693,14 @@ function addPvToStatefulSet() {
     patches+=( "$(join ' ' '.spec.template.spec |= walk(' \
         'if (. | type) == "object" and has("name") and has("image") then' \
             '.volumeMounts |= (. // [] | [.[] |' \
-                    'select(.name != "'"$volumeName"'" and' \
+                'select((.name | in('"${removeSet}"') | not) and' \
                             '.mountPath != "'"$mountPath"'")] + ' \
                 '[{"mountPath":"'"$mountPath"'", "name":"'"$volumeName"'"}])' \
         'else . end)')"
     )
     
     patches+=( "$(join ' ' '.spec.template.spec.volumes |=' \
-        '(. // [] | [.[] | select(.name != "'"$volumeName"'")])')"
+        '(. // [] | [.[] | select(.name | in('"${removeSet}"') | not)])')"
     )
 
     log 'Mounting a new PV volume named %s of size %s at %s in %s ...' "$volumeName" \
@@ -868,13 +879,14 @@ while IFS=' ' read -u 3 -r namespace name resource; do
 
     statefulset/*)
         IFS=: read -r cindex vmName <<<"${rest:-}"
-        vmMedium="${vmName##*,}"
+        vmSize="${vmName##*,}"
         vmName="${vmName%%,*}"
-        if [[ -n "${cindex:-}" && -n "${vmName:-}" && "${vmMedium:-}" == "Memory" ]]; then
+        if [[ -n "${cindex:-}" && -n "${vmName:-}" && \
+                "${vmSize:-}" ==  "$VREP_EXPORTS_VOLUME_SIZE" ]]; then
             log '%s already patched, skipping ...' "$resource"
         else
-            addPvToStatefulSet "$resource" "exports-volume" "/exports" \
-                "$VREP_EXPORTS_VOLUME_SIZE"
+            addPvToStatefulSet "$resource" "$VREP_EXPORTS_VOLUME_NAME" "/exports" \
+                "$VREP_EXPORTS_VOLUME_SIZE" "${VREP_EXPORTS_VOLUME_OBSOLETE_NAMES[@]}"
         fi
         ;;
 
