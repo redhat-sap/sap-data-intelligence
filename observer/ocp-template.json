@@ -166,6 +166,10 @@
                               "value": "${SDI_REGISTRY_VOLUME_CAPACITY}"
                            },
                            {
+                              "name": "SDI_REGISTRY_VOLUME_ACCESS_MODE",
+                              "value": "${SDI_REGISTRY_VOLUME_ACCESS_MODE}"
+                           },
+                           {
                               "name": "EXPOSE_WITH_LETSENCRYPT",
                               "value": "${EXPOSE_WITH_LETSENCRYPT}"
                            }
@@ -836,7 +840,7 @@
          "value": "false"
       },
       {
-         "description": "The name of the secret containing certificate authority bundle that shall be injected\ninto Data Intelligence pods. By default, the secret bundle is obtained from\nopenshift-ingress-operator namespace where the router-ca secret contains the certificate\nauthority used to signed all the edge and reencrypt routes that are inter alia used for\nSDI_REGISTRY and NooBaa S3 API services. The secret name may be optionally prefixed with\n$namespace/. For example, in the default value \"openshift-ingress-operator/router-ca\",\nthe \"openshift-ingress-operator\" stands for secret's namespace and \"router-ca\" stands for\nsecret's name.\nIf no $namespace prefix is given, the secret is expected to reside in NAMESPACE where the\nSDI observer runs. All the entries present in the \"data\" field having \".crt\" or \".pem\"\nsuffix  will be concated to form the resulting \"cert\" file.\nThis bundle will also be used to create cmcertificates secret in SDI_NAMESPACE according\nto https://help.sap.com/viewer/a8d90a56d61a49718ebcb5f65014bbe7/3.0.latest/en-US/39e8e391d5984e919725e601f089db74.html\n",
+         "description": "The name of the secret containing certificate authority bundle that shall be injected\ninto Data Intelligence pods. By default, the secret bundle is obtained from\nopenshift-ingress-operator namespace where the router-ca secret contains the certificate\nauthority used to signed all the edge and reencrypt routes that are inter alia used for\nSDI_REGISTRY and NooBaa S3 API services. The secret name may be optionally prefixed with\n$namespace/. For example, in the default value \"openshift-ingress-operator/router-ca\",\nthe \"openshift-ingress-operator\" stands for secret's namespace and \"router-ca\" stands for\nsecret's name. If no $namespace prefix is given, the secret is expected to reside in\nNAMESPACE where the SDI observer runs. All the entries present in the \"data\" field having\n\".crt\" or \".pem\" suffix will be concated to form the resulting \"cert\" file. This bundle\nwill also be used to create cmcertificates secret in SDI_NAMESPACE according to https://help.sap.com/viewer/a8d90a56d61a49718ebcb5f65014bbe7/3.0.latest/en-US/39e8e391d5984e919725e601f089db74.html\n",
          "name": "CABUNDLE_SECRET_NAME",
          "required": false,
          "value": "openshift-ingress-operator/router-ca"
@@ -888,6 +892,12 @@
          "name": "SDI_REGISTRY_VOLUME_CAPACITY",
          "required": false,
          "value": "75Gi"
+      },
+      {
+         "description": "If the given SDI_REGISTRY_STORAGE_CLASS_NAME or the default storate class supports\n\"ReadWriteMany\" (\"RWX\") access mode, please change this to \"ReadWriteMany\".\n",
+         "name": "SDI_REGISTRY_VOLUME_ACCESS_MODE",
+         "required": false,
+         "value": "ReadWriteOnce"
       },
       {
          "description": "Whether to expose routes annotated for letsencrypt controller. Requires project admin\nrole attached to the sdi-observer service account. Letsencrypt controller must be\ndeployed either via this observer or cluster-wide for this to have an effect.\nDefaults to the value of DEPLOY_LETSENCRYPT.",

@@ -25,18 +25,17 @@ readonly VREP_EXPORTS_VOLUME_OBSOLETE_NAMES=( "exports-volume" )
 readonly VREP_EXPORTS_VOLUME_NAME="exports"
 readonly VREP_EXPORTS_VOLUME_SIZE="500Mi"
 
-registry="${REGISTRY:-}"
-function getRegistry() {
-    if [[ -z "${registry:-}" ]]; then
-        registry="$(oc get secret -o go-template='{{index .data "installer-config.yaml"}}' installer-config | \
-             base64 -d | sed -n 's/^\s*\(DOCKER\|VFLOW\)_REGISTRY:\s*\(...\+\)/\2/p' | \
-                tr -d '"'"'" | grep -v '^[[:space:]]*$' | tail -n 1)"
-    fi
-    if [[ -z "${registry:-}" ]]; then
-        log "Failed to determine the registry!"
+function getRegistries() {
+    local registries=()
+    readarray -t registries <<<"$(oc get secret \
+        -o go-template='{{index .data "secret"}}' vflow-secret | \
+        base64 -d | sed -n 's/^\s*address:\s*\(...\+\)/\1/p' | \
+            tr -d '"'"'" | grep -v '^[[:space:]]*$' | sort -u)"
+    if [[ "${#registries[@]}" == 0 ]]; then
+        log "Failed to determine the registry for the pipeline modeler!"
         return 1
     fi
-    printf '%s\n' "$registry"
+    printf '%s\n' "${registries[@]}"
 }
 
 function _observe() {
@@ -535,6 +534,7 @@ function deployComponent() {
             # shellcheck disable=SC2191
             args+=(
                 SDI_REGISTRY_STORAGE_CLASS_NAME="${SDI_REGISTRY_STORAGE_CLASS_NAME:-}"
+                SDI_REGISTRY_VOLUME_ACCESS_MODE="${SDI_REGISTRY_VOLUME_ACCESS_MODE:-}"
                 SDI_REGISTRY_USERNAME="${SDI_REGISTRY_USERNAME:-}"
                 SDI_REGISTRY_PASSWORD="${SDI_REGISTRY_PASSWORD:-}"
                 SDI_REGISTRY_HTPASSWD_SECRET_NAME="${SDI_REGISTRY_HTPASSWD_SECRET_NAME:-}"
@@ -764,7 +764,7 @@ while IFS=' ' read -u 3 -r namespace name resource; do
     if [[ -z "${kind:-}" || -z "${name:-}" ]]; then
         continue
     fi
-    tmpl="${gotmpls["$namespace:$kind"]}"
+    tmpl="${gotmpls["$namespace:$kind"]:-}"
     if [[ -z "${tmpl:-}" ]]; then
         log 'WARNING: Could not find go-template for kind "%s" in namespace "%s"!' "$kind" "$namespace"
         continue
@@ -783,32 +783,44 @@ while IFS=' ' read -u 3 -r namespace name resource; do
     case "${resource}" in
     deployment/vflow* | deployment/pipeline-modeler*)
         patches=()
-        IFS=: read -r pkgversion <<<"${rest:-}"
-        pkgversion="${pkgversion#v}"
-        pkgmajor="${pkgversion%%.*}"
-        pkgminor="${pkgversion#*.}"
-        pkgminor="${pkgminor%%.*}"
+        registries=()
+        if evalBool MARK_REGISTRY_INSECURE; then
+            readarray -t registries <<<"$(getRegistries)"
+        fi
 
         # -insecure-registry flag is supported starting from 2.5; earlier releases need no patching
         if evalBool MARK_REGISTRY_INSECURE && \
-                    [[ -n "$(getRegistry)" ]] && \
-                    [[ "${pkgmajor:-0}" == 2 && "${pkgminor:-0}" -ge 5 ]];
+                    [[ "${#registries[@]}" -gt 0 && "${#registries[0]}" -gt 0 ]];
         then
-            registry="$(getRegistry)"
             readarray -t vflowargs <<<"$(oc get deploy -o go-template="${gotmplvflow}" "$name")"
-            if ! grep -q -F -- "-insecure-registry=${registry}" <<<"${vflowargs[@]}"; then
-                vflowargs+=( "-insecure-registry=${registry}" )
-                newargs=( )
+            newargs=( )
+            doPatch=0
+            for reg in "${registries[@]}"; do
+                if [[ -z "${reg:-}" ]]; then
+                    continue
+                fi
+                if ! grep -q -F -- "-insecure-registry=${reg}" <<<"${vflowargs[@]}"; then
+                    log 'Patching deployment/%s to treat %s registry as insecure ...' \
+                            "$name" "$reg"
+                    vflowargs+=( "-insecure-registry=${reg}" )
+                    doPatch=1
+                else
+                    log '%s already patched to treat %s registry as insecure, skipping ...' \
+                        "$resource" "$reg"
+                fi
+            done
+            if [[ "${doPatch}" == 1 ]]; then
+                # turn the argument array into a json list of strings
                 for ((i=0; i<"${#vflowargs[@]}"; i++)) do
                     # escape double qoutes of each argument and surround it with double quotes
                     newargs+=( '"'"${vflowargs[$i]//\"/\\\"}"'"' )
                 done
-                # turn the argument array into a json list of strings
                 newarglist="[$(join , "${newargs[@]}")]"
-                log 'Patching deployment/%s to treat %s registry as insecure ...' "$name" "$registry"
-                patches+=( '{"op":"add","path":"/spec/template/spec/containers/0/args","value":'"$newarglist"'}' )
+                patches+=( "$(join "," '{"op":"add"' \
+                    '"path":"/spec/template/spec/containers/0/args"' \
+                    '"value":'"$newarglist"'}')" )
             else
-                log 'deployment/%s already patched to treat %s registry as insecure, not patching ...' "$name" "$registry"
+                log 'No need to update insecure registries in %s ...' "$resource"
             fi
         fi
 
