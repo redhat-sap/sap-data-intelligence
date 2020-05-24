@@ -24,3 +24,5 @@ See [Red Hat Container Registry Authentication](https://access.redhat.com/Regist
             REDHAT_REGISTRY_SECRET_NAME=1979710-miminar-pull-secret \
             DEPLOY_SDI_REGISTRY=true DEPLOY_LETSENCRYPT=true \
             -f observer/ocp-template.json | oc create -f -
+            
+## Update instructions
