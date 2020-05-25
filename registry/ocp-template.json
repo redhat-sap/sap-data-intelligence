@@ -273,7 +273,7 @@
          },
          "spec": {
             "accessModes": [
-               "${SDI_REGISTRY_ACCESS_MODE}"
+               "${SDI_REGISTRY_VOLUME_ACCESS_MODE}"
             ],
             "persistentVolumeReclaimPolicy": "Retain",
             "resources": {
