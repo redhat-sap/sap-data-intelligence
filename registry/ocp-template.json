@@ -318,6 +318,12 @@
          "name": "SDI_REGISTRY_VOLUME_CAPACITY",
          "required": true,
          "value": "75Gi"
+      },
+      {
+         "description": "If the given SDI_REGISTRY_STORAGE_CLASS_NAME or the default storate class supports\nReadWriteMany access mode, please change this to \"RWX\".\n",
+         "name": "SDI_REGISTRY_VOLUME_ACCESS_MODE",
+         "required": false,
+         "value": "RWO"
       }
    ]
 }

@@ -90,15 +90,6 @@ local urls = import 'urls.jsonnet';
     },
     {
       description: |||
-        If the given SDI_REGISTRY_STORAGE_CLASS_NAME or the default storate class supports
-        ReadWriteMany access mode, please change this to "RWX".
-      |||,
-      name: 'SDI_REGISTRY_VOLUME_ACCESS_MODE',
-      required: false,
-      value: 'RWO',
-    },
-    {
-      description: |||
         Will be used to generate htpasswd file to provide authentication data to the sdi registry
         service as long as SDI_REGISTRY_HTPASSWD_SECRET_NAME does not exist or REPLACE_SECRETS is
         "true".
@@ -160,6 +151,15 @@ local urls = import 'urls.jsonnet';
       name: 'SDI_REGISTRY_VOLUME_CAPACITY',
       required: true,
       value: '75Gi',
+    },
+    {
+      description: |||
+        If the given SDI_REGISTRY_STORAGE_CLASS_NAME or the default storate class supports
+        ReadWriteMany access mode, please change this to "RWX".
+      |||,
+      name: 'SDI_REGISTRY_VOLUME_ACCESS_MODE',
+      required: false,
+      value: 'RWO',
     },
   ],
 

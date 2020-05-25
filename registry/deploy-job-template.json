@@ -64,10 +64,6 @@
                               "value": "${SDI_REGISTRY_STORAGE_CLASS_NAME}"
                            },
                            {
-                              "name": "SDI_REGISTRY_VOLUME_ACCESS_MODE",
-                              "value": "${SDI_REGISTRY_VOLUME_ACCESS_MODE}"
-                           },
-                           {
                               "name": "SDI_REGISTRY_USERNAME",
                               "value": "${SDI_REGISTRY_USERNAME}"
                            },
@@ -90,6 +86,10 @@
                            {
                               "name": "SDI_REGISTRY_VOLUME_CAPACITY",
                               "value": "${SDI_REGISTRY_VOLUME_CAPACITY}"
+                           },
+                           {
+                              "name": "SDI_REGISTRY_VOLUME_ACCESS_MODE",
+                              "value": "${SDI_REGISTRY_VOLUME_ACCESS_MODE}"
                            },
                            {
                               "name": "EXPOSE_WITH_LETSENCRYPT",
@@ -327,12 +327,6 @@
          "required": false
       },
       {
-         "description": "If the given SDI_REGISTRY_STORAGE_CLASS_NAME or the default storate class supports\nReadWriteMany access mode, please change this to \"RWX\".\n",
-         "name": "SDI_REGISTRY_VOLUME_ACCESS_MODE",
-         "required": false,
-         "value": "RWO"
-      },
-      {
          "description": "Will be used to generate htpasswd file to provide authentication data to the sdi registry\nservice as long as SDI_REGISTRY_HTPASSWD_SECRET_NAME does not exist or REPLACE_SECRETS is\n\"true\".\n",
          "from": "user-[a-z0-9]{6}",
          "generate": "expression",
@@ -369,6 +363,12 @@
          "name": "SDI_REGISTRY_VOLUME_CAPACITY",
          "required": true,
          "value": "75Gi"
+      },
+      {
+         "description": "If the given SDI_REGISTRY_STORAGE_CLASS_NAME or the default storate class supports\nReadWriteMany access mode, please change this to \"RWX\".\n",
+         "name": "SDI_REGISTRY_VOLUME_ACCESS_MODE",
+         "required": false,
+         "value": "RWO"
       },
       {
          "description": "Whether to expose routes annotated for letsencrypt controller. Requires project admin\nrole attached to the sdi-observer service account. Letsencrypt controller must be\ndeployed either via this observer or cluster-wide for this to have an effect.\n",
