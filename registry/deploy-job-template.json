@@ -64,6 +64,10 @@
                               "value": "${SDI_REGISTRY_STORAGE_CLASS_NAME}"
                            },
                            {
+                              "name": "SDI_REGISTRY_VOLUME_ACCESS_MODE",
+                              "value": "${SDI_REGISTRY_VOLUME_ACCESS_MODE}"
+                           },
+                           {
                               "name": "SDI_REGISTRY_USERNAME",
                               "value": "${SDI_REGISTRY_USERNAME}"
                            },
@@ -321,6 +325,12 @@
          "description": "Unless given, the default storage class will be used.\n",
          "name": "SDI_REGISTRY_STORAGE_CLASS_NAME",
          "required": false
+      },
+      {
+         "description": "If the given SDI_REGISTRY_STORAGE_CLASS_NAME or the default storate class supports\nReadWriteMany access mode, please change this to \"RWX\".\n",
+         "name": "SDI_REGISTRY_VOLUME_ACCESS_MODE",
+         "required": false,
+         "value": "RWO"
       },
       {
          "description": "Will be used to generate htpasswd file to provide authentication data to the sdi registry\nservice as long as SDI_REGISTRY_HTPASSWD_SECRET_NAME does not exist or REPLACE_SECRETS is\n\"true\".\n",

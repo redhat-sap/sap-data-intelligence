@@ -534,6 +534,7 @@ function deployComponent() {
             # shellcheck disable=SC2191
             args+=(
                 SDI_REGISTRY_STORAGE_CLASS_NAME="${SDI_REGISTRY_STORAGE_CLASS_NAME:-}"
+                SDI_REGISTRY_VOLUME_ACCESS_MODE="${SDI_REGISTRY_VOLUME_ACCESS_MODE:-}"
                 SDI_REGISTRY_USERNAME="${SDI_REGISTRY_USERNAME:-}"
                 SDI_REGISTRY_PASSWORD="${SDI_REGISTRY_PASSWORD:-}"
                 SDI_REGISTRY_HTPASSWD_SECRET_NAME="${SDI_REGISTRY_HTPASSWD_SECRET_NAME:-}"

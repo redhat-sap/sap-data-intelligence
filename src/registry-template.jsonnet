@@ -172,6 +172,7 @@ base.DCTemplate {
                  namespace: '${NAMESPACE}',
                },
                spec: {
+                 accessModes: ['${SDI_REGISTRY_ACCESS_MODE}'],
                  resources: {
                    requests: {
                      storage: '${SDI_REGISTRY_VOLUME_CAPACITY}',

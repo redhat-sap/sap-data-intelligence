@@ -272,6 +272,9 @@
             "namespace": "${NAMESPACE}"
          },
          "spec": {
+            "accessModes": [
+               "${SDI_REGISTRY_ACCESS_MODE}"
+            ],
             "persistentVolumeReclaimPolicy": "Retain",
             "resources": {
                "requests": {
