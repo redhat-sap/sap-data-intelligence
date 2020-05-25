@@ -351,6 +351,7 @@ function createOrReplace() {
 
     object="$(convertObjectToJSON -i "$input")"
     if [[ "$(jq 'has("items")' <<<"$object")" == "true" ]]; then
+        set -x
         local resources=() res kind name
         readarray -t resources <<<"$(jq -r '.items[] | "\(.kind)/\(.metadata.name)\n"' \
                 <<<"$object")"
@@ -364,6 +365,7 @@ function createOrReplace() {
             jq '.items[] | select(.kind == "'"$kind"'" and .metadata.name == "'"$name"'")' \
                 <<<"$object" | createOrReplace "${childArgs[@]}" || rc=$?
         done
+        set +x
         return $rc
     fi
 
