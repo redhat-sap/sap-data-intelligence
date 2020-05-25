@@ -355,6 +355,7 @@ function createOrReplace() {
         local resources=() res kind name
         readarray -t resources <<<"$(jq -r '.items[] | "\(.kind)/\(.metadata.name)\n"' \
                 <<<"$object")"
+        log 'Resources: %s' "${resources[@]}"
         local rc=0
         local childArgs=()
         "$force" && childArgs+=( "-f" )
