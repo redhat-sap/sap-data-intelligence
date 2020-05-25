@@ -574,6 +574,7 @@ function deployComponent() {
         if [[ -f "$pth" ]]; then
             # TODO: filter out clusterrolebindings
             oc process "${args[@]}" -f "$pth" | createOrReplace
+            set +x
             return 0
         fi
     done
