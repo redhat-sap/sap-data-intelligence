@@ -894,10 +894,10 @@
          "value": "75Gi"
       },
       {
-         "description": "If the given SDI_REGISTRY_STORAGE_CLASS_NAME or the default storate class supports\nReadWriteMany access mode, please change this to \"RWX\".\n",
+         "description": "If the given SDI_REGISTRY_STORAGE_CLASS_NAME or the default storate class supports\n\"ReadWriteMany\" (\"RWX\") access mode, please change this to \"ReadWriteMany\".\n",
          "name": "SDI_REGISTRY_VOLUME_ACCESS_MODE",
          "required": false,
-         "value": "RWO"
+         "value": "ReadWriteOnce"
       },
       {
          "description": "Whether to expose routes annotated for letsencrypt controller. Requires project admin\nrole attached to the sdi-observer service account. Letsencrypt controller must be\ndeployed either via this observer or cluster-wide for this to have an effect.\nDefaults to the value of DEPLOY_LETSENCRYPT.",

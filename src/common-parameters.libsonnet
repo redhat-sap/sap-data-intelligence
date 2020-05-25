@@ -155,11 +155,11 @@ local urls = import 'urls.jsonnet';
     {
       description: |||
         If the given SDI_REGISTRY_STORAGE_CLASS_NAME or the default storate class supports
-        ReadWriteMany access mode, please change this to "RWX".
+        "ReadWriteMany" ("RWX") access mode, please change this to "ReadWriteMany".
       |||,
       name: 'SDI_REGISTRY_VOLUME_ACCESS_MODE',
       required: false,
-      value: 'RWO',
+      value: 'ReadWriteOnce',
     },
   ],
 
