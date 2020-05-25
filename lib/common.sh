@@ -376,6 +376,9 @@ function createOrReplace() {
 
     IFS=: read -r namespace kind name <<<"$(oc create --dry-run -f - -o \
         jsonpath=$'{.metadata.namespace}:{.kind}:{.metadata.name}\n' <<<"$object")"
+    if [[ "${kind,,}" =~ persistentvolumeclaim ]]; then
+        set +x
+    fi
     namespace="${namespace:-$NAMESPACE}"
     [[ -z "${namespace:-}" ]] && namespace="$(oc project -q)"
     if evalBool DRY_RUN; then
@@ -384,6 +387,7 @@ function createOrReplace() {
         action=Creating
         doesResourceExist "${args[@]}" && action=Replacing
         log '%s %s/%s in namespace %s' "$action" "${kind,,}" "$name" "${namespace:-UNKNOWN}"
+        set +x
         return 0
     fi
                 
@@ -392,6 +396,7 @@ function createOrReplace() {
         if [[ -n "${kind:-}" && -n "${name:-}" ]]; then
             log 'Created %s/%s in namespace %s' "${kind,,}" "$name" "${namespace:-UNKNOWN}"
         fi
+        set +x
         return 0
     fi
     originalCreator="$(oc label -n "$namespace" --list "$kind" "$name" | \
@@ -400,6 +405,7 @@ function createOrReplace() {
     if [[ -n "${originalCreator:-}" && "${originalCreator}" != "${creator:-}" ]]; then
         log 'Not replacing %s/%s created by "%s" with a new object created by "%s".' \
             "$kind" "$name" "$originalCreator" "$creator"
+        set +x
         return 0
     fi
     args=( -f - )
@@ -408,8 +414,10 @@ function createOrReplace() {
         printf '%s\n' "$err" >&2
         if [[ $rc != 0 ]] && ! grep -q 'Conflict\|Forbidden\|field is immutable' <<<"${err:-}";
         then
+            set +x
             return "$rc"
         fi
+        set +x
         return 0
     fi
 
@@ -417,8 +425,10 @@ function createOrReplace() {
     err="$(oc replace "${args[@]}" <<<"$object" 2>&1)" && rc=0 || rc=$?
     printf '%s\n' "$err" >&2
     if [[ $rc != 0 ]] && ! grep -q 'Conflict\|Forbidden\|field is immutable' <<<"${err:-}"; then
+        set +x
         return "$rc"
     fi
+    set +x
     return 0
 }
 export -f createOrReplace

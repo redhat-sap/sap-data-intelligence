@@ -763,7 +763,7 @@ while IFS=' ' read -u 3 -r namespace name resource; do
     if [[ -z "${kind:-}" || -z "${name:-}" ]]; then
         continue
     fi
-    tmpl="${gotmpls["$namespace:$kind"]}"
+    tmpl="${gotmpls["$namespace:$kind"]:-}"
     if [[ -z "${tmpl:-}" ]]; then
         log 'WARNING: Could not find go-template for kind "%s" in namespace "%s"!' "$kind" "$namespace"
         continue
