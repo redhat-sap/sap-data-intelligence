@@ -1,6 +1,5 @@
 local params = import 'common-parameters.libsonnet';
 local base = import 'dc-template.libsonnet';
-local is = import 'imagestream.libsonnet';
 local obsbc = import 'observer-buildconfig.libsonnet';
 local obssa = import 'observer-serviceaccount.libsonnet';
 local urls = import 'urls.jsonnet';
@@ -11,7 +10,6 @@ base.DCTemplate {
   imageStreamTag: obstmpl.resourceName + ':${OCP_MINOR_RELEASE}',
   createdBy: 'sdi-observer-template',
   saObjects:: obssa { createdBy: obstmpl.createdBy },
-  sa: obstmpl.saObjects.ObserverServiceAccount,
   command: '/usr/local/bin/observer.sh',
 
   parametersToExport+: [
@@ -208,12 +206,8 @@ base.DCTemplate {
     following command: oc logs -f dc/sdi-observer
   |||,
 
-  objects+: obstmpl.saObjects.ObjectsForSDI + bc.objects + [
-    is.ImageStream {
-      resourceName: obstmpl.resourceName,
-      createdBy: obstmpl.createdBy,
-    },
-  ],
+  objects+: [o for o in obstmpl.saObjects.ObjectsForSDI if o.kind != 'ServiceAccount']
+            + bc.objects,
 
   parameters+: [p for p in params.LetsencryptParams if p.name != 'LETSENCRYPT_ENVIRONMENT'],
 

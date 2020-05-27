@@ -204,18 +204,6 @@
          }
       },
       {
-         "apiVersion": "v1",
-         "kind": "ServiceAccount",
-         "metadata": {
-            "labels": {
-               "created-by": "sdi-observer-template",
-               "deploymentconfig": "sdi-observer"
-            },
-            "name": "sdi-observer",
-            "namespace": "${NAMESPACE}"
-         }
-      },
-      {
          "apiVersion": "rbac.authorization.k8s.io/v1",
          "kind": "ClusterRoleBinding",
          "metadata": {
@@ -719,21 +707,6 @@
                }
             ]
          },
-         "status": {
-            "dockerImageRepository": ""
-         }
-      },
-      {
-         "apiVersion": "v1",
-         "kind": "ImageStream",
-         "metadata": {
-            "labels": {
-               "created-by": "sdi-observer-template"
-            },
-            "name": "sdi-observer",
-            "namespace": "${NAMESPACE}"
-         },
-         "spec": null,
          "status": {
             "dockerImageRepository": ""
          }
