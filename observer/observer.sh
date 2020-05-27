@@ -829,6 +829,11 @@ while IFS=' ' read -u 3 -r namespace name resource; do
         ;;
 
     deployment/*)
+        if ! evalBool MAKE_VSYSTEM_IPTABLES_PODS_PRIVILEGED; then
+            log 'Not patching %s because MAKE_VSYSTEM_IPTABLES_PODS_PRIVILEGED is not true, ...' \
+                "$resource"
+            continue
+        fi
         IFS='#' read -r cs ics <<<"${rest:-}"
         IFS=: read -r cindex cunprivileged <<<"${cs:-}"
         IFS=: read -r icindex icunprivileged <<<"${ics:-}"
