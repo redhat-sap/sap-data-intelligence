@@ -1,0 +1,347 @@
+{
+   "apiVersion": "template.openshift.io/v1",
+   "description": "TODO",
+   "kind": "Template",
+   "message": "TODO",
+   "metadata": {
+      "annotations": {
+         "description": "TODO",
+         "openshift.io/display-name": "Job to deploy a letsencrypt controller.\n",
+         "openshift.io/documentation-url": "https://access.redhat.com/articles/4324391",
+         "openshift.io/provider-display-name": "Red Hat, Inc."
+      },
+      "name": "deploy-letsencrypt"
+   },
+   "objects": [
+      {
+         "apiVersion": "batch/v1",
+         "kind": "Job",
+         "metadata": {
+            "name": "deploy-letsencrypt",
+            "namespace": "${NAMESPACE}"
+         },
+         "spec": {
+            "activeDeadlineSeconds": 1800,
+            "backoffLimit": 9999,
+            "completions": 1,
+            "parallelism": 1,
+            "template": {
+               "metadata": {
+                  "labels": {
+                     "job": "deploy-letsencrypt"
+                  }
+               },
+               "spec": {
+                  "containers": [
+                     {
+                        "args": "${{SCRIPT_ARGUMENTS}}",
+                        "command": [
+                           "deploy-letsencrypt.sh"
+                        ],
+                        "env": [
+                           {
+                              "name": "DRY_RUN",
+                              "value": "${DRY_RUN}"
+                           },
+                           {
+                              "name": "NAMESPACE",
+                              "value": "${NAMESPACE}"
+                           },
+                           {
+                              "name": "FORCE_REDEPLOY",
+                              "value": "${FORCE_REDEPLOY}"
+                           },
+                           {
+                              "name": "REPLACE_SECRETS",
+                              "value": "${REPLACE_SECRETS}"
+                           },
+                           {
+                              "name": "LETSENCRYPT_REPOSITORY",
+                              "value": "${LETSENCRYPT_REPOSITORY}"
+                           },
+                           {
+                              "name": "LETSENCRYPT_REVISION",
+                              "value": "${LETSENCRYPT_REVISION}"
+                           },
+                           {
+                              "name": "LETSENCRYPT_ENVIRONMENT",
+                              "value": "${LETSENCRYPT_ENVIRONMENT}"
+                           },
+                           {
+                              "name": "PROJECTS_TO_MONITOR",
+                              "value": "${PROJECTS_TO_MONITOR}"
+                           }
+                        ],
+                        "image": "${JOB_IMAGE}",
+                        "name": "deploy-sdi-registry"
+                     }
+                  ],
+                  "restartPolicy": "OnFailure",
+                  "serviceAccountName": "sdi-observer"
+               }
+            }
+         }
+      },
+      {
+         "apiVersion": "v1",
+         "kind": "ServiceAccount",
+         "metadata": {
+            "labels": {
+               "created-by": "letsencrypt-deploy",
+               "deploymentconfig": "sdi-observer"
+            },
+            "name": "sdi-observer",
+            "namespace": "${NAMESPACE}"
+         }
+      },
+      {
+         "apiVersion": "rbac.authorization.k8s.io/v1",
+         "kind": "ClusterRoleBinding",
+         "metadata": {
+            "labels": {
+               "deploymentconfig": "sdi-observer"
+            },
+            "name": "sdi-observer-admin"
+         },
+         "roleRef": {
+            "apiGroup": "rbac.authorization.k8s.io",
+            "kind": "ClusterRole",
+            "name": "admin"
+         },
+         "subjects": [
+            {
+               "kind": "ServiceAccount",
+               "name": "sdi-observer",
+               "namespace": "${NAMESPACE}"
+            }
+         ]
+      },
+      {
+         "apiVersion": "rbac.authorization.k8s.io/v1",
+         "kind": "ClusterRole",
+         "metadata": {
+            "name": "sdi-observer-cluster-access"
+         },
+         "rules": [
+            {
+               "apiGroups": [
+                  "config.openshift.io"
+               ],
+               "resources": [
+                  "ingresses"
+               ],
+               "verbs": [
+                  "get",
+                  "list",
+                  "watch"
+               ]
+            }
+         ]
+      },
+      {
+         "apiVersion": "rbac.authorization.k8s.io/v1",
+         "kind": "ClusterRoleBinding",
+         "metadata": {
+            "labels": {
+               "deploymentconfig": "sdi-observer"
+            },
+            "name": "sdi-observer-cluster-access"
+         },
+         "roleRef": {
+            "apiGroup": "rbac.authorization.k8s.io",
+            "kind": "ClusterRole",
+            "name": "sdi-observer-cluster-access"
+         },
+         "subjects": [
+            {
+               "kind": "ServiceAccount",
+               "name": "sdi-observer",
+               "namespace": "${NAMESPACE}"
+            }
+         ]
+      },
+      {
+         "apiVersion": "build.openshift.io/v1",
+         "kind": "BuildConfig",
+         "metadata": {
+            "labels": {
+               "created-by": "letsencrypt-deploy",
+               "deploymentconfig": "sdi-observer"
+            },
+            "name": "sdi-observer",
+            "namespace": "${NAMESPACE}"
+         },
+         "spec": {
+            "output": {
+               "to": {
+                  "kind": "ImageStreamTag",
+                  "name": "sdi-observer:${OCP_MINOR_RELEASE}"
+               }
+            },
+            "runPolicy": "Serial",
+            "source": {
+               "dockerfile": "FROM openshift/cli:latest\nRUN dnf update -y --skip-broken --nobest ||:\n# TODO: jq is not yet available in EPEL-8\nRUN dnf install -y \\\n  https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm && \\\n  dnf install -y jq\nRUN dnf install -y \\\n  https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm && \\\n  dnf install -y parallel procps-ng bc git httpd-tools && dnf clean all -y\n# TODO: determine OCP version from environment\nCOPY https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest-${OCP_MINOR_RELEASE}/openshift-client-linux.tar.gz /tmp/\nCOPY https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest-${OCP_MINOR_RELEASE}/sha256sum.txt /tmp/\n# verify the downloaded tar\nRUN /bin/bash -c 'f=/tmp/openshift-client-linux.tar.gz; \\\n  got=\"$(awk '\"'\"'{print $1}'\"'\"' <(sha256sum \"$f\"))\"; \\\n  exp=\"$(awk '\"'\"'/openshift-client-linux-/ {print $1}'\"'\"' /tmp/sha256sum.txt | head -n 1)\"; \\\n  if [[ \"$got\" != \"$exp\" ]]; then printf \\\n    '\"'\"'Unexpected hashsum of %s (expected \"%s\", got \"%s\")\\n!'\"'\"' \"$f\" \"$exp\" \"$got\" >&2; \\\n    exit 1; \\\n  fi'\nRUN /bin/bash -c 'tar -C /usr/local/bin/ -xzvf /tmp/openshift-client-linux.tar.gz -T <(printf oc)'\nRUN rm -rfv /tmp/*\n# TODO: verify signatures as well\nRUN mkdir -p /usr/local/bin /usr/local/share/openshift-acme\nRUN git clone --depth 5 --single-branch \\\n  --branch ${LETSENCRYPT_REVISION} \\\n  ${LETSENCRYPT_REPOSITORY} /usr/local/share/openshift-acme\nRUN git clone --depth 5 --single-branch \\\n  --branch ${SDI_OBSERVER_GIT_REVISION} \\\n  ${SDI_OBSERVER_REPOSITORY} /usr/local/share/sap-data-intelligence\nRUN for bin in observer.sh deploy-registry.sh deploy-letsencrypt.sh; do \\\n      cp -lv $(find /usr/local/share/sap-data-intelligence \\\n                -type f -executable -name \"$bin\") \\\n        /usr/local/bin/$bin; \\\n      chmod a+rx /usr/local/bin/$bin; \\\n    done\nRUN ln -s /usr/local/share/sap-data-intelligence /usr/local/share/sdi\nWORKDIR /usr/local/share/sdi\nCMD [\"/usr/local/bin/observer.sh\"]"
+            },
+            "strategy": {
+               "dockerStrategy": {
+                  "from": {
+                     "kind": "ImageStreamTag",
+                     "name": "${SOURCE_IMAGESTREAM_NAME}:${SOURCE_IMAGESTREAM_TAG}"
+                  }
+               },
+               "imageOptimizationPolicy": "SkipLayers"
+            },
+            "triggers": [
+               {
+                  "type": "ImageChange"
+               },
+               {
+                  "type": "ConfigChange"
+               }
+            ]
+         }
+      },
+      {
+         "apiVersion": "v1",
+         "kind": "ImageStream",
+         "metadata": {
+            "labels": {
+               "created-by": "letsencrypt-deploy"
+            },
+            "name": "sdi-observer",
+            "namespace": "${NAMESPACE}"
+         },
+         "spec": null,
+         "status": {
+            "dockerImageRepository": ""
+         }
+      },
+      {
+         "apiVersion": "v1",
+         "kind": "ImageStream",
+         "metadata": {
+            "labels": {
+               "created-by": "letsencrypt-deploy"
+            },
+            "name": "${SOURCE_IMAGESTREAM_NAME}",
+            "namespace": "${NAMESPACE}"
+         },
+         "spec": {
+            "tags": [
+               {
+                  "from": {
+                     "kind": "DockerImage",
+                     "name": "${SOURCE_IMAGE_PULL_SPEC}"
+                  },
+                  "importPolicy": {
+                     "scheduled": true
+                  },
+                  "name": "${SOURCE_IMAGESTREAM_TAG}",
+                  "referencePolicy": {
+                     "type": "Source"
+                  }
+               }
+            ]
+         },
+         "status": {
+            "dockerImageRepository": ""
+         }
+      }
+   ],
+   "parameters": [
+      {
+         "description": "If set to true, no action will be performed. The pod will just print\nwhat would have been executed.\n",
+         "name": "DRY_RUN",
+         "required": false,
+         "value": "false"
+      },
+      {
+         "description": "The desired namespace to deploy resources to. Defaults to the current\none.\n",
+         "name": "NAMESPACE",
+         "required": true
+      },
+      {
+         "description": "Whether to forcefully replace existing objects and configuration files. To replace\nexising secrets as well, RECREATE_SECRETS needs to be set.\n",
+         "name": "FORCE_REDEPLOY",
+         "required": false,
+         "value": "false"
+      },
+      {
+         "description": "Whether to replace secrets like SDI Registry's htpasswd file if they exist already.\n",
+         "name": "REPLACE_SECRETS",
+         "required": false,
+         "value": "false"
+      },
+      {
+         "description": "Unless given, a local copy will be used.\nDefaults to a local check out. Example value: https://github.com/tnozicka/openshift-acme\n",
+         "name": "LETSENCRYPT_REPOSITORY",
+         "required": false,
+         "value": null
+      },
+      {
+         "description": "Revision of letsencrypt repository to check out.\n",
+         "name": "LETSENCRYPT_REVISION",
+         "required": false,
+         "value": "master"
+      },
+      {
+         "description": "Either \"live\" or \"staging\". Use the latter when debugging SDI Observer's deployment.\n",
+         "name": "LETSENCRYPT_ENVIRONMENT",
+         "required": true,
+         "value": "live"
+      },
+      {
+         "description": "Additional projects to monitor separated by commas. The controller will be granted\npermission to manage routes in the projects. The job needs to be able to create roles\nand rolebindings in all the projects listed.\n",
+         "name": "PROJECTS_TO_MONITOR",
+         "required": false
+      },
+      {
+         "description": "Pull specification of the built SDI Observer image.\n",
+         "name": "JOB_IMAGE",
+         "required": true,
+         "value": null
+      },
+      {
+         "description": "Arguments for job's script. Passed as a json array of strings.\n",
+         "name": "SCRIPT_ARGUMENTS",
+         "required": false,
+         "value": "[\"--wait\"]"
+      },
+      {
+         "description": "Minor release of OpenShift Container Platform (e.g. 4.2). This value must match the OCP\nserver version. The biggest tolerated difference between the versions is 1 in the second\ndigit.\n",
+         "name": "OCP_MINOR_RELEASE",
+         "required": true,
+         "value": "4.2"
+      },
+      {
+         "description": "URL of SDI Observer's git repository to clone into sdi-observer image.\n",
+         "name": "SDI_OBSERVER_REPOSITORY",
+         "required": true,
+         "value": "https://github.com/redhat-sap/sap-data-intelligence"
+      },
+      {
+         "description": "Revision (e.g. tag, commit or branch) of SDI Observer's git repository to check out.\n",
+         "name": "SDI_OBSERVER_GIT_REVISION",
+         "required": true,
+         "value": "master"
+      },
+      {
+         "description": "Pull specification for the base image for sdi-observer and/or container-image-registry.\nThe base image shall be RPM based and contain \"dnf\" binary for package management.\n",
+         "name": "SOURCE_IMAGE_PULL_SPEC",
+         "required": true,
+         "value": "registry.centos.org/centos:8"
+      },
+      {
+         "description": "Name of the imagestream to use for the custom source image.\n",
+         "name": "SOURCE_IMAGESTREAM_NAME",
+         "required": true,
+         "value": "centos8"
+      },
+      {
+         "description": "Tag in the custom source imagestream referring to the SOURCE_IMAGE_PULL_SPEC.\n",
+         "name": "SOURCE_IMAGESTREAM_TAG",
+         "required": true,
+         "value": "latest"
+      }
+   ]
+}

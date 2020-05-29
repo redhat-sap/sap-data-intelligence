@@ -12,6 +12,10 @@ readonly LETSENCRYPT_DEPLOY_FILES=(
 )
 # shellcheck disable=SC2034
 readonly DEFAULT_SDI_REGISTRY_HTPASSWD_SECRET_NAME="container-image-registry-htpasswd"
+
+readonly DEFAULT_SOURCE_IMAGESTREAM_NAME=customsourceimage
+readonly DEFAULT_SOURCE_IMAGESTREAM_TAG=latest
+
 readonly SDI_REGISTRY_TEMPLATE_FILE_NAME=ocp-template.json
 readonly SOURCE_KEY_ANNOTATION=source-secret-key
 
@@ -24,6 +28,7 @@ readonly CABUNDLE_INJECTED_ANNOTATION="sdi-observer-injected-cabundle"
 readonly CABUNDLE_INJECT_ANNOTATION="sdi-observer-inject-cabundle"
 readonly SDI_CABUNDLE_SECRET_NAME="cmcertificates"
 readonly SDI_CABUNDLE_SECRET_FILE_NAME="cert"
+
 
 
 function join() { local IFS="${1:-}"; shift; echo "$*"; }
@@ -267,6 +272,15 @@ function common_init() {
     fi
     export REDHAT_REGISTRY_SECRET_NAME REDHAT_REGISTRY_SECRET_NAMESPACE
 
+    if [[ -z "${SOURCE_IMAGESTREAM_NAME:-}" ]]; then
+        SOURCE_IMAGESTREAM_NAME="${DEFAULT_SOURCE_IMAGESTREAM_NAME}"
+    fi
+    if [[ -z "${SOURCE_IMAGESTREAM_TAG:-}" ]]; then
+        SOURCE_IMAGESTREAM_TAG="${DEFAULT_SOURCE_IMAGESTREAM_TAG}"
+    fi
+    export SOURCE_IMAGE_PULL_SPEC SOURCE_IMAGESTREAM_NAME SOURCE_IMAGESTREAM_TAG \
+           SOURCE_IMAGE_REGISTRY_SECRET_NAME
+
     _common_init_performed=1
     export _common_init_performed
 }
@@ -454,14 +468,21 @@ function getRegistryTemplatePath() {
         /usr/local/share/sdi/registry
         /usr/local/share/sap-data-intelligence/registry
     )
+    local tmplfn="$SDI_REGISTRY_TEMPLATE_FILE_NAME"
+    if [[ -n "${SOURCE_IMAGESTREAM_NAME:-}" && "${SOURCE_IMAGESTREAM_TAG:-}" && \
+            -n "${SOURCE_IMAGE_PULL_SPEC:-}" ]]
+    then
+        tmplfn="ocp-custom-source-image-template.json"
+    fi
+
     for d in "${dirs[@]}"; do
-        local pth="${d}/$SDI_REGISTRY_TEMPLATE_FILE_NAME"
+        local pth="${d}/$tmplfn"
         if [[ -e "$pth" ]]; then
             printf '%s' "$pth"
             return 0
         fi
     done
-    log 'WARNING: Could not determine path to %s' "$SDI_REGISTRY_TEMPLATE_FILE_NAME"
+    log 'WARNING: Could not determine path to %s' "$tmplfn"
     return 1
 }
 export -f getRegistryTemplatePath
@@ -476,6 +497,7 @@ function mkSourceKeyAnnotation() {
 }
 export -f mkSourceKeyAnnotation
 
+# shellcheck disable=SC2120
 function ensurePullsFromNamespace() {
     local sourceNamespace="${1:-$NAMESPACE}"
     local saName="${2:-default}"
@@ -511,8 +533,12 @@ function ensurePullsFromNamespace() {
 function ensureRedHatRegistrySecret() {
     local namespace="${1:-}"
     if [[ -z "${REDHAT_REGISTRY_SECRET_NAME:-}" ]]; then
-        log 'FATAL: REDHAT_REGISTRY_SECRET_NAME must be provided!'
-        exit 1
+        if [[ -z "${SOURCE_IMAGE_PULL_SPEC:-}" ]]; then
+            log 'FATAL: REDHAT_REGISTRY_SECRET_NAME must be provided!'
+            exit 1
+        else
+            return 0
+        fi
     fi
 
     if [[ -n "${REDHAT_REGISTRY_SECRET_NAMESPACE:-}" ]]; then

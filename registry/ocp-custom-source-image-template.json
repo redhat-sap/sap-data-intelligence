@@ -1,0 +1,339 @@
+{
+   "apiVersion": "template.openshift.io/v1",
+   "kind": "Template",
+   "message": "TODO",
+   "metadata": {
+      "annotations": {
+         "description": "Generic purpose Container Image Registry secured from unauthorized access. It is more\ntolerant to image names than the integrated OpenShift image registry. Therefore it also\nallows for hosting of SAP Data Intelligence images.\n",
+         "openshift.io/display-name": "Docker's Container Image Registry",
+         "openshift.io/documentation-url": "https://access.redhat.com/articles/4324391",
+         "openshift.io/provider-display-name": "Red Hat, Inc."
+      },
+      "name": "container-image-registry"
+   },
+   "objects": [
+      {
+         "apiVersion": "v1",
+         "kind": "ServiceAccount",
+         "metadata": {
+            "labels": {
+               "created-by": "registry-template",
+               "deploymentconfig": "container-image-registry"
+            },
+            "name": "container-image-registry",
+            "namespace": "${NAMESPACE}"
+         }
+      },
+      {
+         "apiVersion": "v1",
+         "kind": "DeploymentConfig",
+         "metadata": {
+            "labels": {
+               "created-by": "registry-template",
+               "deploymentconfig": "container-image-registry"
+            },
+            "name": "container-image-registry",
+            "namespace": "${NAMESPACE}"
+         },
+         "spec": {
+            "replicas": 1,
+            "selector": {
+               "deploymentconfig": "container-image-registry"
+            },
+            "strategy": {
+               "type": "Rolling"
+            },
+            "template": {
+               "metadata": {
+                  "labels": {
+                     "deploymentconfig": "container-image-registry"
+                  }
+               },
+               "spec": {
+                  "containers": [
+                     {
+                        "args": null,
+                        "command": null,
+                        "env": [
+                           {
+                              "name": "REGISTRY_AUTH_HTPASSWD_REALM",
+                              "value": "basic-realm"
+                           },
+                           {
+                              "name": "REGISTRY_AUTH_HTPASSWD_PATH",
+                              "value": "/etc/docker-distribution/htpasswd"
+                           },
+                           {
+                              "name": "REGISTRY_HTTP_SECRET",
+                              "value": "${SDI_REGISTRY_HTTP_SECRET}"
+                           }
+                        ],
+                        "image": " ",
+                        "name": "container-image-registry",
+                        "volumeMounts": [
+                           {
+                              "mountPath": "/var/lib/registry",
+                              "name": "storage"
+                           },
+                           {
+                              "mountPath": "/etc/docker-distribution/htpasswd",
+                              "name": "htpasswd",
+                              "readonly": true,
+                              "subPath": "htpasswd"
+                           }
+                        ]
+                     }
+                  ],
+                  "restartPolicy": "Always",
+                  "serviceAccount": "container-image-registry",
+                  "serviceAccountName": "container-image-registry",
+                  "volumes": [
+                     {
+                        "name": "storage",
+                        "persistentVolumeClaim": {
+                           "claimName": "container-image-registry"
+                        }
+                     },
+                     {
+                        "name": "htpasswd",
+                        "readonly": true,
+                        "secret": {
+                           "secretName": "${SDI_REGISTRY_HTPASSWD_SECRET_NAME}"
+                        }
+                     }
+                  ]
+               }
+            },
+            "triggers": [
+               {
+                  "type": "ConfigChange"
+               },
+               {
+                  "imageChangeParams": {
+                     "automatic": true,
+                     "containerNames": [
+                        "container-image-registry"
+                     ],
+                     "from": {
+                        "kind": "ImageStreamTag",
+                        "name": "container-image-registry:latest"
+                     }
+                  },
+                  "type": "ImageChange"
+               }
+            ]
+         }
+      },
+      {
+         "apiVersion": "build.openshift.io/v1",
+         "kind": "BuildConfig",
+         "metadata": {
+            "labels": {
+               "created-by": "registry-template",
+               "deploymentconfig": "container-image-registry"
+            },
+            "name": "container-image-registry",
+            "namespace": "${NAMESPACE}"
+         },
+         "spec": {
+            "output": {
+               "to": {
+                  "kind": "ImageStreamTag",
+                  "name": "container-image-registry:latest"
+               }
+            },
+            "runPolicy": "Serial",
+            "source": {
+               "dockerfile": "FROM openshift/ubi8:latest\n# docker-distribution is not yet available on UBI - install from fedora repo\n# RHEL8 / UBI8 is based on fedora 28\nENV FEDORA_BASE_RELEASE=28\nRUN curl -L -o /etc/pki/rpms-fedora.gpg \\\n  https://getfedora.org/static/fedora.gpg\nRUN /bin/bash -c 'for repo in base updates; do printf \"%s\\n\" \\\n    \"[fedora-$repo]\" \\\n    \"name=Fedora $FEDORA_BASE_RELEASE - $(uname -m) - ${repo^}\" \\\n    \"metalink=https://mirrors.fedoraproject.org/metalink?repo=fedora-$FEDORA_BASE_RELEASE&arch=$(uname -m)\" \\\n    \"enabled=0\" \\\n    \"countme=1\" \\\n    \"type=rpm\" \\\n    \"gpgcheck=0\" \\\n    \"priority=99\" \\\n    \"gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-$FEDORA_BASE_RELEASE-$(uname -m)\" \\\n    \"skip_if_unavailable=False\" >/etc/yum.repos.d/fedora-$repo.repo; \\\n  done'\nRUN dnf update -y --skip-broken --nobest ||:\n# install the GPG keys first, so we can enable GPG keys checking for\n# the package in question\nRUN dnf install -y \\\n  --enablerepo=fedora-base \\\n  --enablerepo=fedora-updates \\\n  fedora-gpg-keys\nRUN sed -i 's/^\\(gpgcheck=\\)0/\\11/' /etc/yum.repos.d/fedora-*.repo\nRUN dnf install -y \\\n  --enablerepo=fedora-base \\\n  --enablerepo=fedora-updates \\\n  docker-distribution\nRUN dnf clean all -y\nEXPOSE 5000\nENTRYPOINT [ \\\n  \"/usr/bin/registry\", \\\n  \"serve\", \"/etc/docker-distribution/registry/config.yml\"]\n"
+            },
+            "strategy": {
+               "dockerStrategy": {
+                  "from": {
+                     "kind": "ImageStreamTag",
+                     "name": "${SOURCE_IMAGESTREAM_NAME}:${SOURCE_IMAGESTREAM_TAG}"
+                  }
+               },
+               "imageOptimizationPolicy": "SkipLayers"
+            },
+            "triggers": [
+               {
+                  "type": "ImageChange"
+               },
+               {
+                  "type": "ConfigChange"
+               }
+            ]
+         }
+      },
+      {
+         "apiVersion": "v1",
+         "kind": "ImageStream",
+         "metadata": {
+            "labels": {
+               "created-by": "registry-template"
+            },
+            "name": "container-image-registry",
+            "namespace": "${NAMESPACE}"
+         },
+         "spec": null,
+         "status": {
+            "dockerImageRepository": ""
+         }
+      },
+      {
+         "apiVersion": "v1",
+         "kind": "ImageStream",
+         "metadata": {
+            "labels": {
+               "created-by": "registry-template"
+            },
+            "name": "${SOURCE_IMAGESTREAM_NAME}",
+            "namespace": "${NAMESPACE}"
+         },
+         "spec": {
+            "tags": [
+               {
+                  "from": {
+                     "kind": "DockerImage",
+                     "name": "${SOURCE_IMAGE_PULL_SPEC}"
+                  },
+                  "importPolicy": {
+                     "scheduled": true
+                  },
+                  "name": "${SOURCE_IMAGESTREAM_TAG}",
+                  "referencePolicy": {
+                     "type": "Source"
+                  }
+               }
+            ]
+         },
+         "status": {
+            "dockerImageRepository": ""
+         }
+      },
+      {
+         "apiVersion": "v1",
+         "kind": "Service",
+         "metadata": {
+            "annotations": {
+               "template.openshift.io/expose-uri": "https://{.spec.clusterIP}:{.spec.ports[?(.name==\"registry\")].port}\n"
+            },
+            "name": "container-image-registry",
+            "namespace": "${NAMESPACE}"
+         },
+         "spec": {
+            "ports": [
+               {
+                  "name": "registry",
+                  "port": 5000
+               }
+            ],
+            "selector": {
+               "deploymentconfig": "container-image-registry"
+            },
+            "sessionAffinity": "ClientIP",
+            "type": "ClusterIP"
+         }
+      },
+      {
+         "apiVersion": "route.openshift.io/v1",
+         "kind": "Route",
+         "metadata": {
+            "annotations": {
+               "template.openshift.io/expose-uri": "https://{.spec.host}{.spec.path}"
+            },
+            "name": "container-image-registry",
+            "namespace": "${NAMESPACE}"
+         },
+         "spec": {
+            "host": "${SDI_REGISTRY_ROUTE_HOSTNAME}",
+            "port": {
+               "targetPort": "registry"
+            },
+            "subdomain": "",
+            "tls": {
+               "insecureEdgeTerminationPolicy": "Redirect",
+               "termination": "edge"
+            },
+            "to": {
+               "kind": "Service",
+               "name": "container-image-registry"
+            }
+         }
+      },
+      {
+         "apiVersion": "v1",
+         "kind": "PersistentVolumeClaim",
+         "metadata": {
+            "name": "container-image-registry",
+            "namespace": "${NAMESPACE}"
+         },
+         "spec": {
+            "accessModes": [
+               "${SDI_REGISTRY_VOLUME_ACCESS_MODE}"
+            ],
+            "persistentVolumeReclaimPolicy": "Retain",
+            "resources": {
+               "requests": {
+                  "storage": "${SDI_REGISTRY_VOLUME_CAPACITY}"
+               }
+            }
+         }
+      }
+   ],
+   "parameters": [
+      {
+         "description": "The desired namespace to deploy resources to. Defaults to the current\none.\n",
+         "name": "NAMESPACE",
+         "required": true
+      },
+      {
+         "description": "A secret with htpasswd file with authentication data for the sdi image container If\ngiven and the secret exists, it will be used instead of SDI_REGISTRY_USERNAME and\nSDI_REGISTRY_PASSWORD.\n",
+         "name": "SDI_REGISTRY_HTPASSWD_SECRET_NAME",
+         "required": true,
+         "value": "container-image-registry-htpasswd"
+      },
+      {
+         "description": "Desired hostname of the exposed registry service. Defaults to\ncontainer-image-registry-<NAMESPACE>-apps.<cluster_name>.<base_domain>\n",
+         "name": "SDI_REGISTRY_ROUTE_HOSTNAME",
+         "required": false
+      },
+      {
+         "description": "A random piece of data used to sign state that may be stored with the client to protect\nagainst tampering. If omitted, the registry will automatically generate a secret when it\nstarts. If using multiple replicas of registry, the secret MUST be the same for all of\nthem.\n",
+         "from": "[a-zA-Z0-9]{32}",
+         "generate": "expression",
+         "name": "SDI_REGISTRY_HTTP_SECRET",
+         "required": false
+      },
+      {
+         "description": "Volume space available for container images (e.g. 75Gi).\n",
+         "name": "SDI_REGISTRY_VOLUME_CAPACITY",
+         "required": true,
+         "value": "75Gi"
+      },
+      {
+         "description": "If the given SDI_REGISTRY_STORAGE_CLASS_NAME or the default storate class supports\n\"ReadWriteMany\" (\"RWX\") access mode, please change this to \"ReadWriteMany\".\n",
+         "name": "SDI_REGISTRY_VOLUME_ACCESS_MODE",
+         "required": false,
+         "value": "ReadWriteOnce"
+      },
+      {
+         "description": "Pull specification for the base image for sdi-observer and/or container-image-registry.\nThe base image shall be RPM based and contain \"dnf\" binary for package management.\n",
+         "name": "SOURCE_IMAGE_PULL_SPEC",
+         "required": true,
+         "value": "registry.centos.org/centos:8"
+      },
+      {
+         "description": "Name of the imagestream to use for the custom source image.\n",
+         "name": "SOURCE_IMAGESTREAM_NAME",
+         "required": true,
+         "value": "centos8"
+      },
+      {
+         "description": "Tag in the custom source imagestream referring to the SOURCE_IMAGE_PULL_SPEC.\n",
+         "name": "SOURCE_IMAGESTREAM_TAG",
+         "required": true,
+         "value": "latest"
+      }
+   ]
+}

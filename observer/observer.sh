@@ -525,10 +525,25 @@ function deployComponent() {
         REPLACE_SECRETS="${REPLACE_SECRETS:-}"
         JOB_IMAGE="$(getJobImage)"
         OCP_MINOR_RELEASE="${OCP_MINOR_RELEASE:-}"
-        REDHAT_REGISTRY_SECRET_NAME="${REDHAT_REGISTRY_SECRET_NAMESPACE:-}/${REDHAT_REGISTRY_SECRET_NAME:-}"
         # passed as an argument instead
         #WAIT_UNTIL_ROLLEDOUT=true
     )
+
+    if [[ -n "${SOURCE_IMAGESTREAM_NAME:-}" && "${SOURCE_IMAGESTREAM_TAG:-}" && \
+            -n "${SOURCE_IMAGE_PULL_SPEC:-}" ]]; then
+        fn="$component/deploy-job-custom-source-image-template.json"
+        args+=(
+            SOURCE_IMAGE_PULL_SPEC="${SOURCE_IMAGE_PULL_SPEC:-}"
+            SOURCE_IMAGESTREAM_NAME="${SOURCE_IMAGESTREAM_NAME:-}"
+            SOURCE_IMAGESTREAM_TAG="${SOURCE_IMAGESTREAM_TAG:-}"
+            SOURCE_IMAGE_REGISTRY_SECRET_NAME="${SOURCE_IMAGE_REGISTRY_SECRET_NAME:-}"
+        )
+    else
+        args+=(
+            REDHAT_REGISTRY_SECRET_NAME="${REDHAT_REGISTRY_SECRET_NAMESPACE:-}/${REDHAT_REGISTRY_SECRET_NAME:-}"
+        )
+    fi
+
     case "${component}" in
         registry)
             # shellcheck disable=SC2191
