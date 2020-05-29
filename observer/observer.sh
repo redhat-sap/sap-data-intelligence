@@ -223,7 +223,7 @@ if evalBool INJECT_CABUNDLE || [[ -n "${REDHAT_REGISTRY_SECRET_NAME:-}" ]]; then
     gotmplSecret=(
         '{{if or (and (eq .metadata.name "'"$CABUNDLE_SECRET_NAME"'")'
                     ' (eq .metadata.namespace "'"$CABUNDLE_SECRET_NAMESPACE"'"))'
-               ' (eq .metadata.name "'"$REDHAT_REGISTRY_SECRET_NAME"'")}}'
+               ' (eq .metadata.name "'"${REDHAT_REGISTRY_SECRET_NAME:-redhat-registry-secret-name}"'")}}'
             $'{{.kind}}#{{.metadata.uid}}\n'
         '{{end}}'
     )

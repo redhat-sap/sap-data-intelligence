@@ -37,8 +37,8 @@ local is = import 'imagestream.libsonnet';
             kind: 'ImageStreamTag',
             name: $.srcImageStreamTag,
           },
+          imageOptimizationPolicy: 'SkipLayers',
         },
-        imageOptimizationPolicy: 'SkipLayers',
       },
       triggers: [
         {
