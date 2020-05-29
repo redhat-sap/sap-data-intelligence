@@ -264,7 +264,7 @@ function common_init() {
 
     if [[ -n "${REDHAT_REGISTRY_SECRET_NAMESPACE:-}" ]]; then
         REDHAT_REGISTRY_SECRET_NAME="${REDHAT_REGISTRY_SECRET_NAME##*/}"
-    elif [[ "$REDHAT_REGISTRY_SECRET_NAME" =~ ^([^/]+)/(.*) ]]; then
+    elif [[ "${REDHAT_REGISTRY_SECRET_NAME:-}" =~ ^([^/]+)/(.*) ]]; then
         REDHAT_REGISTRY_SECRET_NAME="${BASH_REMATCH[2]}"
         REDHAT_REGISTRY_SECRET_NAMESPACE="${BASH_REMATCH[1]}"
     else
