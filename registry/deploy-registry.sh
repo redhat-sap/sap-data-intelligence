@@ -42,11 +42,28 @@ Options:
  (-r | --rht-registry-secret-namespace) RHT_REGISTRY_SECRET_NAMESPACE
                  K8s namespace, where the RHT_REGISTRY_SECRET_NAME secret resides.
                  Defaults to the target NAMESPACE.
+ --custom-source-image SOURCE_IMAGE_PULL_SPEC
+                 Custom source image for container-image-registry build instead of the default
+                 ubi8. Overrides SOURCE_IMAGE_PULL_SPEC environment variable.
+                 For example: registry.centos.org/centos:8
+ --custom-source-imagestream-name SOURCE_IMAGESTREAM_NAME
+                 Name of the image stream for the custom source image if SOURCE_IMAGE_PULL_SPEC
+                 is specified. Overrides SOURCE_IMAGESTREAM_NAME environment variable.
+                 Defaults to \"$DEFAULT_SOURCE_IMAGESTREAM_NAME\".
+ --custom-source-imagestream-tag SOURCE_IMAGESTREAM_TAG
+                 Tag in the source imagestream referencing the SOURCE_IMAGE_PULL_SPEC. Overrides
+                 SOURCE_IMAGESTREAM_TAG environment variable. Defaults to \"latest\".
+ --custom-source-image-registry-secret-name SOURCE_IMAGE_REGISTRY_SECRET_NAME
+                 If the registry of the custom source image requires authentication, a pull secret
+                 must be created in the target NAMESPACE and its name specified here. Overrides
+                 SOURCE_IMAGE_REGISTRY_SECRET_NAME environment variable.
 "
 
 readonly longOptions=(
     help output-dir: noout secret-name: hostname: wait namespace: rht-registry-secret-name:
     rht-registry-secret-namespace: dry-run
+    custom-source-image custom-source-imagestream-name custom-source-imagestream-tag
+    custom-source-image-registry-secret-name
 )
 
 if [[ -z "${NAMESPACE:-}" && -n "${SDI_REGISTRY_NAMESPACE:-}" ]]; then
@@ -114,18 +131,34 @@ function getOrCreateHtpasswdSecret() {
 }
 
 function mkRegistryTemplateParams() {
+    local params=(
+        "SDI_REGISTRY_ROUTE_HOSTNAME=${REGISTRY_HOSTNAME:-}" 
+        "SDI_REGISTRY_HTPASSWD_SECRET_NAME=$SECRET_NAME" 
+        "NAMESPACE=$NAMESPACE" 
+        "SDI_REGISTRY_VOLUME_CAPACITY=${SDI_REGISTRY_VOLUME_CAPACITY:-}" 
+        "SDI_REGISTRY_VOLUME_ACCESS_MODE=${SDI_REGISTRY_VOLUME_ACCESS_MODE:-}" 
+        "SDI_REGISTRY_HTTP_SECRET=${SDI_REGISTRY_HTTP_SECRET:-}"
+    )
+    if [[ -n "${SOURCE_IMAGESTREAM_NAME:-}" && "${SOURCE_IMAGESTREAM_TAG:-}" && \
+            -n "${SOURCE_IMAGE_PULL_SPEC:-}" ]]
+    then
+        params+=(
+            SOURCE_IMAGE_PULL_SPEC="${SOURCE_IMAGE_PULL_SPEC:-}"
+            SOURCE_IMAGESTREAM_NAME="${SOURCE_IMAGESTREAM_NAME:-}"
+            SOURCE_IMAGESTREAM_TAG="${SOURCE_IMAGESTREAM_TAG:-}"
+            SOURCE_IMAGE_REGISTRY_SECRET_NAME="${SOURCE_IMAGE_REGISTRY_SECRET_NAME:-}"
+        )
+    else
+        params+=(
+            "REDHAT_REGISTRY_SECRET_NAME=$REDHAT_REGISTRY_SECRET_NAME" 
+        )
+    fi
+
     while IFS="=" read -r key value; do
         # do not override template's defaults
         [[ -z "$value" ]] && continue
         printf '%s=%s\n' "$key" "$value"
-    done < <(printf '%s\n' \
-        "SDI_REGISTRY_ROUTE_HOSTNAME=${REGISTRY_HOSTNAME:-}" \
-        "SDI_REGISTRY_HTPASSWD_SECRET_NAME=$SECRET_NAME" \
-        "NAMESPACE=$NAMESPACE" \
-        "SDI_REGISTRY_VOLUME_CAPACITY=${SDI_REGISTRY_VOLUME_CAPACITY:-}" \
-        "SDI_REGISTRY_VOLUME_ACCESS_MODE=${SDI_REGISTRY_VOLUME_ACCESS_MODE:-}" \
-        "REDHAT_REGISTRY_SECRET_NAME=$REDHAT_REGISTRY_SECRET_NAME" \
-        "SDI_REGISTRY_HTTP_SECRET=${SDI_REGISTRY_HTTP_SECRET:-}")
+    done < <(printf '%s\n' "${params[@]}")
 }
 export -f mkRegistryTemplateParams
 
@@ -167,7 +200,8 @@ function deployRegistry() {
     getOrCreateHtpasswdSecret
     # needed for parallel
     export NAMESPACE SECRET_NAME REGISTRY_HOSTNAME REDHAT_REGISTRY_SECRET_NAME  \
-        SDI_REGISTRY_TEMPLATE_FILE_NAME
+        SDI_REGISTRY_TEMPLATE_FILE_NAME SOURCE_IMAGE_PULL_SPEC \
+        SOURCE_IMAGESTREAM_NAME SOURCE_IMAGESTREAM_TAG SOURCE_IMAGE_REGISTRY_SECRET_NAME
     # decide for each resource independently whether it needs to be replaced or not
     getRegistryTemplateAs jsonpath=$'{range .items[*]}{.kind}/{.metadata.name}\n{end}' | \
         parallel createOrReplaceObjectFromTemplate
@@ -298,6 +332,22 @@ while true; do
             ;;
         --rht-registry-secret-namespace)
             REDHAT_REGISTRY_SECRET_NAMESPACE="$2"
+            shift 2
+            ;;
+        --custom-source-image)
+            SOURCE_IMAGE_PULL_SPEC="$2"
+            shift 2;
+            ;;
+        --custom-source-imagestream-name)
+            SOURCE_IMAGESTREAM_NAME="$2"
+            shift 2
+            ;;
+        --custom-source-imagestream-tag)
+            SOURCE_IMAGESTREAM_TAG="$2"
+            shift 2
+            ;;
+        --custom-source-image-registry-secret-name)
+            SOURCE_IMAGE_REGISTRY_SECRET_NAME="$2"
             shift 2
             ;;
         --)

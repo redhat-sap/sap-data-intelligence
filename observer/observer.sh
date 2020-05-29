@@ -223,7 +223,7 @@ if evalBool INJECT_CABUNDLE || [[ -n "${REDHAT_REGISTRY_SECRET_NAME:-}" ]]; then
     gotmplSecret=(
         '{{if or (and (eq .metadata.name "'"$CABUNDLE_SECRET_NAME"'")'
                     ' (eq .metadata.namespace "'"$CABUNDLE_SECRET_NAMESPACE"'"))'
-               ' (eq .metadata.name "'"$REDHAT_REGISTRY_SECRET_NAME"'")}}'
+               ' (eq .metadata.name "'"${REDHAT_REGISTRY_SECRET_NAME:-redhat-registry-secret-name}"'")}}'
             $'{{.kind}}#{{.metadata.uid}}\n'
         '{{end}}'
     )
@@ -286,7 +286,7 @@ function checkPerm() {
     fi
     args+=( -n "$namespace" "${perm%%/*}" "${perm##*/}" )
     if ! oc auth can-i "${args[@]}" >/dev/null; then
-        printf '%s\n' "$perm"
+        printf '%s\n' "$namespace:$perm"
     fi
 }
 export -f checkPerm
@@ -329,7 +329,8 @@ function checkPermissions() {
         readarray -t registryKinds <<<"$(oc process \
             NAMESPACE="${NAMESPACE:-foo}" \
             REDHAT_REGISTRY_SECRET_NAME=foo \
-            -f "$(getRegistryTemplatePath)" -o jsonpath=$'{range .items[*]}{.kind}\n{end}')"
+            -f "$(SOURCE_IMAGE_PULL_SPEC="" getRegistryTemplatePath)" \
+                -o jsonpath=$'{range .items[*]}{.kind}\n{end}')"
         for kind in "${registryKinds[@],,}"; do
             toCheck+=( "${nmprefix}create/${kind}" )
         done
@@ -352,9 +353,12 @@ function checkPermissions() {
     readarray -t lackingPermissions <<<"$(parallel checkPerm ::: "${toCheck[@]}")"
 
     if [[ "${#lackingPermissions[@]}" -gt 0 ]]; then
-        for perm in "${lackingPermissions[@]}"; do
-            [[ -z "$perm" ]] && continue
-            log -n 'Cannot "%s" "%s", please grant the needed permissions' "${perm%%/*}" "${perm##*/}"
+        for nsperm in "${lackingPermissions[@]}"; do
+            [[ -z "$nsperm" ]] && continue
+            local namespace="${nsperm%%:*}"
+            local perm="${nsperm##*:}"
+            log -n 'Cannot "%s" "%s" in namespace "%s", please grant the needed permissions' \
+                "${perm%%/*}" "${perm##*/}" "$namespace"
             log -d ' to sdi-observer service account!'
             rc=1
         done
@@ -525,10 +529,25 @@ function deployComponent() {
         REPLACE_SECRETS="${REPLACE_SECRETS:-}"
         JOB_IMAGE="$(getJobImage)"
         OCP_MINOR_RELEASE="${OCP_MINOR_RELEASE:-}"
-        REDHAT_REGISTRY_SECRET_NAME="${REDHAT_REGISTRY_SECRET_NAMESPACE:-}/${REDHAT_REGISTRY_SECRET_NAME:-}"
         # passed as an argument instead
         #WAIT_UNTIL_ROLLEDOUT=true
     )
+
+    if [[ -n "${SOURCE_IMAGESTREAM_NAME:-}" && "${SOURCE_IMAGESTREAM_TAG:-}" && \
+            -n "${SOURCE_IMAGE_PULL_SPEC:-}" ]]; then
+        fn="$component/deploy-job-custom-source-image-template.json"
+        args+=(
+            SOURCE_IMAGE_PULL_SPEC="${SOURCE_IMAGE_PULL_SPEC:-}"
+            SOURCE_IMAGESTREAM_NAME="${SOURCE_IMAGESTREAM_NAME:-}"
+            SOURCE_IMAGESTREAM_TAG="${SOURCE_IMAGESTREAM_TAG:-}"
+            SOURCE_IMAGE_REGISTRY_SECRET_NAME="${SOURCE_IMAGE_REGISTRY_SECRET_NAME:-}"
+        )
+    else
+        args+=(
+            REDHAT_REGISTRY_SECRET_NAME="${REDHAT_REGISTRY_SECRET_NAMESPACE:-}/${REDHAT_REGISTRY_SECRET_NAME:-}"
+        )
+    fi
+
     case "${component}" in
         registry)
             # shellcheck disable=SC2191

@@ -74,10 +74,6 @@
                               "value": "${REPLACE_SECRETS}"
                            },
                            {
-                              "name": "REDHAT_REGISTRY_SECRET_NAME",
-                              "value": "${REDHAT_REGISTRY_SECRET_NAME}"
-                           },
-                           {
                               "name": "OCP_MINOR_RELEASE",
                               "value": "${OCP_MINOR_RELEASE}"
                            },
@@ -172,6 +168,18 @@
                            {
                               "name": "EXPOSE_WITH_LETSENCRYPT",
                               "value": "${EXPOSE_WITH_LETSENCRYPT}"
+                           },
+                           {
+                              "name": "SOURCE_IMAGESTREAM_NAME",
+                              "value": "${SOURCE_IMAGESTREAM_NAME}"
+                           },
+                           {
+                              "name": "SOURCE_IMAGESTREAM_TAG",
+                              "value": "${SOURCE_IMAGESTREAM_TAG}"
+                           },
+                           {
+                              "name": "SOURCE_IMAGE_PULL_SPEC",
+                              "value": "${SOURCE_IMAGE_PULL_SPEC}"
                            }
                         ],
                         "image": " ",
@@ -647,12 +655,9 @@
                "dockerStrategy": {
                   "from": {
                      "kind": "ImageStreamTag",
-                     "name": "ubi8:latest"
+                     "name": "${SOURCE_IMAGESTREAM_NAME}:${SOURCE_IMAGESTREAM_TAG}"
                   },
-                  "imageOptimizationPolicy": "SkipLayers",
-                  "pullSecret": {
-                     "name": "${REDHAT_REGISTRY_SECRET_NAME}"
-                  }
+                  "imageOptimizationPolicy": "SkipLayers"
                }
             },
             "triggers": [
@@ -687,7 +692,7 @@
             "labels": {
                "created-by": "sdi-observer-template"
             },
-            "name": "ubi8",
+            "name": "${SOURCE_IMAGESTREAM_NAME}",
             "namespace": "${NAMESPACE}"
          },
          "spec": {
@@ -695,12 +700,12 @@
                {
                   "from": {
                      "kind": "DockerImage",
-                     "name": "registry.redhat.io/ubi8/ubi:latest"
+                     "name": "${SOURCE_IMAGE_PULL_SPEC}"
                   },
                   "importPolicy": {
                      "scheduled": true
                   },
-                  "name": "latest",
+                  "name": "${SOURCE_IMAGESTREAM_TAG}",
                   "referencePolicy": {
                      "type": "Source"
                   }
@@ -735,11 +740,6 @@
          "name": "REPLACE_SECRETS",
          "required": false,
          "value": "false"
-      },
-      {
-         "description": "Name of the secret with credentials for registry.redhat.io registry. Please visit\nhttps://access.redhat.com/terms-based-registry/ to obtain the OpenShift secret. For more details, please refer to https://access.redhat.com/RegistryAuthentication\n",
-         "name": "REDHAT_REGISTRY_SECRET_NAME",
-         "required": true
       },
       {
          "description": "Minor release of OpenShift Container Platform (e.g. 4.2). This value must match the OCP\nserver version. The biggest tolerated difference between the versions is 1 in the second\ndigit.\n",
@@ -790,7 +790,7 @@
          "name": "REGISTRY"
       },
       {
-         "description": "Whether to deploy container image registry for the purpose of SAP Data Intelligence.\nRequires project admin role attached to the sdi-observer service account. If enabled,\nREDHAT_REGISTRY_SECRET_NAME must be provided.\n",
+         "description": "Whether to deploy container image registry for the purpose of SAP Data Intelligence.\nRequires project admin role attached to the sdi-observer service account.\n",
          "name": "DEPLOY_SDI_REGISTRY",
          "required": false,
          "value": "false"
@@ -887,6 +887,24 @@
          "name": "LETSENCRYPT_REVISION",
          "required": false,
          "value": "master"
+      },
+      {
+         "description": "Pull specification for the base image for sdi-observer and/or container-image-registry.\nThe base image shall be RPM based and contain \"dnf\" binary for package management.\n",
+         "name": "SOURCE_IMAGE_PULL_SPEC",
+         "required": true,
+         "value": "registry.centos.org/centos:8"
+      },
+      {
+         "description": "Name of the imagestream to use for the custom source image.\n",
+         "name": "SOURCE_IMAGESTREAM_NAME",
+         "required": true,
+         "value": "centos8"
+      },
+      {
+         "description": "Tag in the custom source imagestream referring to the SOURCE_IMAGE_PULL_SPEC.\n",
+         "name": "SOURCE_IMAGESTREAM_TAG",
+         "required": true,
+         "value": "latest"
       }
    ]
 }

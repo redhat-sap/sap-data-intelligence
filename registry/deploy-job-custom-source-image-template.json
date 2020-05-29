@@ -6,18 +6,18 @@
    "metadata": {
       "annotations": {
          "description": "TODO",
-         "openshift.io/display-name": "Job to deploy a letsencrypt controller.\n",
+         "openshift.io/display-name": "Job to deploy a container image registry.\n",
          "openshift.io/documentation-url": "https://access.redhat.com/articles/4324391",
          "openshift.io/provider-display-name": "Red Hat, Inc."
       },
-      "name": "deploy-letsencrypt"
+      "name": "deploy-registry"
    },
    "objects": [
       {
          "apiVersion": "batch/v1",
          "kind": "Job",
          "metadata": {
-            "name": "deploy-letsencrypt",
+            "name": "deploy-registry",
             "namespace": "${NAMESPACE}"
          },
          "spec": {
@@ -28,7 +28,7 @@
             "template": {
                "metadata": {
                   "labels": {
-                     "job": "deploy-letsencrypt"
+                     "job": "deploy-registry"
                   }
                },
                "spec": {
@@ -36,7 +36,7 @@
                      {
                         "args": "${{SCRIPT_ARGUMENTS}}",
                         "command": [
-                           "deploy-letsencrypt.sh"
+                           "deploy-registry.sh"
                         ],
                         "env": [
                            {
@@ -56,20 +56,68 @@
                               "value": "${REPLACE_SECRETS}"
                            },
                            {
-                              "name": "LETSENCRYPT_REPOSITORY",
-                              "value": "${LETSENCRYPT_REPOSITORY}"
+                              "name": "REPLACE_PERSISTENT_VOLUME_CLAIMS",
+                              "value": "${REPLACE_PERSISTENT_VOLUME_CLAIMS}"
                            },
                            {
-                              "name": "LETSENCRYPT_REVISION",
-                              "value": "${LETSENCRYPT_REVISION}"
+                              "name": "SDI_REGISTRY_STORAGE_CLASS_NAME",
+                              "value": "${SDI_REGISTRY_STORAGE_CLASS_NAME}"
                            },
                            {
-                              "name": "LETSENCRYPT_ENVIRONMENT",
-                              "value": "${LETSENCRYPT_ENVIRONMENT}"
+                              "name": "SDI_REGISTRY_USERNAME",
+                              "value": "${SDI_REGISTRY_USERNAME}"
                            },
                            {
-                              "name": "PROJECTS_TO_MONITOR",
-                              "value": "${PROJECTS_TO_MONITOR}"
+                              "name": "SDI_REGISTRY_PASSWORD",
+                              "value": "${SDI_REGISTRY_PASSWORD}"
+                           },
+                           {
+                              "name": "SDI_REGISTRY_HTPASSWD_SECRET_NAME",
+                              "value": "${SDI_REGISTRY_HTPASSWD_SECRET_NAME}"
+                           },
+                           {
+                              "name": "SDI_REGISTRY_ROUTE_HOSTNAME",
+                              "value": "${SDI_REGISTRY_ROUTE_HOSTNAME}"
+                           },
+                           {
+                              "name": "SDI_REGISTRY_HTTP_SECRET",
+                              "value": "${SDI_REGISTRY_HTTP_SECRET}"
+                           },
+                           {
+                              "name": "SDI_REGISTRY_VOLUME_CAPACITY",
+                              "value": "${SDI_REGISTRY_VOLUME_CAPACITY}"
+                           },
+                           {
+                              "name": "SDI_REGISTRY_VOLUME_ACCESS_MODE",
+                              "value": "${SDI_REGISTRY_VOLUME_ACCESS_MODE}"
+                           },
+                           {
+                              "name": "EXPOSE_WITH_LETSENCRYPT",
+                              "value": "${EXPOSE_WITH_LETSENCRYPT}"
+                           },
+                           {
+                              "name": "OCP_MINOR_RELEASE",
+                              "value": "${OCP_MINOR_RELEASE}"
+                           },
+                           {
+                              "name": "SDI_OBSERVER_REPOSITORY",
+                              "value": "${SDI_OBSERVER_REPOSITORY}"
+                           },
+                           {
+                              "name": "SDI_OBSERVER_GIT_REVISION",
+                              "value": "${SDI_OBSERVER_GIT_REVISION}"
+                           },
+                           {
+                              "name": "SOURCE_IMAGESTREAM_NAME",
+                              "value": "${SOURCE_IMAGESTREAM_NAME}"
+                           },
+                           {
+                              "name": "SOURCE_IMAGESTREAM_TAG",
+                              "value": "${SOURCE_IMAGESTREAM_TAG}"
+                           },
+                           {
+                              "name": "SOURCE_IMAGE_PULL_SPEC",
+                              "value": "${SOURCE_IMAGE_PULL_SPEC}"
                            }
                         ],
                         "image": "${JOB_IMAGE}",
@@ -87,7 +135,7 @@
          "kind": "ServiceAccount",
          "metadata": {
             "labels": {
-               "created-by": "letsencrypt-deploy",
+               "created-by": "registry-deploy",
                "deploymentconfig": "sdi-observer"
             },
             "name": "sdi-observer",
@@ -165,7 +213,7 @@
          "kind": "BuildConfig",
          "metadata": {
             "labels": {
-               "created-by": "letsencrypt-deploy",
+               "created-by": "registry-deploy",
                "deploymentconfig": "sdi-observer"
             },
             "name": "sdi-observer",
@@ -186,12 +234,9 @@
                "dockerStrategy": {
                   "from": {
                      "kind": "ImageStreamTag",
-                     "name": "ubi8:latest"
+                     "name": "${SOURCE_IMAGESTREAM_NAME}:${SOURCE_IMAGESTREAM_TAG}"
                   },
-                  "imageOptimizationPolicy": "SkipLayers",
-                  "pullSecret": {
-                     "name": "${REDHAT_REGISTRY_SECRET_NAME}"
-                  }
+                  "imageOptimizationPolicy": "SkipLayers"
                }
             },
             "triggers": [
@@ -209,7 +254,7 @@
          "kind": "ImageStream",
          "metadata": {
             "labels": {
-               "created-by": "letsencrypt-deploy"
+               "created-by": "registry-deploy"
             },
             "name": "sdi-observer",
             "namespace": "${NAMESPACE}"
@@ -224,9 +269,9 @@
          "kind": "ImageStream",
          "metadata": {
             "labels": {
-               "created-by": "letsencrypt-deploy"
+               "created-by": "registry-deploy"
             },
-            "name": "ubi8",
+            "name": "${SOURCE_IMAGESTREAM_NAME}",
             "namespace": "${NAMESPACE}"
          },
          "spec": {
@@ -234,12 +279,12 @@
                {
                   "from": {
                      "kind": "DockerImage",
-                     "name": "registry.redhat.io/ubi8/ubi:latest"
+                     "name": "${SOURCE_IMAGE_PULL_SPEC}"
                   },
                   "importPolicy": {
                      "scheduled": true
                   },
-                  "name": "latest",
+                  "name": "${SOURCE_IMAGESTREAM_TAG}",
                   "referencePolicy": {
                      "type": "Source"
                   }
@@ -276,44 +321,64 @@
          "value": "false"
       },
       {
-         "description": "Unless given, a local copy will be used.\nDefaults to a local check out. Example value: https://github.com/tnozicka/openshift-acme\n",
-         "name": "LETSENCRYPT_REPOSITORY",
+         "description": "Whether to replace existing persistent volume claims like the one belonging to SDI\nRegistry.\n",
+         "name": "REPLACE_PERSISTENT_VOLUME_CLAIMS",
          "required": false,
-         "value": null
+         "value": "false"
       },
       {
-         "description": "Revision of letsencrypt repository to check out.\n",
-         "name": "LETSENCRYPT_REVISION",
-         "required": false,
-         "value": "master"
-      },
-      {
-         "description": "Either \"live\" or \"staging\". Use the latter when debugging SDI Observer's deployment.\n",
-         "name": "LETSENCRYPT_ENVIRONMENT",
-         "required": true,
-         "value": "live"
-      },
-      {
-         "description": "Additional projects to monitor separated by commas. The controller will be granted\npermission to manage routes in the projects. The job needs to be able to create roles\nand rolebindings in all the projects listed.\n",
-         "name": "PROJECTS_TO_MONITOR",
+         "description": "Unless given, the default storage class will be used.\n",
+         "name": "SDI_REGISTRY_STORAGE_CLASS_NAME",
          "required": false
       },
       {
-         "description": "Pull specification of the built SDI Observer image.\n",
-         "name": "JOB_IMAGE",
+         "description": "Will be used to generate htpasswd file to provide authentication data to the sdi registry\nservice as long as SDI_REGISTRY_HTPASSWD_SECRET_NAME does not exist or REPLACE_SECRETS is\n\"true\".\n",
+         "from": "user-[a-z0-9]{6}",
+         "generate": "expression",
+         "name": "SDI_REGISTRY_USERNAME",
+         "required": false
+      },
+      {
+         "description": "Will be used to generate htpasswd file to provide authentication data to the sdi registry\nservice as long as SDI_REGISTRY_HTPASSWD_SECRET_NAME does not exist or REPLACE_SECRETS is\n\"true\".\n",
+         "from": "[a-zA-Z0-9]{32}",
+         "generate": "expression",
+         "name": "SDI_REGISTRY_PASSWORD",
+         "required": false
+      },
+      {
+         "description": "A secret with htpasswd file with authentication data for the sdi image container If\ngiven and the secret exists, it will be used instead of SDI_REGISTRY_USERNAME and\nSDI_REGISTRY_PASSWORD.\n",
+         "name": "SDI_REGISTRY_HTPASSWD_SECRET_NAME",
          "required": true,
-         "value": null
+         "value": "container-image-registry-htpasswd"
       },
       {
-         "description": "Arguments for job's script. Passed as a json array of strings.\n",
-         "name": "SCRIPT_ARGUMENTS",
+         "description": "Desired hostname of the exposed registry service. Defaults to\ncontainer-image-registry-<NAMESPACE>-apps.<cluster_name>.<base_domain>\n",
+         "name": "SDI_REGISTRY_ROUTE_HOSTNAME",
+         "required": false
+      },
+      {
+         "description": "A random piece of data used to sign state that may be stored with the client to protect\nagainst tampering. If omitted, the registry will automatically generate a secret when it\nstarts. If using multiple replicas of registry, the secret MUST be the same for all of\nthem.\n",
+         "from": "[a-zA-Z0-9]{32}",
+         "generate": "expression",
+         "name": "SDI_REGISTRY_HTTP_SECRET",
+         "required": false
+      },
+      {
+         "description": "Volume space available for container images (e.g. 75Gi).\n",
+         "name": "SDI_REGISTRY_VOLUME_CAPACITY",
+         "required": true,
+         "value": "75Gi"
+      },
+      {
+         "description": "If the given SDI_REGISTRY_STORAGE_CLASS_NAME or the default storate class supports\n\"ReadWriteMany\" (\"RWX\") access mode, please change this to \"ReadWriteMany\".\n",
+         "name": "SDI_REGISTRY_VOLUME_ACCESS_MODE",
          "required": false,
-         "value": "[\"--wait\"]"
+         "value": "ReadWriteOnce"
       },
       {
-         "description": "Name of the secret with credentials for registry.redhat.io registry. Please visit\nhttps://access.redhat.com/terms-based-registry/ to obtain the OpenShift secret. For more details, please refer to https://access.redhat.com/RegistryAuthentication\n",
-         "name": "REDHAT_REGISTRY_SECRET_NAME",
-         "required": true
+         "description": "Whether to expose routes annotated for letsencrypt controller. Requires project admin\nrole attached to the sdi-observer service account. Letsencrypt controller must be\ndeployed either via this observer or cluster-wide for this to have an effect.\n",
+         "name": "EXPOSE_WITH_LETSENCRYPT",
+         "value": "false"
       },
       {
          "description": "Minor release of OpenShift Container Platform (e.g. 4.2). This value must match the OCP\nserver version. The biggest tolerated difference between the versions is 1 in the second\ndigit.\n",
@@ -332,6 +397,36 @@
          "name": "SDI_OBSERVER_GIT_REVISION",
          "required": true,
          "value": "master"
+      },
+      {
+         "description": "Pull specification of the built SDI Observer image.\n",
+         "name": "JOB_IMAGE",
+         "required": true,
+         "value": null
+      },
+      {
+         "description": "Arguments for job's script. Passed as a json array of strings.\n",
+         "name": "SCRIPT_ARGUMENTS",
+         "required": false,
+         "value": "[\"--wait\"]"
+      },
+      {
+         "description": "Pull specification for the base image for sdi-observer and/or container-image-registry.\nThe base image shall be RPM based and contain \"dnf\" binary for package management.\n",
+         "name": "SOURCE_IMAGE_PULL_SPEC",
+         "required": true,
+         "value": "registry.centos.org/centos:8"
+      },
+      {
+         "description": "Name of the imagestream to use for the custom source image.\n",
+         "name": "SOURCE_IMAGESTREAM_NAME",
+         "required": true,
+         "value": "centos8"
+      },
+      {
+         "description": "Tag in the custom source imagestream referring to the SOURCE_IMAGE_PULL_SPEC.\n",
+         "name": "SOURCE_IMAGESTREAM_TAG",
+         "required": true,
+         "value": "latest"
       }
    ]
 }

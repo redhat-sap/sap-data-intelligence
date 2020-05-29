@@ -150,12 +150,9 @@
                "dockerStrategy": {
                   "from": {
                      "kind": "ImageStreamTag",
-                     "name": "ubi8:latest"
+                     "name": "${SOURCE_IMAGESTREAM_NAME}:${SOURCE_IMAGESTREAM_TAG}"
                   },
-                  "imageOptimizationPolicy": "SkipLayers",
-                  "pullSecret": {
-                     "name": "${REDHAT_REGISTRY_SECRET_NAME}"
-                  }
+                  "imageOptimizationPolicy": "SkipLayers"
                }
             },
             "triggers": [
@@ -190,7 +187,7 @@
             "labels": {
                "created-by": "registry-template"
             },
-            "name": "ubi8",
+            "name": "${SOURCE_IMAGESTREAM_NAME}",
             "namespace": "${NAMESPACE}"
          },
          "spec": {
@@ -198,12 +195,12 @@
                {
                   "from": {
                      "kind": "DockerImage",
-                     "name": "registry.redhat.io/ubi8/ubi:latest"
+                     "name": "${SOURCE_IMAGE_PULL_SPEC}"
                   },
                   "importPolicy": {
                      "scheduled": true
                   },
-                  "name": "latest",
+                  "name": "${SOURCE_IMAGESTREAM_TAG}",
                   "referencePolicy": {
                      "type": "Source"
                   }
@@ -291,11 +288,6 @@
          "required": true
       },
       {
-         "description": "Name of the secret with credentials for registry.redhat.io registry. Please visit\nhttps://access.redhat.com/terms-based-registry/ to obtain the OpenShift secret. For more details, please refer to https://access.redhat.com/RegistryAuthentication\n",
-         "name": "REDHAT_REGISTRY_SECRET_NAME",
-         "required": true
-      },
-      {
          "description": "A secret with htpasswd file with authentication data for the sdi image container If\ngiven and the secret exists, it will be used instead of SDI_REGISTRY_USERNAME and\nSDI_REGISTRY_PASSWORD.\n",
          "name": "SDI_REGISTRY_HTPASSWD_SECRET_NAME",
          "required": true,
@@ -324,6 +316,24 @@
          "name": "SDI_REGISTRY_VOLUME_ACCESS_MODE",
          "required": false,
          "value": "ReadWriteOnce"
+      },
+      {
+         "description": "Pull specification for the base image for sdi-observer and/or container-image-registry.\nThe base image shall be RPM based and contain \"dnf\" binary for package management.\n",
+         "name": "SOURCE_IMAGE_PULL_SPEC",
+         "required": true,
+         "value": "registry.centos.org/centos:8"
+      },
+      {
+         "description": "Name of the imagestream to use for the custom source image.\n",
+         "name": "SOURCE_IMAGESTREAM_NAME",
+         "required": true,
+         "value": "centos8"
+      },
+      {
+         "description": "Tag in the custom source imagestream referring to the SOURCE_IMAGE_PULL_SPEC.\n",
+         "name": "SOURCE_IMAGESTREAM_TAG",
+         "required": true,
+         "value": "latest"
       }
    ]
 }

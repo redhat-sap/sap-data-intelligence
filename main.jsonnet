@@ -1,4 +1,5 @@
 // `src/` shall be included into Jsonnet library path
+local useCustomSourceImage = import 'custom-source-image.libsonnet';
 local acmejobtmpl = import 'letsencrypt-job-template.jsonnet';
 local obstmpl = import 'observer-template.jsonnet';
 local regjobtmpl = import 'registry-job-template.jsonnet';
@@ -10,4 +11,9 @@ local regtmpl = import 'registry-template.jsonnet';
   'registry/ocp-template.json': regtmpl {},
   'letsencrypt/deploy-job-template.json': acmejobtmpl {},
   'registry/deploy-job-template.json': regjobtmpl {},
+
+  'observer/ocp-custom-source-image-template.json': useCustomSourceImage(obstmpl {}),
+  'letsencrypt/deploy-job-custom-source-image-template.json': useCustomSourceImage(acmejobtmpl {}),
+  'registry/ocp-custom-source-image-template.json': useCustomSourceImage(regtmpl {}),
+  'registry/deploy-job-custom-source-image-template.json': useCustomSourceImage(regjobtmpl {}),
 }
