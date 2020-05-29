@@ -329,7 +329,8 @@ function checkPermissions() {
         readarray -t registryKinds <<<"$(oc process \
             NAMESPACE="${NAMESPACE:-foo}" \
             REDHAT_REGISTRY_SECRET_NAME=foo \
-            -f "$(getRegistryTemplatePath)" -o jsonpath=$'{range .items[*]}{.kind}\n{end}')"
+            -f "$(SOURCE_IMAGE_PULL_SPEC="" getRegistryTemplatePath)" \
+                -o jsonpath=$'{range .items[*]}{.kind}\n{end}')"
         for kind in "${registryKinds[@],,}"; do
             toCheck+=( "${nmprefix}create/${kind}" )
         done
@@ -353,7 +354,7 @@ function checkPermissions() {
 
     if [[ "${#lackingPermissions[@]}" -gt 0 ]]; then
         for nsperm in "${lackingPermissions[@]}"; do
-            [[ -z "$perm" ]] && continue
+            [[ -z "$nsperm" ]] && continue
             local namespace="${nsperm%%:*}"
             local perm="${nsperm##*:}"
             log -n 'Cannot "%s" "%s" in namespace "%s", please grant the needed permissions' \
