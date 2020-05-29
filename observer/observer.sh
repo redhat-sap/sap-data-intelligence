@@ -286,7 +286,7 @@ function checkPerm() {
     fi
     args+=( -n "$namespace" "${perm%%/*}" "${perm##*/}" )
     if ! oc auth can-i "${args[@]}" >/dev/null; then
-        printf '%s\n' "$perm"
+        printf '%s\n' "$namespace:$perm"
     fi
 }
 export -f checkPerm
@@ -352,9 +352,12 @@ function checkPermissions() {
     readarray -t lackingPermissions <<<"$(parallel checkPerm ::: "${toCheck[@]}")"
 
     if [[ "${#lackingPermissions[@]}" -gt 0 ]]; then
-        for perm in "${lackingPermissions[@]}"; do
+        for nsperm in "${lackingPermissions[@]}"; do
             [[ -z "$perm" ]] && continue
-            log -n 'Cannot "%s" "%s", please grant the needed permissions' "${perm%%/*}" "${perm##*/}"
+            local namespace="${nsperm%%:*}"
+            local perm="${nsperm##*:}"
+            log -n 'Cannot "%s" "%s" in namespace "%s", please grant the needed permissions' \
+                "${perm%%/*}" "${perm##*/}" "$namespace"
             log -d ' to sdi-observer service account!'
             rc=1
         done
