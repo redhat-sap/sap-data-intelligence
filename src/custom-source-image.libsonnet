@@ -38,6 +38,7 @@ local useCustomSourceImage(tmpl, withSecret=false) = tmpl {
                   kind: 'ImageStreamTag',
                   name: '${SOURCE_IMAGESTREAM_NAME}:${SOURCE_IMAGESTREAM_TAG}',
                 },
+                imageOptimizationPolicy: 'SkipLayers',
               } + (if withSecret then {
                      pullSecret: {
                        name: '${SOURCE_IMAGE_REGISTRY_SECRET_NAME}',

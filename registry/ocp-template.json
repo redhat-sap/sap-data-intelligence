@@ -152,11 +152,11 @@
                      "kind": "ImageStreamTag",
                      "name": "ubi8:latest"
                   },
+                  "imageOptimizationPolicy": "SkipLayers",
                   "pullSecret": {
                      "name": "${REDHAT_REGISTRY_SECRET_NAME}"
                   }
-               },
-               "imageOptimizationPolicy": "SkipLayers"
+               }
             },
             "triggers": [
                {
