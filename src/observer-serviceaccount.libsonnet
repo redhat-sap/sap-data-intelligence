@@ -112,7 +112,7 @@
           deploymentconfig: $.resourceName,
           'created-by': $.createdBy,
         },
-        name: $.resourceName,
+        name: $.resourceName + '-in-${NAMESPACE}',
         namespace: '${SDI_NAMESPACE}',
       },
       rules: [
@@ -164,7 +164,7 @@
       roleRef: {
         apiGroup: 'rbac.authorization.k8s.io',
         kind: 'Role',
-        name: $.resourceName,
+        name: $.resourceName + '-in-${NAMESPACE}',
         namespace: '${SDI_NAMESPACE}',
       },
       subjects: [
@@ -184,7 +184,7 @@
           deploymentconfig: $.resourceName,
           'created-by': $.createdBy,
         },
-        name: $.resourceName + '-for-slcbridge',
+        name: $.resourceName + '-for-slcbridge-in-${NAMESPACE}',
         namespace: '${SLCB_NAMESPACE}',
       },
       rules: [
@@ -208,13 +208,13 @@
           deploymentconfig: $.resourceName,
           'created-by': $.createdBy,
         },
-        name: $.resourceName + '-for-slcbridge',
+        name: $.resourceName + '-for-slcbridge-in-${NAMESPACE}',
         namespace: '${SLCB_NAMESPACE}',
       },
       roleRef: {
         apiGroup: 'rbac.authorization.k8s.io',
         kind: 'Role',
-        name: $.resourceName + '-for-slcbridge',
+        name: $.resourceName + '-for-slcbridge-in-${NAMESPACE}',
         namespace: '${SLCB_NAMESPACE}',
       },
       subjects: [
@@ -232,8 +232,9 @@
       metadata: {
         labels: {
           deploymentconfig: $.resourceName,
+          'created-by': $.createdBy,
         },
-        name: $.resourceName + '-node-reader',
+        name: $.resourceName + '-node-reader-in-${NAMESPACE}',
       },
       roleRef: {
         apiGroup: 'rbac.authorization.k8s.io',
@@ -262,8 +263,9 @@
       metadata: {
         labels: {
           deploymentconfig: $.resourceName,
+          'created-by': $.createdBy,
         },
-        name: $.resourceName + '-admin',
+        name: $.resourceName + '-admin-in-${NAMESPACE}',
       },
       roleRef: {
         apiGroup: 'rbac.authorization.k8s.io',
@@ -283,7 +285,11 @@
       apiVersion: 'rbac.authorization.k8s.io/v1',
       kind: 'ClusterRole',
       metadata: {
-        name: $.resourceName + '-cluster-access',
+        labels: {
+          deploymentconfig: $.resourceName,
+          'created-by': $.createdBy,
+        },
+        name: $.resourceName + '-cluster-access-in-${NAMESPACE}',
       },
       rules: [
         $.rbac.role.watch {
@@ -299,13 +305,14 @@
       metadata: {
         labels: {
           deploymentconfig: $.resourceName,
+          'created-by': $.createdBy,
         },
-        name: $.resourceName + '-cluster-access',
+        name: $.resourceName + '-cluster-access-in-${NAMESPACE}',
       },
       roleRef: {
         apiGroup: 'rbac.authorization.k8s.io',
         kind: 'ClusterRole',
-        name: $.resourceName + '-cluster-access',
+        name: $.resourceName + '-cluster-access-in-${NAMESPACE}',
       },
       subjects: [
         {

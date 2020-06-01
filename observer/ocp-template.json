@@ -208,9 +208,10 @@
          "kind": "ClusterRoleBinding",
          "metadata": {
             "labels": {
+               "created-by": "sdi-observer-template",
                "deploymentconfig": "sdi-observer"
             },
-            "name": "sdi-observer-admin"
+            "name": "sdi-observer-admin-in-${NAMESPACE}"
          },
          "roleRef": {
             "apiGroup": "rbac.authorization.k8s.io",
@@ -229,7 +230,11 @@
          "apiVersion": "rbac.authorization.k8s.io/v1",
          "kind": "ClusterRole",
          "metadata": {
-            "name": "sdi-observer-cluster-access"
+            "labels": {
+               "created-by": "sdi-observer-template",
+               "deploymentconfig": "sdi-observer"
+            },
+            "name": "sdi-observer-cluster-access-in-${NAMESPACE}"
          },
          "rules": [
             {
@@ -252,14 +257,15 @@
          "kind": "ClusterRoleBinding",
          "metadata": {
             "labels": {
+               "created-by": "sdi-observer-template",
                "deploymentconfig": "sdi-observer"
             },
-            "name": "sdi-observer-cluster-access"
+            "name": "sdi-observer-cluster-access-in-${NAMESPACE}"
          },
          "roleRef": {
             "apiGroup": "rbac.authorization.k8s.io",
             "kind": "ClusterRole",
-            "name": "sdi-observer-cluster-access"
+            "name": "sdi-observer-cluster-access-in-${NAMESPACE}"
          },
          "subjects": [
             {
@@ -277,7 +283,7 @@
                "created-by": "sdi-observer-template",
                "deploymentconfig": "sdi-observer"
             },
-            "name": "sdi-observer",
+            "name": "sdi-observer-in-${NAMESPACE}",
             "namespace": "${SDI_NAMESPACE}"
          },
          "rules": [
@@ -448,7 +454,7 @@
          "roleRef": {
             "apiGroup": "rbac.authorization.k8s.io",
             "kind": "Role",
-            "name": "sdi-observer",
+            "name": "sdi-observer-in-${NAMESPACE}",
             "namespace": "${SDI_NAMESPACE}"
          },
          "subjects": [
@@ -467,7 +473,7 @@
                "created-by": "sdi-observer-template",
                "deploymentconfig": "sdi-observer"
             },
-            "name": "sdi-observer-for-slcbridge",
+            "name": "sdi-observer-for-slcbridge-in-${NAMESPACE}",
             "namespace": "${SLCB_NAMESPACE}"
          },
          "rules": [
@@ -582,13 +588,13 @@
                "created-by": "sdi-observer-template",
                "deploymentconfig": "sdi-observer"
             },
-            "name": "sdi-observer-for-slcbridge",
+            "name": "sdi-observer-for-slcbridge-in-${NAMESPACE}",
             "namespace": "${SLCB_NAMESPACE}"
          },
          "roleRef": {
             "apiGroup": "rbac.authorization.k8s.io",
             "kind": "Role",
-            "name": "sdi-observer-for-slcbridge",
+            "name": "sdi-observer-for-slcbridge-in-${NAMESPACE}",
             "namespace": "${SLCB_NAMESPACE}"
          },
          "subjects": [
@@ -604,9 +610,10 @@
          "kind": "ClusterRoleBinding",
          "metadata": {
             "labels": {
+               "created-by": "sdi-observer-template",
                "deploymentconfig": "sdi-observer"
             },
-            "name": "sdi-observer-node-reader"
+            "name": "sdi-observer-node-reader-in-${NAMESPACE}"
          },
          "roleRef": {
             "apiGroup": "rbac.authorization.k8s.io",

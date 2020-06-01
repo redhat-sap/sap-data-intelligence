@@ -99,9 +99,10 @@
          "kind": "ClusterRoleBinding",
          "metadata": {
             "labels": {
+               "created-by": "letsencrypt-deploy",
                "deploymentconfig": "sdi-observer"
             },
-            "name": "sdi-observer-admin"
+            "name": "sdi-observer-admin-in-${NAMESPACE}"
          },
          "roleRef": {
             "apiGroup": "rbac.authorization.k8s.io",
@@ -120,7 +121,11 @@
          "apiVersion": "rbac.authorization.k8s.io/v1",
          "kind": "ClusterRole",
          "metadata": {
-            "name": "sdi-observer-cluster-access"
+            "labels": {
+               "created-by": "letsencrypt-deploy",
+               "deploymentconfig": "sdi-observer"
+            },
+            "name": "sdi-observer-cluster-access-in-${NAMESPACE}"
          },
          "rules": [
             {
@@ -143,14 +148,15 @@
          "kind": "ClusterRoleBinding",
          "metadata": {
             "labels": {
+               "created-by": "letsencrypt-deploy",
                "deploymentconfig": "sdi-observer"
             },
-            "name": "sdi-observer-cluster-access"
+            "name": "sdi-observer-cluster-access-in-${NAMESPACE}"
          },
          "roleRef": {
             "apiGroup": "rbac.authorization.k8s.io",
             "kind": "ClusterRole",
-            "name": "sdi-observer-cluster-access"
+            "name": "sdi-observer-cluster-access-in-${NAMESPACE}"
          },
          "subjects": [
             {
