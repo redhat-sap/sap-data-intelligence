@@ -146,11 +146,11 @@ local urls = import 'urls.jsonnet';
     },
     {
       description: |||
-        Volume space available for container images (e.g. 75Gi).
+        Volume space available for container images (e.g. 120Gi).
       |||,
       name: 'SDI_REGISTRY_VOLUME_CAPACITY',
       required: true,
-      value: '75Gi',
+      value: '120Gi',
     },
     {
       description: |||

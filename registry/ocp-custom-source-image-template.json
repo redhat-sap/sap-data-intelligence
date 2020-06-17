@@ -306,10 +306,10 @@
          "required": false
       },
       {
-         "description": "Volume space available for container images (e.g. 75Gi).\n",
+         "description": "Volume space available for container images (e.g. 120Gi).\n",
          "name": "SDI_REGISTRY_VOLUME_CAPACITY",
          "required": true,
-         "value": "75Gi"
+         "value": "120Gi"
       },
       {
          "description": "If the given SDI_REGISTRY_STORAGE_CLASS_NAME or the default storate class supports\n\"ReadWriteMany\" (\"RWX\") access mode, please change this to \"ReadWriteMany\".\n",
