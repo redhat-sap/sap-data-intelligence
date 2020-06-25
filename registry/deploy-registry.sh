@@ -12,8 +12,8 @@ if [[ "${_SDI_LIB_SOURCED:-0}" == 0 ]]; then
     printf 'FATAL: failed to source lib/common.sh!\n' >&2
     exit 1
 fi
-common_init
 
+# TODO: specify volume capacity
 readonly USAGE="$(basename "${BASH_SOURCE[0]}") [options]
 
 Deploy container image registry for SAP Data Intelligence.
@@ -39,7 +39,7 @@ Options:
                  Desired k8s NAMESPACE where to deploy the registry.
  (-r | --rht-registry-secret-name) RHT_REGISTRY_SECRET_NAME
                  A secret for registry.redhat.io - required for the build of registry image.
- (-r | --rht-registry-secret-namespace) RHT_REGISTRY_SECRET_NAMESPACE
+ --rht-registry-secret-namespace) RHT_REGISTRY_SECRET_NAMESPACE
                  K8s namespace, where the RHT_REGISTRY_SECRET_NAME secret resides.
                  Defaults to the target NAMESPACE.
  --custom-source-image SOURCE_IMAGE_PULL_SPEC
@@ -65,15 +65,6 @@ readonly longOptions=(
     custom-source-image custom-source-imagestream-name custom-source-imagestream-tag
     custom-source-image-registry-secret-name
 )
-
-if [[ -z "${NAMESPACE:-}" && -n "${SDI_REGISTRY_NAMESPACE:-}" ]]; then
-    NAMESPACE="${SDI_REGISTRY_NAMESPACE:-}"
-elif [[ -z "${NAMESPACE:-}" ]]; then
-    NAMESPACE="$(oc project -q ||:)"
-    if [[ -z "${NAMESPACE:-}" ]]; then
-        NAMESPACE="${SDI_NAMESPACE:-}"
-    fi
-fi
 
 function cleanup() {
     common_cleanup
@@ -281,12 +272,7 @@ function waitForRegistry() {
     return "$buildRC"
 }
 
-NOOUT=0
-if [[ -z "${REGISTRY_HOSTNAME:-}" && -n "${SDI_REGISTRY_ROUTE_HOSTNAME:-}" ]]; then
-    REGISTRY_HOSTNAME="${SDI_REGISTRY_ROUTE_HOSTNAME:-}"
-fi
-
-TMPARGS="$(getopt -o ho:nw -l "$(join , "${longOptions[@]}")" -n "${BASH_SOURCE[0]}" -- "$@")"
+TMPARGS="$(getopt -o ho:nwr: -l "$(join , "${longOptions[@]}")" -n "${BASH_SOURCE[0]}" -- "$@")"
 eval set -- "$TMPARGS"
 
 while true; do
@@ -326,7 +312,7 @@ while true; do
             NAMESPACE="$2"
             shift 2
             ;;
-        --rht-registry-secret-name)
+        -r | --rht-registry-secret-name)
             REDHAT_REGISTRY_SECRET_NAME="$2"
             shift 2
             ;;
@@ -360,6 +346,22 @@ while true; do
             ;;
     esac
 done
+
+common_init
+if [[ -z "${NAMESPACE:-}" && -n "${SDI_REGISTRY_NAMESPACE:-}" ]]; then
+    NAMESPACE="${SDI_REGISTRY_NAMESPACE:-}"
+elif [[ -z "${NAMESPACE:-}" ]]; then
+    NAMESPACE="$(oc project -q ||:)"
+    if [[ -z "${NAMESPACE:-}" ]]; then
+        NAMESPACE="${SDI_NAMESPACE:-}"
+    fi
+fi
+
+NOOUT=0
+if [[ -z "${REGISTRY_HOSTNAME:-}" && -n "${SDI_REGISTRY_ROUTE_HOSTNAME:-}" ]]; then
+    REGISTRY_HOSTNAME="${SDI_REGISTRY_ROUTE_HOSTNAME:-}"
+fi
+
 
 if [[ -n "${NOOUT:-}" && -n "${OUTPUT_DIR:-}" ]]; then
     log 'FATAL: --noout and --output-dir are mutually exclusive options!'

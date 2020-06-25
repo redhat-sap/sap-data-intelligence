@@ -366,6 +366,31 @@ function checkPermissions() {
     fi
 }
 
+# delete obsolete deploymentconfigs
+function deleteResource() {
+    local namespace="$1"
+    shift
+    local resources=()
+    readarray -t resources <<<"$(oc get -o name -n "$namespace" "$@" 2>/dev/null)"
+    if [[ "${#resources[@]}" == 0 || ( "${#resources[@]}" == 1 && "${resources[0]}" == '' ) ]];
+    then
+        return 0
+    fi
+    runOrLog oc delete "${resources[@]}"
+}
+export -f deleteResource
+function purgeDeprecatedResources() {
+    local purgeNamespaces=( "$NAMESPACE" )
+    if [[ "$NAMESPACE" != "$SDI_NAMESPACE" ]]; then
+        purgeNamespaces+=( "$SDI_NAMESPACE" )
+    fi
+    export DRY_RUN
+    parallel deleteResource ::: "${purgeNamespaces[@]}" ::: \
+        {deploymentconfig,serviceaccount,role}/{vflow,vsystem,sdh}-observer 
+    parallel deleteResource '{1}' rolebinding '{2}' ::: "${purgeNamespaces[@]}" :::  \
+        "--selector=deploymentconfig="{vflow-observer,vsystem-observer,sdh-observer}
+}
+
 function processSLCBService() {
     local namespace="$1"
     local name="$2"
@@ -731,6 +756,7 @@ function addPvToStatefulSet() {
 }
 
 checkPermissions
+purgeDeprecatedResources
 
 if evalBool DEPLOY_SDI_REGISTRY; then
     if evalBool DEPLOY_LETSENCRYPT && [[ -z "${EXPOSE_WITH_LETSENCRYPT:-}" ]]; then
@@ -756,13 +782,6 @@ if [[ -n "${SLCB_NAMESPACE:-}" && "${SLCB_NAMESPACE}" != "${SDI_NAMESPACE:-}" ]]
     log 'Monitoring SLC Bridge namespace "%s" for objects...' "$SLCB_NAMESPACE"
 fi
 
-# delete obsolete deploymentconfigs
-function deleteResource() {
-    oc get -o name "$@" 2>/dev/null | xargs -r oc delete || :
-}
-export -f deleteResource
-parallel deleteResource ::: {deploymentconfig,serviceaccount,role}/{vflow,vsystem,sdh}-observer \
-    "rolebinding -l deploymentconfig="{vflow-observer,vsystem-observer,sdh-observer}
 
 gotmplvflow=$'{{range $index, $arg := (index (index .spec.template.spec.containers 0) "args")}}{{$arg}}\n{{end}}'
 

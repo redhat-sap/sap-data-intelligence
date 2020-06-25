@@ -209,7 +209,7 @@ DRY_RUN="${DRY_RUN:-false}"
 export DRY_RUN
 function runOrLog() {
     if evalBool DRY_RUN; then
-        log -n 'Executing: '
+        log -n '[DRY_RUN] Executing: '
         echo "$@"
     else
         "$@"
@@ -397,7 +397,8 @@ function createOrReplace() {
         args+=( "${kind,,}" "$name" )
         action=Creating
         doesResourceExist "${args[@]}" && action=Replacing
-        log '%s %s/%s in namespace %s' "$action" "${kind,,}" "$name" "${namespace:-UNKNOWN}"
+        log '[DRY_RUN] %s %s/%s in namespace %s' "$action" "${kind,,}" \
+            "$name" "${namespace:-UNKNOWN}"
         return 0
     fi
                 
