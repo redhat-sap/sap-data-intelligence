@@ -386,9 +386,9 @@ function purgeDeprecatedResources() {
     fi
     export DRY_RUN
     parallel deleteResource ::: "${purgeNamespaces[@]}" ::: \
-        {deploymentconfig,serviceaccount,role}/{vflow,vsystem,sdh}-observer 
+        {deploymentconfig,serviceaccount,role}/{vflow,vsystem,sdh}-observer || :
     parallel deleteResource '{1}' rolebinding '{2}' ::: "${purgeNamespaces[@]}" :::  \
-        "--selector=deploymentconfig="{vflow-observer,vsystem-observer,sdh-observer}
+        "--selector=deploymentconfig="{vflow-observer,vsystem-observer,sdh-observer} ||:
 }
 
 function processSLCBService() {
