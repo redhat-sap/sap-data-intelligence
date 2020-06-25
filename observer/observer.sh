@@ -376,7 +376,7 @@ function deleteResource() {
     then
         return 0
     fi
-    runOrLog oc delete "${resources[@]}"
+    runOrLog oc delete -n "$namespace" "${resources[@]}"
 }
 export -f deleteResource
 function purgeDeprecatedResources() {
