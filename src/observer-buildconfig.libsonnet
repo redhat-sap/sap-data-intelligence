@@ -20,8 +20,9 @@ local bctmpl = import 'ubi-buildconfig.libsonnet';
         https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm && \
         dnf install -y parallel procps-ng bc git httpd-tools && dnf clean all -y
       # TODO: determine OCP version from environment
-      COPY https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest-${OCP_MINOR_RELEASE}/openshift-client-linux.tar.gz /tmp/
-      COPY https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest-${OCP_MINOR_RELEASE}/sha256sum.txt /tmp/
+      RUN cd tmp; \
+        curl -L -O https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest-${OCP_MINOR_RELEASE}/openshift-client-linux.tar.gz; \
+        curl -L -O https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest-${OCP_MINOR_RELEASE}/sha256sum.txt
       # verify the downloaded tar
       RUN /bin/bash -c 'f=/tmp/openshift-client-linux.tar.gz; \
         got="$(awk '"'"'{print $1}'"'"' <(sha256sum "$f"))"; \

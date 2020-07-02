@@ -38,11 +38,16 @@ export -f join
 version="$(oc version --short 2>/dev/null || oc version)"
 OCP_SERVER_VERSION="$(sed -n 's/^\(\([sS]erver\|[kK]ubernetes\).*:\|[oO]pen[sS]hift\) v\?\([0-9]\+\.[0-9]\+\).*/\3/p' \
                     <<<"$version" | head -n 1)"
-OCP_CLIENT_VERSION="$(sed -n 's/^\([cC]lient.*:\|oc\) \(openshift-clients-\|v\)\([0-9]\+\.[0-9]\+\).*/\3/p' \
+OCP_CLIENT_VERSION="$(sed -n 's/^\([cC]lient.*:\|oc\) \(openshift-clients-\|v\|\)\([0-9]\+\.[0-9]\+\).*/\3/p' \
                     <<<"$version" | head -n 1)"
 unset version
 # translate k8s 1.13 to ocp 4.1
-if [[ "${OCP_SERVER_VERSION:-}" =~ ^1\.([0-9]+)$ && "${BASH_REMATCH[1]}" -gt 12 ]]; then
+#               1.14 to ocp 4.2
+#               1.16 to ocp 4.3
+#               1.17 to ocp 4.4
+if [[ "${OCP_SERVER_VERSION:-}" =~ ^1\.([0-9]+)$ && "${BASH_REMATCH[1]}" -gt 14 ]]; then
+    OCP_SERVER_VERSION="4.$((BASH_REMATCH[1] - 13))"
+elif [[ "${OCP_SERVER_VERSION:-}" =~ ^1\.([0-9]+)$ && "${BASH_REMATCH[1]}" -gt 12 ]]; then
     OCP_SERVER_VERSION="4.$((BASH_REMATCH[1] - 12))"
 fi
 if [[ -z "${OCP_CLIENT_VERSION:-}" ]]; then
@@ -580,7 +585,7 @@ function ensureRedHatRegistrySecret() {
                 {"'"${ann%%=*}"'": "'"${ann##*=}"'"}) | del(.metadata.uid)' <<<"$contents")
         fi
     fi
-    runOrLog oc secrets add default -n "$namespace" "$REDHAT_REGISTRY_SECRET_NAME" --for=pull
+    runOrLog oc secrets link default -n "$namespace" "$REDHAT_REGISTRY_SECRET_NAME" --for=pull
 }
 export -f ensureRedHatRegistrySecret
 

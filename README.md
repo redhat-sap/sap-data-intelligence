@@ -16,7 +16,7 @@ See [Red Hat Container Registry Authentication](https://access.redhat.com/Regist
 
         # oc create -f rht-registry-miminar-secret.yaml
         secret/1979710-miminar-pull-secret created
-        # oc secrets add default 1979710-miminar-pull-secret --for=pull
+        # oc secrets link default 1979710-miminar-pull-secret --for=pull
 
 4. Create the deployment files:
 
