@@ -294,7 +294,7 @@
       rules: [
         $.rbac.role.watch {
           apiGroups: ['config.openshift.io'],
-          resources: ['ingresses'],
+          resources: ['ingresses', 'clusteroperators'],
         },
       ],
     },

@@ -242,7 +242,8 @@
                   "config.openshift.io"
                ],
                "resources": [
-                  "ingresses"
+                  "ingresses",
+                  "clusteroperators"
                ],
                "verbs": [
                   "get",
