@@ -581,7 +581,7 @@ function ensureRedHatRegistrySecret() {
                 {"'"${ann%%=*}"'": "'"${ann##*=}"'"}) | del(.metadata.uid)' <<<"$contents")
         fi
     fi
-    runOrLog oc secrets add default -n "$namespace" "$REDHAT_REGISTRY_SECRET_NAME" --for=pull
+    runOrLog oc secrets link default -n "$namespace" "$REDHAT_REGISTRY_SECRET_NAME" --for=pull
 }
 export -f ensureRedHatRegistrySecret
 
