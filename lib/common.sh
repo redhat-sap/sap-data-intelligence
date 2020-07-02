@@ -38,7 +38,7 @@ export -f join
 version="$(oc version --short 2>/dev/null || oc version)"
 OCP_SERVER_VERSION="$(sed -n 's/^\(\([sS]erver\|[kK]ubernetes\).*:\|[oO]pen[sS]hift\) v\?\([0-9]\+\.[0-9]\+\).*/\3/p' \
                     <<<"$version" | head -n 1)"
-OCP_CLIENT_VERSION="$(sed -n 's/^\([cC]lient.*:\|oc\) \(openshift-clients-\|v\)\([0-9]\+\.[0-9]\+\).*/\3/p' \
+OCP_CLIENT_VERSION="$(sed -n 's/^\([cC]lient.*:\|oc\) \(openshift-clients-\|v\|\)\([0-9]\+\.[0-9]\+\).*/\3/p' \
                     <<<"$version" | head -n 1)"
 unset version
 # translate k8s 1.13 to ocp 4.1
@@ -72,6 +72,7 @@ if [[ ! "${OCP_SERVER_VERSION:-}" =~ ^4\. ]]; then
     exit 1
 fi
 export OCP_SERVER_VERSION OCP_CLIENT_VERSION
+
 
 if [[ ! "${NODE_LOG_FORMAT:-}" =~ ^(text|json|)$ ]]; then
     printf 'FATAL: unrecognized NODE_LOG_FORMAT; "%s" is not one of "json" or "text"!' \
