@@ -942,6 +942,10 @@ while IFS=' ' read -u 3 -r namespace name resource; do
                 "${vmSize:-}" ==  "$VREP_EXPORTS_VOLUME_SIZE" ]]; then
             log '%s already patched, skipping ...' "$resource"
         else
+            if evalBool VREP_EXPORTS_NOFIX; then
+                log 'Not adding exports volume to vsystem-vrep'
+                continue
+            fi
             addPvToStatefulSet "$resource" "$VREP_EXPORTS_VOLUME_NAME" "/exports" \
                 "$VREP_EXPORTS_VOLUME_SIZE" "${VREP_EXPORTS_VOLUME_OBSOLETE_NAMES[@]}"
         fi
