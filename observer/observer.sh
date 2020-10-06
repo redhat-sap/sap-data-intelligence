@@ -822,19 +822,30 @@ while IFS=' ' read -u 3 -r namespace name resource; do
     deployment/vflow* | deployment/pipeline-modeler*)
         patches=()
         registries=()
+        vflowargs=()
         if evalBool MARK_REGISTRY_INSECURE; then
             if [[ "${REGISTRY:-}" ]]; then
                 registries=( "$REGISTRY" )
             else
+                readarray -t vflowargs <<<"$(oc get deploy -o go-template="${gotmplvflow}" "$name")"
+                for arg in "${vflowargs[@]}"; do
+                    if [[ "${arg:-}" =~ ^-registry=([^[:space:]]+) ]]; then
+                        registries+=( "${BASH_REMATCH[1]}" )
+                    fi
+                done
+            fi
+
+            if [[ "${#registries[@]}" == 0 || "${#registries[0]}" == 0 ]]; then
                 readarray -t registries <<<"$(getRegistries)"
             fi
         fi
 
-        # -insecure-registry flag is supported starting from 2.5; earlier releases need no patching
         if evalBool MARK_REGISTRY_INSECURE && \
                     [[ "${#registries[@]}" -gt 0 && "${#registries[0]}" -gt 0 ]];
         then
-            readarray -t vflowargs <<<"$(oc get deploy -o go-template="${gotmplvflow}" "$name")"
+            if  [[ "${#vflowargs[@]}" -lt 1 ]]; then
+                readarray -t vflowargs <<<"$(oc get deploy -o go-template="${gotmplvflow}" "$name")"
+            fi
             newargs=( )
             doPatch=0
             for reg in "${registries[@]}"; do
