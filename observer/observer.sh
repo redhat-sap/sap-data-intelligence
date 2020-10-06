@@ -823,7 +823,11 @@ while IFS=' ' read -u 3 -r namespace name resource; do
         patches=()
         registries=()
         if evalBool MARK_REGISTRY_INSECURE; then
-            readarray -t registries <<<"$(getRegistries)"
+            if [[ "${REGISTRY:-}" ]]; then
+                registries=( "$REGISTRY" )
+            else
+                readarray -t registries <<<"$(getRegistries)"
+            fi
         fi
 
         # -insecure-registry flag is supported starting from 2.5; earlier releases need no patching
