@@ -150,6 +150,10 @@
                               "value": "${SDI_REGISTRY_PASSWORD}"
                            },
                            {
+                              "name": "SDI_REGISTRY_AUTHENTICATION",
+                              "value": "${SDI_REGISTRY_AUTHENTICATION}"
+                           },
+                           {
                               "name": "SDI_REGISTRY_HTPASSWD_SECRET_NAME",
                               "value": "${SDI_REGISTRY_HTPASSWD_SECRET_NAME}"
                            },
@@ -844,18 +848,24 @@
          "required": false
       },
       {
-         "description": "Will be used to generate htpasswd file to provide authentication data to the sdi registry\nservice as long as SDI_REGISTRY_HTPASSWD_SECRET_NAME does not exist or REPLACE_SECRETS is\n\"true\".\n",
+         "description": "Will be used to generate htpasswd file to provide authentication data to the SDI Registry\nservice as long as SDI_REGISTRY_HTPASSWD_SECRET_NAME does not exist or REPLACE_SECRETS is\n\"true\".\n",
          "from": "user-[a-z0-9]{6}",
          "generate": "expression",
          "name": "SDI_REGISTRY_USERNAME",
          "required": false
       },
       {
-         "description": "Will be used to generate htpasswd file to provide authentication data to the sdi registry\nservice as long as SDI_REGISTRY_HTPASSWD_SECRET_NAME does not exist or REPLACE_SECRETS is\n\"true\".\n",
+         "description": "Will be used to generate htpasswd file to provide authentication data to the SDI Registry\nservice as long as SDI_REGISTRY_HTPASSWD_SECRET_NAME does not exist or REPLACE_SECRETS is\n\"true\".\n",
          "from": "[a-zA-Z0-9]{32}",
          "generate": "expression",
          "name": "SDI_REGISTRY_PASSWORD",
          "required": false
+      },
+      {
+         "description": "Choose the authentication method of the SDI Registry. Value \"none\" disables authentication\naltogether. Defaults to \"basic\" where the provided htpasswd file is used to gate\nthe incoming authentication requests.\n",
+         "name": "SDI_REGISTRY_AUTHENTICATION",
+         "required": false,
+         "value": "basic"
       },
       {
          "description": "A secret with htpasswd file with authentication data for the sdi image container If\ngiven and the secret exists, it will be used instead of SDI_REGISTRY_USERNAME and\nSDI_REGISTRY_PASSWORD.\n",

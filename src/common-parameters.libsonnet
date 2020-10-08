@@ -90,7 +90,7 @@ local urls = import 'urls.jsonnet';
     },
     {
       description: |||
-        Will be used to generate htpasswd file to provide authentication data to the sdi registry
+        Will be used to generate htpasswd file to provide authentication data to the SDI Registry
         service as long as SDI_REGISTRY_HTPASSWD_SECRET_NAME does not exist or REPLACE_SECRETS is
         "true".
       |||,
@@ -101,13 +101,23 @@ local urls = import 'urls.jsonnet';
     },
     {
       description: |||
-        Will be used to generate htpasswd file to provide authentication data to the sdi registry
+        Will be used to generate htpasswd file to provide authentication data to the SDI Registry
         service as long as SDI_REGISTRY_HTPASSWD_SECRET_NAME does not exist or REPLACE_SECRETS is
         "true".
       |||,
       from: '[a-zA-Z0-9]{32}',
       generate: 'expression',
       name: 'SDI_REGISTRY_PASSWORD',
+      required: false,
+    },
+    {
+      description: |||
+        Choose the authentication method of the SDI Registry. Value "none" disables authentication
+        altogether. Defaults to "basic" where the provided htpasswd file is used to gate
+        the incoming authentication requests.
+      |||,
+      name: 'SDI_REGISTRY_AUTHENTICATION',
+      value: 'basic',
       required: false,
     },
   ],

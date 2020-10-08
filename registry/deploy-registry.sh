@@ -26,6 +26,11 @@ Options:
                  Output directory where to put htpasswd and .htpasswd.raw files. Defaults to
                  the working directory.
   -n | --noout   Cleanup temporary htpasswd files.
+  --authentication AUTHENTICATION
+                 Can be one of: none, basic
+                 Defaults to \"basic\" where the credentials are verified against the provided or
+                 generated htpasswd file.
+  --no-auth      Is a shortcut for --authentication=none
   --secret-name SECRET_NAME
                  Name of the SDI Registry htpasswd secret. Overrides
                  SDI_REGISTRY_HTPASSWD_SECRET_NAME environment variable. Defaults to
@@ -61,6 +66,8 @@ Options:
 
 readonly longOptions=(
     help output-dir: noout secret-name: hostname: wait namespace: rht-registry-secret-name:
+    authentication:
+    no-auth
     rht-registry-secret-namespace: dry-run
     custom-source-image custom-source-imagestream-name custom-source-imagestream-tag
     custom-source-image-registry-secret-name
@@ -181,6 +188,12 @@ function createOrReplaceObjectFromTemplate() {
             spec="$(jq '.metadata.annotations["kubernetes.io/tls-acme"] |= "true"' <<<"$spec")"
         fi
         ;;
+    deploymentconfig)
+        if [[ "${AUTHENTICATION:-basic}" == none ]]; then
+            spec="$(oc set env --local -o json -f - \
+                REGISTRY_AUTH_HTPASSWD_REALM- \
+                REGISTRY_AUTH_HTPASSWD_PATH- <<<"$spec")"
+        fi
     esac
     createOrReplace <<<"$spec"
 }
@@ -188,11 +201,14 @@ export -f createOrReplaceObjectFromTemplate
 
 function deployRegistry() {
     ensureRedHatRegistrySecret
-    getOrCreateHtpasswdSecret
+    if [[ "${AUTHENTICATION:-basic}" == basic ]]; then
+        getOrCreateHtpasswdSecret
+    fi
     # needed for parallel
     export NAMESPACE SECRET_NAME REGISTRY_HOSTNAME REDHAT_REGISTRY_SECRET_NAME  \
         SDI_REGISTRY_TEMPLATE_FILE_NAME SOURCE_IMAGE_PULL_SPEC \
-        SOURCE_IMAGESTREAM_NAME SOURCE_IMAGESTREAM_TAG SOURCE_IMAGE_REGISTRY_SECRET_NAME
+        SOURCE_IMAGESTREAM_NAME SOURCE_IMAGESTREAM_TAG SOURCE_IMAGE_REGISTRY_SECRET_NAME \
+        AUTHENTICATION
     # decide for each resource independently whether it needs to be replaced or not
     getRegistryTemplateAs jsonpath=$'{range .items[*]}{.kind}/{.metadata.name}\n{end}' | \
         parallel createOrReplaceObjectFromTemplate
@@ -312,11 +328,20 @@ while true; do
             NAMESPACE="$2"
             shift 2
             ;;
+        --authentication)
+            AUTHENTICATION="$2"
+            shift 2
+            ;;
+        --no-auth)
+            AUTHENTICATION=none
+            shift
+            ;;
         -r | --rht-registry-secret-name)
             REDHAT_REGISTRY_SECRET_NAME="$2"
             shift 2
             ;;
         --rht-registry-secret-namespace)
+            # shellcheck disable=SC2034
             REDHAT_REGISTRY_SECRET_NAMESPACE="$2"
             shift 2
             ;;
@@ -362,6 +387,15 @@ if [[ -z "${REGISTRY_HOSTNAME:-}" && -n "${SDI_REGISTRY_ROUTE_HOSTNAME:-}" ]]; t
     REGISTRY_HOSTNAME="${SDI_REGISTRY_ROUTE_HOSTNAME:-}"
 fi
 
+if [[ -z "${AUTHENTICATION:-}" ]]; then
+    AUTHENTICATION="${SDI_REGISTRY_AUTHENTICATION:-basic}"
+fi
+# shellcheck disable=SC2001
+AUTHENTICATION="$(sed 's/^[[:space:]]\+\|[[:space:]]\+$//g' <<<"${AUTHENTICATION,,}")"
+if ! [[ "${AUTHENTICATION:-}" =~ ^(basic|none)$ ]]; then
+    printf 'Authentication can be one of "basic" and "none", not %s!\n' >&2 "${AUTHENTICATION:-}"
+    exit 1
+fi
 
 if [[ -n "${NOOUT:-}" && -n "${OUTPUT_DIR:-}" ]]; then
     log 'FATAL: --noout and --output-dir are mutually exclusive options!'
