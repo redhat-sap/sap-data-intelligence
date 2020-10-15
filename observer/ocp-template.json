@@ -134,6 +134,14 @@
                               "value": "${CABUNDLE_SECRET_NAME}"
                            },
                            {
+                              "name": "MANAGE_VSYSTEM_ROUTE",
+                              "value": "${MANAGE_VSYSTEM_ROUTE}"
+                           },
+                           {
+                              "name": "VSYSTEM_ROUTE_HOSTNAME",
+                              "value": "${VSYSTEM_ROUTE_HOSTNAME}"
+                           },
+                           {
                               "name": "LETSENCRYPT_ENVIRONMENT",
                               "value": "${LETSENCRYPT_ENVIRONMENT}"
                            },
@@ -440,6 +448,42 @@
                   "get",
                   "list",
                   "watch",
+                  "delete"
+               ]
+            },
+            {
+               "apiGroups": [
+                  "route.openshift.io/v1"
+               ],
+               "resources": [
+                  "routes"
+               ],
+               "verbs": [
+                  "get",
+                  "list",
+                  "watch",
+                  "patch",
+                  "update",
+                  "delete",
+                  "create",
+                  "delete"
+               ]
+            },
+            {
+               "apiGroups": [
+                  ""
+               ],
+               "resources": [
+                  "service"
+               ],
+               "verbs": [
+                  "get",
+                  "list",
+                  "watch",
+                  "patch",
+                  "update",
+                  "delete",
+                  "create",
                   "delete"
                ]
             }
@@ -829,6 +873,17 @@
          "name": "CABUNDLE_SECRET_NAME",
          "required": false,
          "value": "openshift-ingress-operator/router-ca"
+      },
+      {
+         "description": "Whether to create vsystem route for vsystem service in SDI_NAMESPACE. The route will be\nof reencrypt type. The destination CA certificate for communication with the vsystem\nservice will be kept up to date by the observer. If set to \"remove\", the route will be\ndeleted, which is useful to temporarily disable access to vsystem service during SDI\nupdates.\n",
+         "name": "MANAGE_VSYSTEM_ROUTE",
+         "required": false,
+         "value": "false"
+      },
+      {
+         "description": "Expose the vsystem service at the provided hostname using a route. The value is applied\nonly if MANAGE_VSYSTEM_ROUTE is enabled. The hostname defaults to\nvsystem-<SDI_NAMESPACE>.<clustername>.<basedomainname>\n",
+         "name": "VSYSTEM_ROUTE_HOSTNAME",
+         "required": false
       },
       {
          "description": "Either \"live\" or \"staging\". Use the latter when debugging SDI Observer's deployment.\n",

@@ -136,7 +136,7 @@ gotmplDeployment=(
 )
 
 # shellcheck disable=SC2016
-gotmplDaemonSet=( 
+gotmplDaemonSet=(
     '{{with $ds := .}}'
         '{{if eq .metadata.name "diagnostics-fluentd"}}'
             # print (string kind)#((int containerIndex):(string containerName):(bool unprivileged)
@@ -193,21 +193,36 @@ gotmplConfigMap=(
     $'{{.kind}}\n'
 )
 
+gotmplRoute=(
+    $'{{.kind}}\n'
+)
+
 # shellcheck disable=SC2016
 gotmplService=(
     '{{with $s := .}}'
-        '{{with $run := index $s.metadata.labels "run"}}'
-            '{{with $ss := $s.spec}}'
-                '{{if eq $run "slcbridge"}}'
-                    # print (string kind)#(string clusterIP)#(string type)#
-                    #       (string sessionAffinity)#((string targetPort):)+
-                    '{{$s.kind}}#{{$ss.clusterIP}}#{{$ss.type}}#{{$ss.sessionAffinity}}#'
-                    '{{range $i, $p := $ss.ports}}'
-                        '{{$p.targetPort}}:'
+        '{{if eq $s.metadata.name "vsystem"}}'
+            '{{with $comp := index $s.metadata.labels "datahub.sap.com/app-component"}}'
+                '{{if (eq $comp "vsystem")}}'
+                    # print (string kind)
+                    $'{{$s.kind}}\n'
+                '{{end}}'
+            '{{end}}'
+        '{{else}}'
+            '{{if $s.metadata.labels}}'
+                '{{with $run := index $s.metadata.labels "run"}}'
+                    '{{if eq $run "slcbridge"}}'
+                        '{{with $ss := $s.spec}}'
+                            # print (string kind)#(string clusterIP)#(string type)#
+                            #       (string sessionAffinity)#((string targetPort):)+
+                            '{{$s.kind}}#{{$ss.clusterIP}}#{{$ss.type}}#{{$ss.sessionAffinity}}#'
+                            '{{range $i, $p := $ss.ports}}'
+                                '{{$p.targetPort}}:'
+                            '{{end}}'
+                        '{{end}}'
+                       $'\n'
                     '{{end}}'
                 '{{end}}'
             '{{end}}'
-           $'\n'
         '{{end}}'
     '{{end}}'
 )
@@ -261,6 +276,8 @@ declare -A gotmpls=(
     ["${SDI_NAMESPACE}:StatefulSet"]="$(join '' "${gotmplStatefulSet[@]}")"
     ["${SDI_NAMESPACE}:ConfigMap"]="$(join '' "${gotmplConfigMap[@]}")"
     ["${SDI_NAMESPACE}:Job"]="$(join '' "${gotmplJob[@]}")"
+    ["${SDI_NAMESPACE}:Route"]="$(join '' "${gotmplRoute[@]}")"
+    ["${SDI_NAMESPACE}:Service"]="$(join '' "${gotmplService[@]}")"
     ["${SLCB_NAMESPACE}:ConfigMap"]="$(join '' "${gotmplConfigMap[@]}")"
     ["${SLCB_NAMESPACE}:Service"]="$(join '' "${gotmplService[@]}")"
 )
@@ -448,7 +465,6 @@ function addUpdateCaTrustInitContainer() {
     mapfile -d $'\0' arr
     object="${arr[0]:-}"
     # shellcheck disable=SC2016
-    # 
     scriptLines=(
         'mkdir -pv /etc/pki/ca-trust/source/anchors/ ||:'
         'k8scacert=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt'
@@ -518,7 +534,7 @@ function addUpdateCaTrustInitContainer() {
                     ])
                 else . end))'
 
-        '.spec.template.spec.volumes |= (. // [] | [.[] | 
+        '.spec.template.spec.volumes |= (. // [] | [.[] |
             select(.name != "'"$CABUNDLE_VOLUME_NAME"'" and .name != "etc-pki")] + [
                 {
                     "name": "etc-pki",
@@ -736,7 +752,7 @@ function addPvToStatefulSet() {
                 '.metadata.labels["datahub.sap.com/bdh-uninstall"] |= "delete"' \
         'end])')"
     )
-    
+
     patches+=( "$(join ' ' '.spec.template.spec |= walk(' \
         'if (. | type) == "object" and has("name") and has("image") then' \
             '.volumeMounts |= (. // [] | [.[] |' \
@@ -745,7 +761,7 @@ function addPvToStatefulSet() {
                 '[{"mountPath":"'"$mountPath"'", "name":"'"$volumeName"'"}])' \
         'else . end)')"
     )
-    
+
     patches+=( "$(join ' ' '.spec.template.spec.volumes |=' \
         '(. // [] | [.[] | select(.name | in('"${removeSet}"') | not)])')"
     )
@@ -754,6 +770,108 @@ function addPvToStatefulSet() {
         "$volumeSize" "$mountPath" "$resource"
     # changes to the .spec.volumeClaimTemplates need to be forced
     oc get -o json "$resource" | jq "$(join "|" "${patches[@]}")" | createOrReplace -f
+}
+
+function getResourceSAPLabels() {
+    jq -r '.metadata.labels as $labs |
+        [$labs | keys[] | select(test("sap\\.com\\/")) | "\(.)=\($labs[.] | gsub("\\s+"; ""))"] |
+        sort | join(",")'
+}
+
+function ensureVsystemRoute() {
+    local remove
+    remove="$(grep -E -i -q '^\s*(remove|delete)d?\s*$' <<<"${MANAGE_VSYSTEM_ROUTE:-}" && \
+        printf 1 || printf 0)"
+    if [[ "$remove" == 0 ]] && ! evalBool MANAGE_VSYSTEM_ROUTE; then
+        return 0
+    fi
+    local routeSpec svcSpec secretSpec
+    routeSpec="$(oc get -n "${SDI_NAMESPACE}" route/vsystem -o json)" ||:
+    svcSpec="$(oc get -n "${SDI_NAMESPACE}" svc/vsystem -o json)" ||:
+    secretSpec="$(oc get -n "${SDI_NAMESPACE}" "secret/$VORA_CABUNDLE_SECRET_NAME" -o json)" ||:
+
+    # delete route
+    if [[ -n "${routeSpec:-}" ]]; then
+        local delete=0
+        if [[ -z "${svcSpec:-}${secretSpec:-}" ]]; then
+            log -n 'Removing vsystem route because either the vsystem service or ca-bundle secret'
+            log -d ' does not exist'
+            delete=1
+        elif [[ "$remove" == 1 ]]; then
+            log 'Removing vsystem route because as instructed...'
+            delete=1
+        fi
+        if [[ "${delete:-0}" == 1 ]]; then
+            runOrLog oc delete -n "${SDI_NAMESPACE}" route/vsystem
+            return 0
+        fi
+    elif [[ "$remove" == 1 ]]; then
+        return 0
+    fi
+
+    # create or replace route
+    local reason=""
+    if [[ -z "${routeSpec:-}" ]]; then
+        reason=removed
+    else
+        if [[ "$(jq -r '.spec.tls.destinationCACertificate' <<<"$routeSpec" | \
+                tr -d '[:space:]\n')" != \
+            "$(jq -r '.data["ca-bundle.pem"] | @base64d' <<<"${secretSpec}" | \
+                tr -d '[:space:]\n')" ]]
+        then
+            reason=cert
+        elif [[ "$(getResourceSAPLabels <<<"${routeSpec}")" != \
+            "$(getResourceSAPLabels <<<"$svcSpec")" ]]
+        then
+            reason=label
+        elif [[ -n  "${VSYSTEM_ROUTE_HOSTNAME:-}" && "${VSYSTEM_ROUTE_HOSTNAME:-}" != \
+            "$(jq -r '.spec.host' <<<"${routeSpec:-}")" ]]
+        then
+            reason=hostname
+        elif ! jq -r '(.metadata.annotations // {}) | keys[]' <<<"$routeSpec" | \
+            grep -F -x -q haproxy.router.openshift.io/timeout || \
+            (  evalBool EXPOSE_WITH_LETSENCRYPT \
+            && ! jq -r '(.metadata.annotations // {}) | keys[]' <<<"$routeSpec" | \
+                    grep -F -x -q "kubernetes.io/tls-acme=true" )
+        then
+            reason=annotation
+        else 
+            log "Route vsystem is up to date."
+            return 0
+        fi
+    fi
+    local suffix="" msg="" desc=""
+    case "$reason" in
+        removed)    msg='Creating vsystem route for vsystem service%s...';              ;;
+        label)      desc="outdated labels";                                             ;;&
+        annotation) desc="missing annotation";                                          ;;&
+        cert)       desc="outdated or missing destination CA certificate";              ;;&
+        hostname)   desc='hostname mismatch';                                           ;;&
+        *)          msg="$(printf 'Replacing vsystem route%%s due to %s...' "$desc")";  ;;
+    esac
+    if [[ -n "${VSYSTEM_ROUTE_HOSTNAME:-}" ]]; then
+        suffix="$(printf ' to be exposed at https://%s' "${VSYSTEM_ROUTE_HOSTNAME:-}")"
+    fi
+    log "$msg" "${suffix:-}"
+
+    local args=() annotations=()
+    args=( -n "${SDI_NAMESPACE}" --dry-run -o json
+            "--service=vsystem" "--insecure-policy=Redirect" )
+    if [[ -n "${VSYSTEM_ROUTE_HOSTNAME:-}" ]]; then
+        args+=( "--hostname=${VSYSTEM_ROUTE_HOSTNAME:-}" )
+    fi
+    annotations=( "haproxy.router.openshift.io/timeout=2m")
+    if evalBool EXPOSE_WITH_LETSENCRYPT; then
+        annotations+=( "kubernetes.io/tls-acme=true" )
+    fi
+    jq -r '.data["ca-bundle.pem"] | @base64d' <<<"$secretSpec" >"$TMP/vsystem-ca-bundle.pem"
+    createOrReplace -n "${SDI_NAMESPACE}" -f <<<"$(oc create route reencrypt "${args[@]}" \
+          --dest-ca-cert="$TMP/vsystem-ca-bundle.pem" | \
+      oc annotate --local -f - "${annotations[@]}" -o json)"
+}
+
+function ensureRoutes() {
+    ensureVsystemRoute
 }
 
 checkPermissions
@@ -975,7 +1093,7 @@ while IFS=' ' read -u 3 -r namespace name resource; do
             continue
         fi
         case "${currentLogParseType}" in
-        "multi_format") continue; ;; # shall support both json and text 
+        "multi_format") continue; ;; # shall support both json and text
         "json")
             if [[ "$NODE_LOG_FORMAT" == json ]]; then
                 log "Fluentd pods are already configured to parse json, not patching..."
@@ -1061,6 +1179,10 @@ while IFS=' ' read -u 3 -r namespace name resource; do
         continue
         ;;
 
+    service/vsystem | route/*)
+        ensureRoutes ||:
+        ;;
+
     service/*)
         IFS='#' read -r _ _type sessionAffinity _ <<<"${rest:-}"
         processSLCBService "$namespace" "$name" "$_type" "$sessionAffinity"
@@ -1092,10 +1214,12 @@ while IFS=' ' read -u 3 -r namespace name resource; do
             fi
         done
 
-        args=( "$desiredTermination" --namespace="$namespace"
-            --service="$CLUSTERIP_SERVICE_NAME"
+        args=(
+            "$desiredTermination"
+            "--namespace=$namespace"
+            "--service=$CLUSTERIP_SERVICE_NAME"
             --dry-run -o json
-            --insecure-policy=Redirect 
+            "--insecure-policy=Redirect"
         )
 
         if [[ -z "${SLCB_ROUTE_HOSTNAME:-}" ]]; then
@@ -1142,12 +1266,16 @@ while IFS=' ' read -u 3 -r namespace name resource; do
 
     "secret/${CABUNDLE_SECRET_NAME:-}" | "secret/$VORA_CABUNDLE_SECRET_NAME")
         ensureCABundleSecret ||:
+        if [[ "$name" == "$VORA_CABUNDLE_SECRET_NAME" ]]; then
+            ensureRoutes ||:
+        fi
         ;&  # fallthrough to the next secret/$VORA_CABUNDLE_SECRET_NAME
 
     "secret/${REDHAT_REGISTRY_SECRET_NAME:-}")
         ensureRedHatRegistrySecret "$namespace"
         ensurePullsFromNamespace "$NAMESPACE" default "$SLCB_NAMESPACE"
         ensurePullsFromNamespace "$NAMESPACE" default "$SDI_NAMESPACE"
+        ensureRoutes
         ;;
 
     secret/*)

@@ -122,6 +122,27 @@ base.DCTemplate {
       name: 'CABUNDLE_SECRET_NAME',
       value: 'openshift-ingress-operator/router-ca',
     },
+    {
+      description: |||
+        Whether to create vsystem route for vsystem service in SDI_NAMESPACE. The route will be
+        of reencrypt type. The destination CA certificate for communication with the vsystem
+        service will be kept up to date by the observer. If set to "remove", the route will be
+        deleted, which is useful to temporarily disable access to vsystem service during SDI
+        updates.
+      |||,
+      required: false,
+      name: 'MANAGE_VSYSTEM_ROUTE',
+      value: 'false',
+    },
+    {
+      description: |||
+        Expose the vsystem service at the provided hostname using a route. The value is applied
+        only if MANAGE_VSYSTEM_ROUTE is enabled. The hostname defaults to
+        vsystem-<SDI_NAMESPACE>.<clustername>.<basedomainname>
+      |||,
+      required: false,
+      name: 'VSYSTEM_ROUTE_HOSTNAME',
+    },
   ] + [
     params.NotRequired(p)
     for p in params.LetsencryptParams

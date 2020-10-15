@@ -84,6 +84,10 @@
         apiGroups: [''],
         resources: ['configmaps'],
       },
+      ManageServices: $.rbac.role.manage {
+        apiGroups: [''],
+        resources: ['service'],
+      },
     },
   },
 
@@ -147,6 +151,8 @@
           ],
           verbs+: ['delete'],
         },
+        $.rbac.role.ManageRoutes,
+        $.rbac.role.ManageServices,
       ],
     },
 
@@ -193,10 +199,7 @@
         $.rbac.role.ManageRBAC,
         $.rbac.role.ManageRoutes,
         $.rbac.role.CreateNamespaces,
-        $.rbac.role.manage {
-          apiGroups: [''],
-          resources: ['service'],
-        },
+        $.rbac.role.ManageServices,
       ],
     },
 
