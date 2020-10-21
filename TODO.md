@@ -14,3 +14,4 @@
     - make observer observe router-ca secret in openshift-ingress-operator namespace
 - [ ] - observer to grant necessary SCCs
 - [ ] - observer to granc admin role in sdi namespace to vora crd instance
+- [ ] - change RWO volumes to RWX where it makes sense
