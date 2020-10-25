@@ -162,6 +162,7 @@ base.DCTemplate {
 
   local bc = obsbc.ObserverBuildConfigTemplate {
     createdBy: obstmpl.createdBy,
+    version: obstmpl.version,
   },
 
   metadata+: {

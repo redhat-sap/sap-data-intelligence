@@ -874,6 +874,44 @@ function ensureRoutes() {
     ensureVsystemRoute
 }
 
+_version='unknown'
+function getObserverVersion() {
+    local version
+    if [[ "${_version:-unknown}" != "unknown" ]]; then
+        printf '%s' "${_version}"
+        return 0
+    fi
+    for d in "$(dirname "${BASH_SOURCE[0]}")" . /usr/local/share/sdi; do
+        if [[ -e "$d/lib/metadata.json" ]]; then
+            version="$(jq -r '.version' "$d/lib/metadata.json")" ||:
+            break
+        fi
+    done
+    if [[ "${version:-unknown}" != unknown ]]; then
+        _version="$version"
+        printf '%s' "$version"
+        return 0
+    fi
+
+    version="${SDI_OBSERVER_VERSION:-unknown}"
+    if [[ "${version}" != "unknown" ]]; then
+        _version="$version"
+        printf '%s' "$version"
+        return 0
+    fi
+
+    # assume we are running in a pod
+    version="$(oc label --list "pods/${HOSTNAME}" | sed -n 's,^sdi-observer/version=,,p')"
+    if [[ -n "${version:-}" ]]; then
+        _version="$version"
+        printf '%s' "$version"
+        return 0
+    fi
+
+    log 'Failed to determine SDI Observer'"'"'s version\n'
+    printf 'unknown'
+}
+
 checkPermissions
 purgeDeprecatedResources
 
@@ -894,6 +932,7 @@ if evalBool DEPLOY_LETSENCRYPT; then
         deployComponent letsencrypt
 fi
 
+log 'Running SDI Observer version %s' "$(getObserverVersion)"
 if [[ -n "${SDI_NAMESPACE:-}" ]]; then
     log 'Monitoring namespace "%s" for SAP Data Intelligence objects...' "$SDI_NAMESPACE"
 fi

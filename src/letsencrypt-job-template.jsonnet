@@ -12,6 +12,7 @@ base.JobTemplate {
 
   local bc = obsbc.ObserverBuildConfigTemplate {
     createdBy: acmejobtmpl.createdBy,
+    version: acmejobtmpl.version,
   },
 
   description: 'TODO',

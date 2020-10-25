@@ -1,4 +1,4 @@
-local useCustomSourceImage(tmpl, withSecret=false) = tmpl {
+local useCustomSourceImage(tmpl, version, withSecret=false) = tmpl {
   local arrayHasName(arr, name) = std.foldl(
     local checkVarName(p, e) = if p then p else e.name == name;
     checkVarName, arr, false
@@ -31,6 +31,12 @@ local useCustomSourceImage(tmpl, withSecret=false) = tmpl {
         }
       else if o.kind == 'BuildConfig' then
         o {
+          version: version,
+          metadata+: {
+            labels+: {
+              'sdi-observer/version': version,
+            },
+          },
           spec+: {
             strategy+: {
               dockerStrategy: {
@@ -50,6 +56,11 @@ local useCustomSourceImage(tmpl, withSecret=false) = tmpl {
       else
         if o.kind == 'Job' || o.kind == 'DeploymentConfig' then
           o {
+            metadata+: {
+              labels+: {
+                'sdi-observer/version': version,
+              },
+            },
             spec+: {
               template+: {
                 spec+: {

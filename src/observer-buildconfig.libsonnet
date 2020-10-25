@@ -6,7 +6,7 @@ local bctmpl = import 'ubi-buildconfig.libsonnet';
     local obsbc = self,
     resourceName: 'sdi-observer',
     ocpMinorRelease:: '${' + params.OCPMinorReleaseParam.name + '}',
-    imageStreamTag: obsbc.resourceName + ':' + obsbc.ocpMinorRelease,
+    imageStreamTag: obsbc.resourceName + ':' + obsbc.version + '-ocp' + obsbc.ocpMinorRelease,
     command:: '/usr/local/bin/observer.sh',
 
     dockerfile: |||

@@ -21,6 +21,7 @@ local ubiis = import 'ubi-imagestream.jsonnet';
       srcImageStreamTag: bctmpl.ubiIS.metadata.name + ':latest',
       dockerfile: bctmpl.dockerfile,
       createdBy: bctmpl.createdBy,
+      version: bctmpl.version,
 
       BuildConfig+: {
         spec+: {

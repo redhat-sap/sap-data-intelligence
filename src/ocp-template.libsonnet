@@ -5,6 +5,7 @@ local urls = import 'urls.jsonnet';
   OCPTemplate: {
     local template = self,
     resourceName:: error 'resourceName must be overriden by a child',
+    version:: error 'version must be specified',
 
     apiVersion: 'template.openshift.io/v1',
     kind: 'Template',
@@ -15,6 +16,7 @@ local urls = import 'urls.jsonnet';
         'openshift.io/display-name': 'TODO',
         'openshift.io/documentation-url': urls.rhtKbSdhOnOCP4,
         'openshift.io/provider-display-name': 'Red Hat, Inc.',
+        'sdi-observer/version': template.version,
       },
       name: template.resourceName,
     },

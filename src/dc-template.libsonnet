@@ -35,6 +35,7 @@ local base = import 'ocp-template.libsonnet';
           labels: {
             deploymentconfig: dctmpl.resourceName,
             'created-by': dctmpl.createdBy,
+            'sdi-observer/version': dctmpl.version,
           },
           name: dctmpl.resourceName,
           namespace: '${NAMESPACE}',
@@ -57,6 +58,11 @@ local base = import 'ocp-template.libsonnet';
               containers: [
                 {
                   env: [
+                         {
+                           name: 'SDI_OBSERVER_VERSION',
+                           value: dctmpl.version,
+                         },
+                       ] + [
                          {
                            name: p.name,
                            value: '${' + p.name + '}',

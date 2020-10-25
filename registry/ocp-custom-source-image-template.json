@@ -7,7 +7,8 @@
          "description": "Generic purpose Container Image Registry secured from unauthorized access. It is more\ntolerant to image names than the integrated OpenShift image registry. Therefore it also\nallows for hosting of SAP Data Intelligence images.\n",
          "openshift.io/display-name": "Docker's Container Image Registry",
          "openshift.io/documentation-url": "https://access.redhat.com/articles/4324391",
-         "openshift.io/provider-display-name": "Red Hat, Inc."
+         "openshift.io/provider-display-name": "Red Hat, Inc.",
+         "sdi-observer/version": "0.1.0"
       },
       "name": "container-image-registry"
    },
@@ -30,7 +31,8 @@
          "metadata": {
             "labels": {
                "created-by": "registry-template",
-               "deploymentconfig": "container-image-registry"
+               "deploymentconfig": "container-image-registry",
+               "sdi-observer/version": "0.1.0"
             },
             "name": "container-image-registry",
             "namespace": "${NAMESPACE}"
@@ -55,6 +57,10 @@
                         "args": null,
                         "command": null,
                         "env": [
+                           {
+                              "name": "SDI_OBSERVER_VERSION",
+                              "value": "0.1.0"
+                           },
                            {
                               "name": "REGISTRY_AUTH_HTPASSWD_REALM",
                               "value": "basic-realm"
@@ -130,7 +136,8 @@
          "metadata": {
             "labels": {
                "created-by": "registry-template",
-               "deploymentconfig": "container-image-registry"
+               "deploymentconfig": "container-image-registry",
+               "sdi-observer/version": "0.1.0"
             },
             "name": "container-image-registry",
             "namespace": "${NAMESPACE}"
@@ -163,7 +170,8 @@
                   "type": "ConfigChange"
                }
             ]
-         }
+         },
+         "version": "0.1.0"
       },
       {
          "apiVersion": "v1",

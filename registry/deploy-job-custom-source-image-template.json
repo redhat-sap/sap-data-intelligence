@@ -8,7 +8,8 @@
          "description": "TODO",
          "openshift.io/display-name": "Job to deploy a container image registry.\n",
          "openshift.io/documentation-url": "https://access.redhat.com/articles/4324391",
-         "openshift.io/provider-display-name": "Red Hat, Inc."
+         "openshift.io/provider-display-name": "Red Hat, Inc.",
+         "sdi-observer/version": "0.1.0"
       },
       "name": "deploy-registry"
    },
@@ -17,8 +18,12 @@
          "apiVersion": "batch/v1",
          "kind": "Job",
          "metadata": {
+            "labels": {
+               "sdi-observer/version": "0.1.0"
+            },
             "name": "deploy-registry",
-            "namespace": "${NAMESPACE}"
+            "namespace": "${NAMESPACE}",
+            "sdi-observer/version": "0.1.0"
          },
          "spec": {
             "activeDeadlineSeconds": 1800,
@@ -225,7 +230,8 @@
          "metadata": {
             "labels": {
                "created-by": "registry-deploy",
-               "deploymentconfig": "sdi-observer"
+               "deploymentconfig": "sdi-observer",
+               "sdi-observer/version": "0.1.0"
             },
             "name": "sdi-observer",
             "namespace": "${NAMESPACE}"
@@ -234,7 +240,7 @@
             "output": {
                "to": {
                   "kind": "ImageStreamTag",
-                  "name": "sdi-observer:${OCP_MINOR_RELEASE}"
+                  "name": "sdi-observer:0.1.0-ocp${OCP_MINOR_RELEASE}"
                }
             },
             "runPolicy": "Serial",
@@ -258,7 +264,8 @@
                   "type": "ConfigChange"
                }
             ]
-         }
+         },
+         "version": "0.1.0"
       },
       {
          "apiVersion": "v1",

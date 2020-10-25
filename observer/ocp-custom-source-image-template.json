@@ -7,7 +7,8 @@
          "description": "The template spawns the \"sdi-observer\" pod that observes the particular\nnamespace where SAP Data Intelligence runs and modifies its deployments\nand configuration to enable its pods to run.\n\nOn Red Hat Enterprise Linux CoreOS, SAP Data Intelligence's vsystem-vrep\nstatefulset needs to be patched to mount `emptyDir` volume at `/exports`\ndirectory in order to enable NFS exports in the container running on top\nof overlayfs which is the default filesystem in RHCOS.\n\nThe \"sdi-observer\" pod modifies vsystem-vrep statefulset as soon as it\nappears to enable the NFS exports.\n\nThe observer also allows to patch pipeline-modeler (aka \"vflow\") pods to\nmark registry as insecure.\n\nAdditionally, it patches diagnostics-fluentd daemonset to allow its pods\nto access log files on the host system. It also modifies it to parse\nplain text log files instead of preconfigured json.\n\nOn Red Hat Enterprise Linux CoreOS, \"vsystem-iptables\" containers need to\nbe run as privileged in order to load iptables-related kernel modules.\nSAP Data Hub containers named \"vsystem-iptables\" deployed as part of\nevery \"vsystem-app\" deployment attempt to modify iptables rules without\nhaving the necessary permissions. The ideal solution is to pre-load these\nmodules during node's startup. When not feasable, this template can also\nfix the permissions on-the-fly as the deployments are created.\n\nThe template must be instantiated before the installation of SAP Data\nHub. Also the namespace, where SAP Data Hub will be installed, must exist\nbefore the instantiation.\n\nTODO: document admin project role requirement.\n\nUsage:\n  If running in the same namespace as Data Intelligence, instantiate the\n  template as is in the desired namespace:\n\n    oc project $SDI_NAMESPACE\n    oc process -n $SDI_NAMESPACE sdi-observer NAMESPACE=$SDI_NAMESPACE | \\\n      oc create -f -\n\n  If running in a different/new namespace/project, instantiate the\n  template with parameters SDI_NAMESPACE and NAMESPACE, e.g.:\n\n    oc new-project $SDI_NAMESPACE\n    oc new-project sapdatahub-admin\n    oc process sdi-observer \\\n        SDI_NAMESPACE=$SDI_NAMESPACE \\\n        NAMESPACE=sapdatahub-admin | oc create -f -\n",
          "openshift.io/display-name": "OpenShift enabler and observer for SAP Data intelligence\n",
          "openshift.io/documentation-url": "https://access.redhat.com/articles/4324391",
-         "openshift.io/provider-display-name": "Red Hat, Inc."
+         "openshift.io/provider-display-name": "Red Hat, Inc.",
+         "sdi-observer/version": "0.1.0"
       },
       "name": "sdi-observer"
    },
@@ -30,7 +31,8 @@
          "metadata": {
             "labels": {
                "created-by": "sdi-observer-template",
-               "deploymentconfig": "sdi-observer"
+               "deploymentconfig": "sdi-observer",
+               "sdi-observer/version": "0.1.0"
             },
             "name": "sdi-observer",
             "namespace": "${NAMESPACE}"
@@ -57,6 +59,10 @@
                            "/usr/local/bin/observer.sh"
                         ],
                         "env": [
+                           {
+                              "name": "SDI_OBSERVER_VERSION",
+                              "value": "0.1.0"
+                           },
                            {
                               "name": "DRY_RUN",
                               "value": "${DRY_RUN}"
@@ -691,7 +697,8 @@
          "metadata": {
             "labels": {
                "created-by": "sdi-observer-template",
-               "deploymentconfig": "sdi-observer"
+               "deploymentconfig": "sdi-observer",
+               "sdi-observer/version": "0.1.0"
             },
             "name": "sdi-observer",
             "namespace": "${NAMESPACE}"
@@ -700,7 +707,7 @@
             "output": {
                "to": {
                   "kind": "ImageStreamTag",
-                  "name": "sdi-observer:${OCP_MINOR_RELEASE}"
+                  "name": "sdi-observer:0.1.0-ocp${OCP_MINOR_RELEASE}"
                }
             },
             "runPolicy": "Serial",
@@ -724,7 +731,8 @@
                   "type": "ConfigChange"
                }
             ]
-         }
+         },
+         "version": "0.1.0"
       },
       {
          "apiVersion": "v1",

@@ -28,6 +28,7 @@ base.DCTemplate {
     resourceName: regtmpl.resourceName,
     imageStreamTag: regtmpl.imageStreamTag,
     createdBy: regtmpl.createdBy,
+    version: regtmpl.version,
 
     dockerfile: |||
       FROM openshift/ubi8:latest

@@ -1,11 +1,13 @@
 local is = import 'imagestream.libsonnet';
 
 {
+  local bc = self,
   resourceName:: error 'resourceName must be overriden by a child',
   createdBy:: error 'createdBy must be overridden by a child!',
   srcImageStreamTag:: error 'srcImageStreamTag must be overriden by a child!',
   dstImageStreamTag:: $.resourceName + ':latest',
   dockerfile:: error 'dockerfile must be overriden by a child!',
+  version:: error 'version must be specified',
 
   Objects: [$.BuildConfig, $.ImageStream],
 
@@ -16,6 +18,7 @@ local is = import 'imagestream.libsonnet';
       labels: {
         deploymentconfig: $.resourceName,
         'created-by': $.createdBy,
+        'sdi-observer/version': bc.version,
       },
       name: $.resourceName,
       namespace: '${NAMESPACE}',

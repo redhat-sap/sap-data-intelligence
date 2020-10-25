@@ -5,6 +5,7 @@ local base = import 'ocp-template.libsonnet';
   JobTemplate: base.OCPTemplate {
     local jobtmpl = self,
     resourceName:: error 'resourceName must be overriden!',
+    version:: error 'version must be specified',
     command:: error 'command must be overriden!',
     defaultArguments:: ['--wait'],
     args:: null,
@@ -21,6 +22,7 @@ local base = import 'ocp-template.libsonnet';
         metadata: {
           name: jobtmpl.resourceName,
           namespace: '${NAMESPACE}',
+          'sdi-observer/version': jobtmpl.version,
         },
         spec: {
           activeDeadlineSeconds: 30 * 60,
