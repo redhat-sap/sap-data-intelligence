@@ -213,7 +213,7 @@
                      ],
                      "from": {
                         "kind": "ImageStreamTag",
-                        "name": "sdi-observer:${OCP_MINOR_RELEASE}"
+                        "name": "sdi-observer:0.1.0-ocp${OCP_MINOR_RELEASE}"
                      }
                   },
                   "type": "ImageChange"

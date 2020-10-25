@@ -7,7 +7,7 @@ local urls = import 'urls.jsonnet';
 base.DCTemplate {
   local obstmpl = self,
   resourceName: 'sdi-observer',
-  imageStreamTag: obstmpl.resourceName + ':${OCP_MINOR_RELEASE}',
+  imageStreamTag: obstmpl.resourceName + ':' + obstmpl.version + '-ocp${OCP_MINOR_RELEASE}',
   createdBy: 'sdi-observer-template',
   saObjects:: obssa { createdBy: obstmpl.createdBy },
   command: '/usr/local/bin/observer.sh',
