@@ -1069,9 +1069,9 @@ while IFS=' ' read -u 3 -r namespace name resource; do
         if [[ -z "${rest:-}" ]]; then
             if [[ "$name" =~ ^(vflow|pipeline)- ]]; then
                 rest="$(oc get -n "$namespace" -o go-template="$(join '' \
-                    deployment "${gotmplVflowVsystemIptables[@]}")" "$name")"
+                    "${gotmplVflowVsystemIptables[@]}")" "$resource")"
             else
-                log 'No data for deployment/%s, skipping...' "$name"
+                log 'No data for %s, skipping...' "$resource"
                 continue
             fi
         fi
