@@ -1038,8 +1038,9 @@ while IFS=' ' read -u 3 -r namespace name resource; do
             fi
         fi
 
-        [[ "${#patches[@]}" == 0 ]] && continue
-        runOrLog oc patch --type json -p "[$(join , "${patches[@]}")]" deploy "$name"
+        if [[ "${#patches[@]}" -gt 0 ]]; then
+            runOrLog oc patch --type json -p "[$(join , "${patches[@]}")]" deploy "$name"
+        fi
         ;&
 
     deployment/*)
