@@ -1040,7 +1040,7 @@ while IFS=' ' read -u 3 -r namespace name resource; do
 
         [[ "${#patches[@]}" == 0 ]] && continue
         runOrLog oc patch --type json -p "[$(join , "${patches[@]}")]" deploy "$name"
-        ;;
+        ;&
 
     deployment/*)
         if ! evalBool MAKE_VSYSTEM_IPTABLES_PODS_PRIVILEGED; then
