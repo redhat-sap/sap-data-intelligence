@@ -108,6 +108,23 @@ if [[ -z "${SLCB_NAMESPACE:-}" ]]; then
 fi
 
 # shellcheck disable=SC2016
+gotmplVsystemIptables=(
+    # print ((int containerIndex):(bool unprivileged))?#
+    #       ((int initContainerIndex):(bool unprivileged))?
+    '{{range $i, $c := $d.spec.template.spec.containers}}'
+        '{{if eq .name "vsystem-iptables"}}'
+            '{{$i}}:{{not $c.securityContext.privileged}}'
+        '{{end}}'
+    '{{end}}#'
+    '{{range $i, $c := $d.spec.template.spec.initContainers}}'
+        '{{if eq .name "vsystem-iptables"}}'
+            '{{$i}}:{{not $c.securityContext.privileged}}'
+        '{{end}}'
+    '{{end}}'
+    $'\n'
+)
+
+# shellcheck disable=SC2016
 gotmplDeployment=(
     '{{with $d := .}}'
         '{{with $appcomp := index $d.metadata.labels "datahub.sap.com/app-component"}}'
@@ -116,20 +133,19 @@ gotmplDeployment=(
                 '{{$d.kind}}#{{$appcomp}}:'
                $'{{index $d.metadata.labels "datahub.sap.com/package-version"}}:\n'
             '{{else if eq $appcomp "vsystem-app"}}'
-                # print (string kind)#((int containerIndex):(bool unprivileged))?#
-                #       ((int initContainerIndex):(bool unprivileged))?
                 '{{$d.kind}}#'
-                '{{range $i, $c := $d.spec.template.spec.containers}}'
-                    '{{if eq .name "vsystem-iptables"}}'
-                        '{{$i}}:{{not $c.securityContext.privileged}}'
-                    '{{end}}'
-                '{{end}}#'
-                '{{range $i, $c := $d.spec.template.spec.initContainers}}'
-                    '{{if eq .name "vsystem-iptables"}}'
-                        '{{$i}}:{{not $c.securityContext.privileged}}'
-                    '{{end}}'
-                '{{end}}'
-                $'\n'
+                "${gotmplVsystemIptables[@]}"
+            '{{end}}'
+        '{{end}}'
+    '{{end}}'
+)
+
+# shellcheck disable=SC2016
+gotmplVflowVsystemIptables=(
+    '{{with $d := .}}'
+        '{{with $appcomp := index $d.metadata.labels "datahub.sap.com/app-component"}}'
+            '{{if eq $appcomp "vflow"}}'
+                "${gotmplVsystemIptables[@]}"
             '{{end}}'
         '{{end}}'
     '{{end}}'
@@ -1041,6 +1057,7 @@ while IFS=' ' read -u 3 -r namespace name resource; do
         if [[ "${#patches[@]}" -gt 0 ]]; then
             runOrLog oc patch --type json -p "[$(join , "${patches[@]}")]" deploy "$name"
         fi
+        unset rest
         ;&
 
     deployment/*)
@@ -1048,6 +1065,14 @@ while IFS=' ' read -u 3 -r namespace name resource; do
             log 'Not patching %s because MAKE_VSYSTEM_IPTABLES_PODS_PRIVILEGED is not true, ...' \
                 "$resource"
             continue
+        fi
+        if [[ -z "${rest:-}" ]]; then
+            if [[ "$name" =~ ^(vflow|pipeline)- ]]; then
+                rest="$(oc get -n "$namespace" -o go-template="$(join '' \
+                    "${gotmplVflowVsystemIptables[@]}")" "$name")"
+            else
+                log 'No data for deployment/%s, skipping...' "$name"
+            fi
         fi
         IFS='#' read -r cs ics <<<"${rest:-}"
         IFS=: read -r cindex cunprivileged <<<"${cs:-}"
