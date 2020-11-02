@@ -807,6 +807,9 @@ function ensureVsystemRoute() {
         fi
     elif [[ "$remove" == 1 ]]; then
         return 0
+    elif [[ -z "${svcSpec:-}" ]]; then
+        log 'Not creating vsystem route for the missing vsystem service...'
+        return 0
     fi
 
     # create or replace route
