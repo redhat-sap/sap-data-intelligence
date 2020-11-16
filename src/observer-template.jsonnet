@@ -11,6 +11,13 @@ base.DCTemplate {
   createdBy: 'sdi-observer-template',
   saObjects:: obssa { createdBy: obstmpl.createdBy },
   command: '/usr/local/bin/observer.sh',
+  requests:: {
+    cpu: '400m',
+    memory: '500m',
+  },
+  limits+:: {
+    cpu: '2000m',
+  },
 
   parametersToExport+: [
     params.ForceRedeployParam,

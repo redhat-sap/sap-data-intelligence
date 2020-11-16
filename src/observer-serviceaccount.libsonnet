@@ -88,6 +88,10 @@
         apiGroups: [''],
         resources: ['service'],
       },
+      ManageRoles: $.rbac.role.manage {
+        apiGroups: ['rbac.authorization.k8s.io'],
+        resources: ['role'],
+      },
     },
   },
 
@@ -106,6 +110,36 @@
       namespace: '${NAMESPACE}',
     },
   },
+
+  // In order to manipulate the role of vora-vsystem service account, SDI Observer must have the
+  // same permissions as the vora-vsystem.
+  voraVSystem31RBACRules: [
+    {
+      apiGroups: [''],
+      resources: ['events'],
+      verbs: ['create', 'delete', 'update', 'patch', 'deletecollection'],
+    },
+    {
+      apiGroups: [''],
+      resources: ['pods/log'],
+      verbs: ['create', 'delete', 'update', 'patch', 'deletecollection'],
+    },
+    {
+      apiGroups: ['vsystem.datahub.sap.com'],
+      resources: ['appinstances'],
+      verbs: ['*'],
+    },
+    {
+      apiGroups: ['vsystem.datahub.sap.com'],
+      resources: ['workloads'],
+      verbs: ['*'],
+    },
+    {
+      apiGroups: ['vsystem.datahub.sap.com'],
+      resources: ['workloads/finalizers'],
+      verbs: ['update'],
+    },
+  ],
 
   ObserverRBACForSDI: [
     {
@@ -153,7 +187,7 @@
         },
         $.rbac.role.ManageRoutes,
         $.rbac.role.ManageServices,
-      ],
+      ] + $.voraVSystem31RBACRules,
     },
 
     {
