@@ -109,7 +109,37 @@ base.DCTemplate {
     }
   else object,
 
-  objects: [addVolumes(o) for o in super.objects] + bc.objects
+  local addPortAndProbes(object) = if object.kind == 'DeploymentConfig' then
+    local probe = {
+      failureThreshold: 3,
+      httpGet: {
+        path: '/',
+        port: 5000,
+        scheme: 'HTTP',
+      },
+      periodSeconds: 10,
+      successThreshold: 1,
+      timeoutSeconds: 5,
+    };
+    object {
+      spec+: {
+        template+: {
+          spec+: {
+            containers: [(c {
+                            ports: [{
+                              containerPort: 5000,
+                              protocol: 'TCP',
+                            }],
+                            livenessProbe: probe,
+                            readinessProbe: probe,
+                          }) for c in object.spec.template.spec.containers],
+          },
+        },
+      },
+    }
+  else object,
+
+  objects: [addVolumes(addPortAndProbes(o)) for o in super.objects] + bc.objects
            + [
              {
                apiVersion: 'v1',

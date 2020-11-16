@@ -11,6 +11,14 @@ local base = import 'ocp-template.libsonnet';
     command:: null,
     args:: null,
     createdBy:: error 'createdBy must be overriden by a child!',
+    requests:: {
+      cpu: '100m',
+      memory: '256Mi',
+    },
+    limits:: {
+      cpu: '500m',
+      memory: '768Mi',
+    },
 
     sa:: {
       apiVersion: 'v1',
@@ -77,6 +85,10 @@ local base = import 'ocp-template.libsonnet';
                   else if dctmpl.command != null then
                     [dctmpl.command],
                   args: dctmpl.args,
+                  resources: {
+                    requests: dctmpl.requests,
+                    limits: dctmpl.limits,
+                  },
                 },
               ],
               restartPolicy: 'Always',

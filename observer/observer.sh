@@ -227,6 +227,24 @@ gotmplService=(
     '{{end}}'
 )
 
+# shellcheck disable=SC2016
+gotmplRole=(
+    # print (string kind)#("workloads/finalizers:")?("update:")?
+    $'{{.kind}}#'
+    '{{range $i, $r := .rules}}'
+        '{{range $j, $rs := $r.resources}}'
+            '{{if eq $rs "workloads/finalizers"}}'
+                '{{$rs}}:'
+                '{{range $k, $v := $r.verbs}}'
+                    '{{if eq $v "update"}}'
+                        '{{$v}}:'
+                    '{{end}}'
+                '{{end}}'
+            '{{end}}'
+        '{{end}}'
+    $'{{end}}\n'
+)
+
 gotmplSecret=()
 if evalBool INJECT_CABUNDLE || [[ -n "${REDHAT_REGISTRY_SECRET_NAME:-}" ]]; then
     if [[ -z "${CABUNDLE_SECRET_NAME:-}" ]]; then
@@ -278,6 +296,7 @@ declare -A gotmpls=(
     ["${SDI_NAMESPACE}:Job"]="$(join '' "${gotmplJob[@]}")"
     ["${SDI_NAMESPACE}:Route"]="$(join '' "${gotmplRoute[@]}")"
     ["${SDI_NAMESPACE}:Service"]="$(join '' "${gotmplService[@]}")"
+    ["${SDI_NAMESPACE}:Role"]="$(join '' "${gotmplRole[@]}")"
     ["${SLCB_NAMESPACE}:ConfigMap"]="$(join '' "${gotmplConfigMap[@]}")"
     ["${SLCB_NAMESPACE}:Service"]="$(join '' "${gotmplService[@]}")"
 )
@@ -314,7 +333,7 @@ function checkPermissions() {
     local rc=0
     local toCheck=()
     for verb in get patch watch; do
-        for resource in configmaps daemonsets deployments statefulsets jobs; do
+        for resource in configmaps daemonsets deployments statefulsets jobs role route; do
             toCheck+=( "$verb/$resource" )
         done
     done
@@ -1319,6 +1338,26 @@ while IFS=' ' read -u 3 -r namespace name resource; do
         ensurePullsFromNamespace "$NAMESPACE" default "$SLCB_NAMESPACE"
         ensurePullsFromNamespace "$NAMESPACE" default "$SDI_NAMESPACE"
         ensureRoutes
+        ;;
+
+    "role/vora-vsystem-${SDI_NAMESPACE}")
+        if [[ "${rest:-}" =~ (^|:)workloads/finalizers:update: ]]; then
+            log 'vsystem can already update workloads/finalizers resource, skipping %s...' \
+                "$resource"
+            continue
+        fi
+        log 'Patching %s to permit vsystem to update workloads/finalizers resource...' \
+            "$resource"
+        oc get -o json "$resource" | jq '.rules |= [
+            .[]|select(.resources[0] != "workloads/finalizers")
+        ] + [{
+          "apiGroups": ["vsystem.datahub.sap.com"],
+          "resources": ["workloads/finalizers"],
+          "verbs": ["update"]
+        }]' | createOrReplace
+        ;;
+
+    role/*)
         ;;
 
     secret/*)

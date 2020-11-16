@@ -8,7 +8,7 @@
          "openshift.io/display-name": "OpenShift enabler and observer for SAP Data intelligence\n",
          "openshift.io/documentation-url": "https://access.redhat.com/articles/4324391",
          "openshift.io/provider-display-name": "Red Hat, Inc.",
-         "sdi-observer/version": "0.1.0"
+         "sdi-observer/version": "0.1.1"
       },
       "name": "sdi-observer"
    },
@@ -32,7 +32,7 @@
             "labels": {
                "created-by": "sdi-observer-template",
                "deploymentconfig": "sdi-observer",
-               "sdi-observer/version": "0.1.0"
+               "sdi-observer/version": "0.1.1"
             },
             "name": "sdi-observer",
             "namespace": "${NAMESPACE}"
@@ -61,7 +61,7 @@
                         "env": [
                            {
                               "name": "SDI_OBSERVER_VERSION",
-                              "value": "0.1.0"
+                              "value": "0.1.1"
                            },
                            {
                               "name": "DRY_RUN",
@@ -201,7 +201,17 @@
                            }
                         ],
                         "image": " ",
-                        "name": "sdi-observer"
+                        "name": "sdi-observer",
+                        "resources": {
+                           "limits": {
+                              "cpu": "2000m",
+                              "memory": "768Mi"
+                           },
+                           "requests": {
+                              "cpu": "400m",
+                              "memory": "500m"
+                           }
+                        }
                      }
                   ],
                   "restartPolicy": "Always",
@@ -221,7 +231,7 @@
                      ],
                      "from": {
                         "kind": "ImageStreamTag",
-                        "name": "sdi-observer:0.1.0-ocp${OCP_MINOR_RELEASE}"
+                        "name": "sdi-observer:0.1.1-ocp${OCP_MINOR_RELEASE}"
                      }
                   },
                   "type": "ImageChange"
@@ -500,6 +510,69 @@
                   "create",
                   "delete"
                ]
+            },
+            {
+               "apiGroups": [
+                  ""
+               ],
+               "resources": [
+                  "events"
+               ],
+               "verbs": [
+                  "create",
+                  "delete",
+                  "update",
+                  "patch",
+                  "deletecollection"
+               ]
+            },
+            {
+               "apiGroups": [
+                  ""
+               ],
+               "resources": [
+                  "pods/log"
+               ],
+               "verbs": [
+                  "create",
+                  "delete",
+                  "update",
+                  "patch",
+                  "deletecollection"
+               ]
+            },
+            {
+               "apiGroups": [
+                  "vsystem.datahub.sap.com"
+               ],
+               "resources": [
+                  "appinstances"
+               ],
+               "verbs": [
+                  "*"
+               ]
+            },
+            {
+               "apiGroups": [
+                  "vsystem.datahub.sap.com"
+               ],
+               "resources": [
+                  "workloads"
+               ],
+               "verbs": [
+                  "*"
+               ]
+            },
+            {
+               "apiGroups": [
+                  "vsystem.datahub.sap.com"
+               ],
+               "resources": [
+                  "workloads/finalizers"
+               ],
+               "verbs": [
+                  "update"
+               ]
             }
          ]
       },
@@ -698,7 +771,7 @@
             "labels": {
                "created-by": "sdi-observer-template",
                "deploymentconfig": "sdi-observer",
-               "sdi-observer/version": "0.1.0"
+               "sdi-observer/version": "0.1.1"
             },
             "name": "sdi-observer",
             "namespace": "${NAMESPACE}"
@@ -707,7 +780,7 @@
             "output": {
                "to": {
                   "kind": "ImageStreamTag",
-                  "name": "sdi-observer:0.1.0-ocp${OCP_MINOR_RELEASE}"
+                  "name": "sdi-observer:0.1.1-ocp${OCP_MINOR_RELEASE}"
                }
             },
             "runPolicy": "Serial",
@@ -732,7 +805,7 @@
                }
             ]
          },
-         "version": "0.1.0"
+         "version": "0.1.1"
       },
       {
          "apiVersion": "v1",
