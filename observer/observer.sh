@@ -17,8 +17,6 @@ common_init
 readonly CLUSTERIP_SERVICE_NAME="slcbridge-clusterip"
 readonly CABUNDLE_VOLUME_NAME="sdi-observer-cabundle"
 readonly CABUNDLE_VOLUME_MOUNT_PATH="/mnt/sdi-observer/cabundle"
-readonly CHECKPOINT_CHECK_JOBNAME="datahub.checks.checkpoint"
-readonly INSTALLER_JOB_TYPE_LABEL="com.sap.datahub.installers.scripts"
 readonly UPDATE_CA_TRUST_CONTAINER_NAME="sdi-observer-update-ca-certificates"
 readonly VORA_CABUNDLE_SECRET_NAME="ca-bundle.pem"
 readonly VREP_EXPORTS_VOLUME_OBSOLETE_NAMES=( "exports-volume" )
@@ -263,28 +261,6 @@ if evalBool INJECT_CABUNDLE || [[ -n "${REDHAT_REGISTRY_SECRET_NAME:-}" ]]; then
     export CABUNDLE_SECRET_NAMESPACE CABUNDLE_SECRET_NAME INJECT_CABUNDLE
 fi
 
-# shellcheck disable=SC2016
-gotmplJob=(
-    '{{with $j := .}}'
-        '{{with $t := index $j.metadata.labels "job-type"}}'
-            '{{if eq $t "'"$INSTALLER_JOB_TYPE_LABEL"'"}}'
-                # print (string kind)#(string injected-cabundle)#((int volumeIndex):)*
-                '{{$j.kind}}#'
-                '{{if $j.metadata.annotations}}'
-                    '{{with $cab := index $j.metadata.annotations "'"$CABUNDLE_INJECTED_ANNOTATION"'"}}'
-                        '{{$cab}}'
-                    '{{end}}'
-                '{{end}}#'
-                '{{range $i, $v := $j.spec.template.spec.volumes}}'
-                    '{{if eq $v.name "'"$CABUNDLE_VOLUME_NAME"'"}}'
-                        '{{$i}}:'
-                    '{{end}}'
-                $'{{end}}\n'
-            '{{end}}'
-        '{{end}}'
-    '{{end}}'
-)
-
 # Defines all the resource types that shall be monitored accross different namespaces.
 # The associated value is a go-template producing an output the will be passed to the observer
 # loop.
@@ -293,7 +269,6 @@ declare -A gotmpls=(
     ["${SDI_NAMESPACE}:DaemonSet"]="$(join '' "${gotmplDaemonSet[@]}")"
     ["${SDI_NAMESPACE}:StatefulSet"]="$(join '' "${gotmplStatefulSet[@]}")"
     ["${SDI_NAMESPACE}:ConfigMap"]="$(join '' "${gotmplConfigMap[@]}")"
-    ["${SDI_NAMESPACE}:Job"]="$(join '' "${gotmplJob[@]}")"
     ["${SDI_NAMESPACE}:Route"]="$(join '' "${gotmplRoute[@]}")"
     ["${SDI_NAMESPACE}:Service"]="$(join '' "${gotmplService[@]}")"
     ["${SDI_NAMESPACE}:Role"]="$(join '' "${gotmplRole[@]}")"
@@ -660,72 +635,6 @@ function deployComponent() {
     done
     log 'WARNING: Cannot find %s, skipping deployment!' "$fn"
     return 1
-}
-
-function injectCABundle() {
-    local namespace="$1"
-    local kind="$2"
-    local name="$3"
-    local resource="${kind,,}/$name"
-    local podLabelSelector="$4"
-    # value '""' stands for unset, empty stands for unknown
-    local injectedKey="${5:-}"
-    local contents injectKey cabundleKey namespace objuid
-
-    contents="$(oc get -o json "$resource")" ||:
-    [[ -z "${contents:-}" ]] && return 1
-    injectKey="$(jq -r '.metadata.annotations["'"$CABUNDLE_INJECT_ANNOTATION"'"] | if .
-        then . else "" end' <<<"$contents")" ||:
-    if [[ -z "${injectedKey:-}" ]]; then
-        injectedKey="$(jq -r '.metadata.annotations["'"$CABUNDLE_INJECTED_ANNOTATION"'"] | if .
-            then . else "" end' <<<"$contents")" ||:
-    elif [[ "${injectedKey}" == '""' ]]; then
-        injectedKey=''
-    fi
-    if [[ -n "${injectedKey:-}" && "${injectedKey}" == "${injectKey:-}" ]]; then
-        log '%s %s is using the latest cabundle secret, skipping ...' "$kind" "$name"
-        return 0
-    fi
-
-    cabundleKey="$(oc get secret -o go-template="$(join '' \
-        '{{if .metadata.annotations}}' \
-                '{{index .metadata.annotations "'"$SOURCE_KEY_ANNOTATION"'"}}{{end}}')" \
-        "$SDI_CABUNDLE_SECRET_NAME" 2>/dev/null)" ||:
-    if ! [[ "${cabundleKey:-}" =~ ^.+:.+:.+$ ]]; then
-        log 'Not patching %s %s because the %s secret does not exist yet.' \
-            "${kind,,}" "$name" "$SDI_CABUNDLE_SECRET_NAME"
-        return 0
-    fi
-    log 'Mounting %s secret into %s %s ...' "$SDI_CABUNDLE_SECRET_NAME" "${kind,,}" "$name"
-    local jqPatch='.'
-    if [[ "${kind,,}" == job ]]; then
-        jqPatch='. | del(.spec.selector) | del(.status) |
-                     del(.spec.template.metadata.labels."controller-uid")'
-    fi
-    oc get -o json "$resource" |
-        oc annotate --overwrite -f - --local -o json \
-            "$CABUNDLE_INJECT_ANNOTATION=$cabundleKey"  \
-            "$CABUNDLE_INJECTED_ANNOTATION=$cabundleKey" | \
-            jq "${jqPatch}" | \
-        addUpdateCaTrustInitContainer | \
-            createOrReplace
-    ensurePullsFromNamespace "$NAMESPACE" \
-        "$(jq -r '.spec.template.spec.serviceAccountName' <<<"$contents")" \
-        "$namespace"
-    objuid="$(jq -r '.metadata.uid' <<<"${contents}")" ||:
-    if [[ -z "${objuid:-}" ]]; then
-        log 'WARNING: Could not get uid out of %s %s, not terminating its pods ...' \
-            "$kind" "$name"
-        return 1
-    fi
-    if evalBool DRY_RUN; then
-        log 'Deleting pods belonging to %s(name=%s, uid=%s)' "$kind" "$name" "$objuid"
-    else
-        oc get pods -o json -l "$podLabelSelector" | \
-            jq -r '.items[] | select((.metadata.ownerReferences // []) | any(
-                .name == "'"$name"'" and .uid == "'"$objuid"'")) | "pod/\(.metadata.name)"' | \
-            xargs -r oc delete ||:
-    fi
 }
 
 function addPvToStatefulSet() {
@@ -1362,23 +1271,6 @@ while IFS=' ' read -u 3 -r namespace name resource; do
 
     secret/*)
         log 'Ignoring secret "%s" in namespace %s.' "$name" "$namespace"
-        ;;
-
-    job/*checkpoint*)
-        if ! evalBool INJECT_CABUNDLE; then
-            continue
-        fi
-        IFS='#' read -r injectedKey _ <<<"${rest}"
-        if ! injectCABundle "$namespace" "$kind" "$name" job-name="$name" \
-                "${injectedKey:-""}"; then
-            log 'WARNING: Failed to inject CA bundle into %s in namespace %s!' \
-                "$resource" "$namespace"
-        fi
-        ;;
-
-    job/*)
-        #log 'Ignoring job "%s"' "$name"
-        continue
         ;;
 
     *)

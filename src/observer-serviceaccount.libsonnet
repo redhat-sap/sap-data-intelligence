@@ -165,7 +165,6 @@
             'statefulsets/scale',
           ],
         },
-        $.rbac.role.PatchJobs,
         $.rbac.role.patch {
           apiGroups: [
             'apps',
