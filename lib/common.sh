@@ -76,7 +76,11 @@ if [[ ! "${OCP_SERVER_VERSION:-}" =~ ^4\. ]]; then
     printf 'FATAL: OpenShift server version other then 4.* is not supported!\n' >&2
     exit 1
 fi
-export OCP_SERVER_VERSION OCP_CLIENT_VERSION
+DRUNARG="--dry-run"
+if [[ "$(cut -d . -f 2 <<<"${OCP_CLIENT_VERSION}")" -ge 5 ]]; then
+    DRUNARG="--dry-run=client"
+fi
+export OCP_SERVER_VERSION OCP_CLIENT_VERSION DRUNARG
 
 if [[ ! "${NODE_LOG_FORMAT:-}" =~ ^(text|json|)$ ]]; then
     printf 'FATAL: unrecognized NODE_LOG_FORMAT; "%s" is not one of "json" or "text"!' \
@@ -307,7 +311,7 @@ function convertObjectToJSON() {
     mapfile -d $'\0' arr <"$input"
     object="${arr[0]:-}"
     if ! jq empty <<<"${object}" 2>/dev/null; then
-        oc create --dry-run -f - -o json <<<"$object"
+        oc create "$DRUNARG" -f - -o json <<<"$object"
         return 0
     fi
     printf '%s' "$object"
@@ -393,7 +397,7 @@ function createOrReplace() {
     local creator=""
     creator="$(jq -r '.metadata.labels["created-by"]' <<<"$object")" ||:
 
-    IFS=: read -r namespace kind name <<<"$(oc create --dry-run -f - -o \
+    IFS=: read -r namespace kind name <<<"$(oc create "$DRUNARG" -f - -o \
         jsonpath=$'{.metadata.namespace}:{.kind}:{.metadata.name}\n' <<<"$object")"
     namespace="${namespace:-$NAMESPACE}"
     [[ -z "${namespace:-}" ]] && namespace="$(oc project -q)"
@@ -454,7 +458,7 @@ function trustfullyExposeService() {
         log 'ERROR: unsupported route type "%s". Cannot create.' "$routeType"
         return 1
     fi
-    runOrLog oc create route "$routeType" --service "$serviceName" --dry-run "$@"
+    runOrLog oc create route "$routeType" --service "$serviceName" "$DRUNARG" "$@"
 }
 
 function isPathLocal() {
@@ -622,7 +626,7 @@ function ensureCABundleSecret() {
     log -n 'Creating %s secret in %s namespace containing' "$SDI_CABUNDLE_SECRET_NAME" \
         "$SDI_NAMESPACE"
     log -d ' cabundle that shall be injected into SDI pods.' 
-    oc create secret generic "$SDI_CABUNDLE_SECRET_NAME" --dry-run -o json \
+    oc create secret generic "$SDI_CABUNDLE_SECRET_NAME" "$DRUNARG" -o json \
         --from-literal="${SDI_CABUNDLE_SECRET_FILE_NAME}=$bundleData" | \
         oc annotate --overwrite -f - --local -o json \
             "$(mkSourceKeyAnnotation "$CABUNDLE_SECRET_NAMESPACE" \

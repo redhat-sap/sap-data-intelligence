@@ -121,7 +121,7 @@ function copyRoleToProject() {
         createOrReplace -n "$project" <<<"$roleSpec" || rc=$?
     fi
     oc create rolebinding --namespace="$project" openshift-acme --role=openshift-acme \
-        --serviceaccount="$NAMESPACE:openshift-acme" --dry-run -o json | \
+        --serviceaccount="$NAMESPACE:openshift-acme" "$DRUNARG" -o json | \
             createOrReplace || rc=$?
     return "$rc"
 }
@@ -152,7 +152,7 @@ trap cleanup EXIT
 function deployFile() {
     local file="$1"
     local object
-    object="$(oc create --dry-run -o json -f "$file")"
+    object="$(oc create "$DRUNARG" -o json -f "$file")"
     kind="$(jq -r '.kind' <<<"${object}")"
     local patchParts=(
         '.spec.template.spec.containers[0].args |= ([(.[] // []) |'

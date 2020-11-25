@@ -112,7 +112,7 @@ function createHtpasswdSecret() {
     printf "%s:%s\n" "$SDI_REGISTRY_USERNAME" "$SDI_REGISTRY_PASSWORD" >"$OUTPUT_DIR/.htpasswd.raw"
 
     # shellcheck disable=SC2068
-    oc create secret generic --dry-run -o yaml "$SECRET_NAME" \
+    oc create secret generic "$DRUNARG" -o yaml "$SECRET_NAME" \
         --from-file=htpasswd="$OUTPUT_DIR/htpasswd" \
         --from-file=.htpasswd.raw="$OUTPUT_DIR/.htpasswd.raw"  | \
             createOrReplace

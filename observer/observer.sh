@@ -44,8 +44,13 @@ function _observe() {
     fi
     local jobnumber="$2"
     local portnumber="$((11251 + jobnumber))"
-    oc observe -n "$namespace" --no-headers --listen-addr=":$portnumber" "$kind" \
-        --output=gotemplate --argument '{{.kind}}/{{.metadata.name}}' -- echo
+    if [[ "$(cut -d . -f 2 <<<"${OCP_CLIENT_VERSION:-}")" -lt 6 ]]; then
+        oc observe -n "$namespace" --no-headers --listen-addr=":$portnumber" "$kind" \
+            --output=gotemplate --argument '{{.kind}}/{{.metadata.name}}' -- echo
+    else
+        oc observe -n "$namespace" --listen-addr=":$portnumber" "$kind" \
+            --output=go-template --template '{{.kind}}/{{.metadata.name}}' -- echo
+    fi
 }
 export -f _observe
 
@@ -350,7 +355,7 @@ function checkPermissions() {
         declare -a letsencryptKinds=()
         local prefix="${LETSENCRYPT_REPOSITORY:-$DEFAULT_LETSENCRYPT_REPOSITORY}"
         for fn in "${LETSENCRYPT_DEPLOY_FILES[@]//@environment@/live}"; do
-            readarray -t letsencryptKinds <<<"$(oc create --dry-run \
+            readarray -t letsencryptKinds <<<"$(oc create "$DRUNARG" \
                 -f "${prefix#file://}/$fn" -o jsonpath=$'{.kind}\n')"
             for kind in "${letsencryptKinds[@],,}"; do
                 toCheck+=( "${nmprefix}create/${kind,,}" )
@@ -786,7 +791,7 @@ function ensureVsystemRoute() {
     log "$msg" "${suffix:-}"
 
     local args=() annotations=()
-    args=( -n "${SDI_NAMESPACE}" --dry-run -o json
+    args=( -n "${SDI_NAMESPACE}" "$DRUNARG" -o json
             "--service=vsystem" "--insecure-policy=Redirect" )
     if [[ -n "${VSYSTEM_ROUTE_HOSTNAME:-}" ]]; then
         args+=( "--hostname=${VSYSTEM_ROUTE_HOSTNAME:-}" )
@@ -1189,7 +1194,7 @@ while IFS=' ' read -u 3 -r namespace name resource; do
             "$desiredTermination"
             "--namespace=$namespace"
             "--service=$CLUSTERIP_SERVICE_NAME"
-            --dry-run -o json
+            "$DRUNARG" -o json
             "--insecure-policy=Redirect"
         )
 
