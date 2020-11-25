@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 if [[ "${_SDI_LIB_SOURCED:-0}" == 1 ]]; then
     return 0
 fi
@@ -19,6 +21,7 @@ readonly DEFAULT_SOURCE_IMAGESTREAM_TAG=latest
 readonly SDI_REGISTRY_TEMPLATE_FILE_NAME=ocp-template.json
 readonly SOURCE_KEY_ANNOTATION=source-secret-key
 
+# shellcheck disable=SC2034
 # the annotation represents a cabundle that has been successfully injected into the resource
 #   the value is a triple joined by colons:
 #     <secret-namespace>:<secret-name>:<secret-uid>
@@ -190,12 +193,14 @@ function log() {
     elif [[ "${1: -1}" != $'\n' ]]; then
         local fmt="${1:-}\n"
         shift
+        # shellcheck disable=SC2059
         printf "$fmt" "$@" >&2
         if [[ "${reenableDebug}" == 1 ]]; then
             set -x
         fi
         return 0
     fi
+    # shellcheck disable=SC2059
     printf "$@" >&2
     if [[ "${reenableDebug}" == 1 ]]; then
         set -x
