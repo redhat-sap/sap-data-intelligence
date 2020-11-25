@@ -48,7 +48,7 @@ function _observe() {
         oc observe -n "$namespace" --no-headers --listen-addr=":$portnumber" "$kind" \
             --output=gotemplate --argument '{{.kind}}/{{.metadata.name}}' -- echo
     else
-        oc observe -n "$namespace" --listen-addr=":$portnumber" "$kind" \
+        oc observe -n "$namespace" --quiet --listen-addr=":$portnumber" "$kind" \
             --output=go-template --template '{{.kind}}/{{.metadata.name}}' -- echo
     fi
 }
