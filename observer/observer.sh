@@ -300,12 +300,18 @@ function checkPerm() {
     else
         namespace="$SDI_NAMESPACE"
     fi
-    if [[ "${namespace}" != "!" ]]; then
+    if [[ "${namespace}" == "*" ]]; then
+        args+=( --all-namespaces )
+    else
         args+=( -n "$namespace" )
     fi
     args+=( "${perm%%/*}" "${perm##*/}" )
     if ! oc auth can-i "${args[@]}" >/dev/null; then
-        printf '%s\n' "$namespace:$perm"
+        if [[ "${namespace}" != "*" ]]; then
+            printf '%s:%s\n' "$namespace" "$perm"
+        else
+            printf '%s\n' "$perm"
+        fi
     fi
 }
 export -f checkPerm
@@ -321,8 +327,8 @@ function checkPermissions() {
         done
     done
     toCheck+=(
-        "!:get/nodes"
-        "!:get/projects"
+        "*:get/nodes"
+        "*:get/projects"
         get/secrets
         update/daemonsets
 
