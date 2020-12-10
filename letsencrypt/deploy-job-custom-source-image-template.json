@@ -9,7 +9,7 @@
          "openshift.io/display-name": "Job to deploy a letsencrypt controller.\n",
          "openshift.io/documentation-url": "https://access.redhat.com/articles/4324391",
          "openshift.io/provider-display-name": "Red Hat, Inc.",
-         "sdi-observer/version": "0.1.2"
+         "sdi-observer/version": "0.1.3"
       },
       "name": "deploy-letsencrypt"
    },
@@ -19,11 +19,11 @@
          "kind": "Job",
          "metadata": {
             "labels": {
-               "sdi-observer/version": "0.1.2"
+               "sdi-observer/version": "0.1.3"
             },
             "name": "deploy-letsencrypt",
             "namespace": "${NAMESPACE}",
-            "sdi-observer/version": "0.1.2"
+            "sdi-observer/version": "0.1.3"
          },
          "spec": {
             "activeDeadlineSeconds": 1800,
@@ -179,7 +179,7 @@
             "labels": {
                "created-by": "letsencrypt-deploy",
                "deploymentconfig": "sdi-observer",
-               "sdi-observer/version": "0.1.2"
+               "sdi-observer/version": "0.1.3"
             },
             "name": "sdi-observer",
             "namespace": "${NAMESPACE}"
@@ -188,7 +188,7 @@
             "output": {
                "to": {
                   "kind": "ImageStreamTag",
-                  "name": "sdi-observer:0.1.2-ocp${OCP_MINOR_RELEASE}"
+                  "name": "sdi-observer:0.1.3-ocp${OCP_MINOR_RELEASE}"
                }
             },
             "runPolicy": "Serial",
@@ -213,7 +213,7 @@
                }
             ]
          },
-         "version": "0.1.2"
+         "version": "0.1.3"
       },
       {
          "apiVersion": "v1",
