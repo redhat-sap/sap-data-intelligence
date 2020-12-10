@@ -299,6 +299,7 @@ declare -A gotmpls=(
     ["${SDI_NAMESPACE}:Route"]="$(join '' "${gotmplRoute[@]}")"
     ["${SDI_NAMESPACE}:Service"]="$(join '' "${gotmplService[@]}")"
     ["${SDI_NAMESPACE}:Role"]="$(join '' "${gotmplRole[@]}")"
+    ["${SLCB_NAMESPACE}:DaemonSet"]="$(join '' "${gotmplDaemonSet[@]}")"
     ["${SLCB_NAMESPACE}:ConfigMap"]="$(join '' "${gotmplConfigMap[@]}")"
     ["${SLCB_NAMESPACE}:Service"]="$(join '' "${gotmplService[@]}")"
 )

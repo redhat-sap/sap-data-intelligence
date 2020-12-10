@@ -212,8 +212,6 @@
                   "watch",
                   "patch",
                   "update",
-                  "delete",
-                  "create",
                   "delete"
                ]
             }

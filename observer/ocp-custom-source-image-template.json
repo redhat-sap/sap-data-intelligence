@@ -304,8 +304,6 @@
                   "watch",
                   "patch",
                   "update",
-                  "delete",
-                  "create",
                   "delete"
                ]
             }
@@ -717,6 +715,23 @@
                   "update",
                   "delete",
                   "create",
+                  "delete"
+               ]
+            },
+            {
+               "apiGroups": [
+                  "apps",
+                  "extensions"
+               ],
+               "resources": [
+                  "daemonsets"
+               ],
+               "verbs": [
+                  "get",
+                  "list",
+                  "watch",
+                  "patch",
+                  "update",
                   "delete"
                ]
             }

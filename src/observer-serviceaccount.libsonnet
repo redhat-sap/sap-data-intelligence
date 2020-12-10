@@ -76,6 +76,10 @@
           'deployments/scale',
         ],
       },
+      PatchDaemonSets: $.rbac.role.patch {
+        apiGroups: ['apps', 'extensions'],
+        resources: ['daemonsets'],
+      },
       PatchJobs: role.patch {
         apiGroups: ['batch/v1'],
         resources: ['jobs'],
@@ -165,15 +169,7 @@
             'statefulsets/scale',
           ],
         },
-        $.rbac.role.patch {
-          apiGroups: [
-            'apps',
-            'extensions',
-          ],
-          resources: [
-            'daemonsets',
-          ],
-        },
+        $.rbac.role.PatchDaemonSets,
         $.rbac.role.watch {
           apiGroups: [
             'apps',
@@ -233,6 +229,7 @@
         $.rbac.role.ManageRoutes,
         $.rbac.role.CreateNamespaces,
         $.rbac.role.ManageServices,
+        $.rbac.role.PatchDaemonSets,
       ],
     },
 
@@ -332,7 +329,7 @@
           apiGroups: ['config.openshift.io'],
           resources: ['ingresses', 'clusteroperators'],
         },
-        $.rbac.role.manage {
+        $.rbac.role.patch {
           apiGroups: [''],
           resources: ['namespaces'],
         },
