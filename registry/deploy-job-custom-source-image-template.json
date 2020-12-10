@@ -198,6 +198,24 @@
                   "list",
                   "watch"
                ]
+            },
+            {
+               "apiGroups": [
+                  ""
+               ],
+               "resources": [
+                  "namespaces"
+               ],
+               "verbs": [
+                  "get",
+                  "list",
+                  "watch",
+                  "patch",
+                  "update",
+                  "delete",
+                  "create",
+                  "delete"
+               ]
             }
          ]
       },

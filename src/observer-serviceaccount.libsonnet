@@ -332,6 +332,10 @@
           apiGroups: ['config.openshift.io'],
           resources: ['ingresses', 'clusteroperators'],
         },
+        $.rbac.role.manage {
+          apiGroups: [''],
+          resources: ['namespaces'],
+        },
       ],
     },
 
