@@ -38,19 +38,20 @@ function getRegistries() {
 
 function _observe() {
     local kind="${1##*:}"
-    local namespace="$SDI_NAMESPACE"
+    local args=( )
     if [[ "$1" =~ ^(.+):(.+)$ ]]; then
-        namespace="${BASH_REMATCH[1]}"
+        args+=( -n "${BASH_REMATCH[1]}" )
     fi
     local jobnumber="$2"
     local portnumber="$((11251 + jobnumber))"
+    args+=( --listen-addr=":$portnumber" "$kind"  )
     if [[ "$(cut -d . -f 2 <<<"${OCP_CLIENT_VERSION:-}")" -lt 6 ]]; then
-        oc observe -n "$namespace" --no-headers --listen-addr=":$portnumber" "$kind" \
-            --output=gotemplate --argument '{{.kind}}/{{.metadata.name}}' -- echo
+        args+=( --no-headers --output=gotemplate --argument )
     else
-        oc observe -n "$namespace" --quiet --listen-addr=":$portnumber" "$kind" \
-            --output=go-template --template '{{.kind}}/{{.metadata.name}}' -- echo
+        args+=( --quiet --output=go-template --template )
     fi
+    args+=( '{{.kind}}/{{.metadata.name}}' -- echo )
+    oc observe "${args[@]}"
 }
 export -f _observe
 
@@ -71,7 +72,6 @@ function observe() {
         return 1
     fi
     local cpus
-    cpus="$(grep -c processor /proc/cpuinfo)" ||:
     local N="$#"
     if [[ "${cpus:-1}" -lt "$N" ]]; then
         N="+$((N - 1))"
@@ -141,11 +141,18 @@ gotmplDeployment=(
 # shellcheck disable=SC2016
 gotmplDaemonSet=(
     '{{with $ds := .}}'
+        # print (string kind)#((string nodeSelectorLabel)=(string nodeSelectorLabelValue),)*#
+        '{{$ds.kind}}#'
+        '{{if $ds.spec.template.spec.nodeSelector}}'
+            '{{range $k, $v := $ds.spec.template.spec.nodeSelector}}'
+                '{{$k}}={{$v}},'
+            '{{end}}'
+        '{{end}}'
+        '#'
         '{{if eq .metadata.name "diagnostics-fluentd"}}'
-            # print (string kind)#((int containerIndex):(string containerName):(bool unprivileged)
+            # ((int containerIndex):(string containerName):(bool unprivileged)
             #            :(int volumeindex):(string varlibdockercontainers volumehostpath)
             #            :(int volumeMount index):(string varlibdockercontainers volumeMount path)#)+
-            '{{$ds.kind}}#'
             '{{range $i, $c := $ds.spec.template.spec.containers}}'
                 '{{if eq $c.name "diagnostics-fluentd"}}'
                     '{{$i}}:{{$c.name}}:{{not $c.securityContext.privileged}}'
@@ -160,8 +167,8 @@ gotmplDaemonSet=(
                         '{{end}}'
                     '{{end}}#'
                 '{{end}}'
-            $'{{end}}\n'
-        '{{end}}'
+            '{{end}}'
+       $'{{end}}\n'
     '{{end}}'
 )
 
@@ -198,6 +205,22 @@ gotmplConfigMap=(
 
 gotmplRoute=(
     $'{{.kind}}\n'
+)
+
+# shellcheck disable=SC2016
+gotmplNamespace=(
+    '{{with $nm := .}}{{with $n := $nm.metadata.name}}'
+        '{{if or (eq $n "'"$SLCB_NAMESPACE"'")'
+            ' (or (eq $n "'"$SDI_NAMESPACE"'") (eq $n "datahub-system"))}}'
+            # print (string kind)#(string value of node-selector annotation)?
+            $'{{$nm.kind}}#'
+            '{{range $k, $v := $nm.metadata.annotations}}'
+                '{{if eq $k "openshift.io/node-selector"}}'
+                    '{{$v}}'
+                '{{end}}'
+            $'{{end}}\n'
+        '{{end}}'
+    '{{end}}{{end}}'
 )
 
 # shellcheck disable=SC2016
@@ -270,6 +293,7 @@ fi
 # The associated value is a go-template producing an output the will be passed to the observer
 # loop.
 declare -A gotmpls=(
+    [":Namespace"]="$(join '' "${gotmplNamespace[@]}")"
     ["${SDI_NAMESPACE}:Deployment"]="$(join '' "${gotmplDeployment[@]}")"
     ["${SDI_NAMESPACE}:DaemonSet"]="$(join '' "${gotmplDaemonSet[@]}")"
     ["${SDI_NAMESPACE}:StatefulSet"]="$(join '' "${gotmplStatefulSet[@]}")"
@@ -277,6 +301,7 @@ declare -A gotmpls=(
     ["${SDI_NAMESPACE}:Route"]="$(join '' "${gotmplRoute[@]}")"
     ["${SDI_NAMESPACE}:Service"]="$(join '' "${gotmplService[@]}")"
     ["${SDI_NAMESPACE}:Role"]="$(join '' "${gotmplRole[@]}")"
+    ["${SLCB_NAMESPACE}:DaemonSet"]="$(join '' "${gotmplDaemonSet[@]}")"
     ["${SLCB_NAMESPACE}:ConfigMap"]="$(join '' "${gotmplConfigMap[@]}")"
     ["${SLCB_NAMESPACE}:Service"]="$(join '' "${gotmplService[@]}")"
 )
@@ -714,6 +739,55 @@ function addPvToStatefulSet() {
     oc get -o json "$resource" | jq "$(join "|" "${patches[@]}")" | createOrReplace -f
 }
 
+function normNodeSelector() {
+    local ns="${1:-}"
+    tr ',' '\n' <<<"$ns" | sed -e '/^\s*$/d' -e 's/^\s*//' -e 's/\s*$//' | sort -u | \
+        tr '\n' ',' | sed 's/,$//'
+}
+
+function applyNodeSelectorToDS() {
+    local nm="$1"
+    local name="$2"
+    local newNodeSelector curNodeSelector
+    newNodeSelector="$(normNodeSelector "${SDI_NODE_SELECTOR:-}")"
+    if [[ -z "${newNodeSelector:-}" ]]; then
+        return 0
+    fi
+    curNodeSelector="$(normNodeSelector "${3:-}")"
+    if [[ "${newNodeSelector,,}" =~ ^removed?$ ]]; then
+        if [[ -z "${curNodeSelector:-}" ]]; then
+            return 0
+        fi
+        log 'Removing node selectors from daemonset/%s ...' "$name"
+        runOrLog oc patch -n "$nm" "daemonset/$name" \
+            -p '{"spec":{"template":{"spec":{"nodeSelector":null}}}}'
+        return 0
+    fi
+    if [[ "${curNodeSelector}" == "${newNodeSelector}" ]]; then
+        log 'The node selector of daemonset/%s is up to date ...' "$name"
+        return 0
+    fi
+    if [[ -z "${curNodeSelector:-}" && \
+            "$(cut -d . -f 2 <<<"${OCP_SERVER_VERSION:-}")" -ge 6 ]];
+    then
+        log 'Not setting node selector on daemonset/%s on OCP release ≥ 4.6 ...' "$name"
+        return 0
+    fi
+    log 'Patching daemonset/%s to run its pods on nodes matching the node selector "%s" ...' \
+        "$name" "$newNodeSelector"
+    local labels=()
+    readarray -t -d , labelitems <<<"${newNodeSelector}"
+    for item in "${labelitems[@]}"; do
+        if [[ -z "${item:-}" ]]; then
+            continue
+        fi
+        IFS='=' read -r key value <<<"${item}"
+        labels+=( '"'"$key"'":"'"${value:-}"'"' )
+    done
+    createOrReplace <<<"$(oc get -o json -n "$nm" "ds/$name" | \
+        jq '.spec.template.spec.nodeSelector |= {'"$(join , "${labels[@]}")"'}')"
+}
+
 function getResourceSAPLabels() {
     jq -r '.metadata.labels as $labs |
         [$labs | keys[] | select(test("sap\\.com\\/")) | "\(.)=\($labs[.] | gsub("\\s+"; ""))"] |
@@ -893,6 +967,14 @@ if [[ -n "${NAMESPACE:-}" && -n "${SDI_NAMESPACE:-}" && "$NAMESPACE" != "$SDI_NA
 fi
 
 while IFS=' ' read -u 3 -r namespace name resource; do
+    if [[ "${name:-}" =~ .+/.+ ]]; then
+        # unscoped (not-namespaced) resource produces just two columns:
+        #   <name> <kind>/<name>
+        resource="$name"
+        name="${namespace:-}"
+        kind="${resource%%/*}"
+        namespace=""
+    fi
     if [[ "${resource:-""}" == '""' ]]; then
         continue
     fi
@@ -905,12 +987,17 @@ while IFS=' ' read -u 3 -r namespace name resource; do
     if [[ -z "${kind:-}" || -z "${name:-}" ]]; then
         continue
     fi
-    tmpl="${gotmpls["$namespace:$kind"]:-}"
+    tmpl="${gotmpls["${namespace:-}:$kind"]:-}"
     if [[ -z "${tmpl:-}" ]]; then
-        log 'WARNING: Could not find go-template for kind "%s" in namespace "%s"!' "$kind" "$namespace"
+        log 'WARNING: Could not find go-template for kind "%s" in namespace "%s"!' \
+            "$kind" "${namespace:-}"
         continue
     fi
-    data="$(oc get -n "$namespace" "$resource" -o go-template="$tmpl")" ||:
+    args=( "$resource" -o go-template="$tmpl" )
+    if [[ -n "${namespace:-}" ]]; then
+        args+=( -n "$namespace" )
+    fi
+    data="$(oc get "${args[@]}")" ||:
     if [[ -z "${data:-}" ]]; then
         continue
     fi
@@ -1006,9 +1093,10 @@ while IFS=' ' read -u 3 -r namespace name resource; do
         runOrLog oc patch "deploy/$name" --type json -p '['"$(join , "${patches[@]}")"']'
         ;;
 
-    daemonset/*)
-        IFS=: read -r index _ unprivileged _ hostPath volumeMountIndex mountPath <<<"${rest:-}"
-        name="diagnostics-fluentd"
+    daemonset/diagnostics-fluentd)
+        IFS='#' read -r nodeSelector _rest <<<"${rest:-}"
+        applyNodeSelectorToDS "$namespace" "$name" "${nodeSelector:-}"
+        IFS=: read -r index _ unprivileged _ hostPath volumeMountIndex mountPath <<<"${_rest:-}"
         patches=()
         patchTypes=()
         mountPath="${mountPath%%#*}"
@@ -1051,6 +1139,11 @@ while IFS=' ' read -u 3 -r namespace name resource; do
             dsSpec="$(oc patch -o json --local -f - --type "$patchType" -p "${patch}" <<<"${dsSpec}")"
         done
         createOrReplace <<<"${dsSpec}"
+        ;;
+
+    daemonset/*)
+        IFS='#' read -r nodeSelector _ <<<"${rest:-}"
+        applyNodeSelectorToDS "$namespace" "$name" "${nodeSelector}"
         ;;
 
     statefulset/*)
@@ -1285,6 +1378,36 @@ while IFS=' ' read -u 3 -r namespace name resource; do
 
     secret/*)
         log 'Ignoring secret "%s" in namespace %s.' "$name" "$namespace"
+        ;;
+
+    namespace/*)
+        if [[ "$name" != "$SDI_NAMESPACE" && "$name" != "$SLCB_NAMESPACE" && \
+                "$name" != "datahub-system" ]];
+        then
+            continue
+        fi
+        newNodeSelector="$(normNodeSelector "${SDI_NODE_SELECTOR:-}")"
+        if [[ -z "${newNodeSelector:-}" ]]; then
+            continue
+        fi
+        curNodeSelector="$(normNodeSelector "${rest:-}")"
+        if [[ "${newNodeSelector,,}" =~ ^removed?$ ]]; then
+            if [[ -z "${curNodeSelector:-}" ]]; then
+                continue
+            fi
+            log 'Removing node selectors from %s ...' "$resource"
+            runOrLog oc annotate "$resource" openshift.io/node-selector-
+            continue
+        fi
+        if [[ "${curNodeSelector}" == "${newNodeSelector}" ]]; then
+            log 'The node selector of %s is up to date ...' "$resource"
+            continue
+        fi
+        log 'Patching %s to run on nodes matching the node selector "%s" ...' \
+            "$resource" "$newNodeSelector"
+        if [[ "${rest:-}" != "${SDI_NODE_SELECTOR:-}"  ]]; then
+            runOrLog oc annotate --overwrite "$resource" "openshift.io/node-selector=$newNodeSelector"
+        fi
         ;;
 
     *)

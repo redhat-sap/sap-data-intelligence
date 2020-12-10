@@ -150,6 +150,16 @@ base.DCTemplate {
       required: false,
       name: 'VSYSTEM_ROUTE_HOSTNAME',
     },
+    {
+      description: |||
+        Make pods in SDI_NAMESPACE schedule only on nodes matching the given node selector. The
+        selector will be applied to the whole namespace and its daemonsets. Selector can contain
+        multiple key=value labels separated with commas.
+        Example value: node-role.kubernetes.io/sdi=
+      |||,
+      required: false,
+      name: 'SDI_NODE_SELECTOR',
+    },
   ] + [
     params.NotRequired(p)
     for p in params.LetsencryptParams

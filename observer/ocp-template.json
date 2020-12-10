@@ -8,7 +8,7 @@
          "openshift.io/display-name": "OpenShift enabler and observer for SAP Data intelligence\n",
          "openshift.io/documentation-url": "https://access.redhat.com/articles/4324391",
          "openshift.io/provider-display-name": "Red Hat, Inc.",
-         "sdi-observer/version": "0.1.2"
+         "sdi-observer/version": "0.1.3"
       },
       "name": "sdi-observer"
    },
@@ -32,7 +32,7 @@
             "labels": {
                "created-by": "sdi-observer-template",
                "deploymentconfig": "sdi-observer",
-               "sdi-observer/version": "0.1.2"
+               "sdi-observer/version": "0.1.3"
             },
             "name": "sdi-observer",
             "namespace": "${NAMESPACE}"
@@ -61,7 +61,7 @@
                         "env": [
                            {
                               "name": "SDI_OBSERVER_VERSION",
-                              "value": "0.1.2"
+                              "value": "0.1.3"
                            },
                            {
                               "name": "DRY_RUN",
@@ -148,6 +148,10 @@
                               "value": "${VSYSTEM_ROUTE_HOSTNAME}"
                            },
                            {
+                              "name": "SDI_NODE_SELECTOR",
+                              "value": "${SDI_NODE_SELECTOR}"
+                           },
+                           {
                               "name": "LETSENCRYPT_ENVIRONMENT",
                               "value": "${LETSENCRYPT_ENVIRONMENT}"
                            },
@@ -223,7 +227,7 @@
                      ],
                      "from": {
                         "kind": "ImageStreamTag",
-                        "name": "sdi-observer:0.1.2-ocp${OCP_MINOR_RELEASE}"
+                        "name": "sdi-observer:0.1.3-ocp${OCP_MINOR_RELEASE}"
                      }
                   },
                   "type": "ImageChange"
@@ -277,6 +281,22 @@
                   "get",
                   "list",
                   "watch"
+               ]
+            },
+            {
+               "apiGroups": [
+                  ""
+               ],
+               "resources": [
+                  "namespaces"
+               ],
+               "verbs": [
+                  "get",
+                  "list",
+                  "watch",
+                  "patch",
+                  "update",
+                  "delete"
                ]
             }
          ]
@@ -689,6 +709,23 @@
                   "create",
                   "delete"
                ]
+            },
+            {
+               "apiGroups": [
+                  "apps",
+                  "extensions"
+               ],
+               "resources": [
+                  "daemonsets"
+               ],
+               "verbs": [
+                  "get",
+                  "list",
+                  "watch",
+                  "patch",
+                  "update",
+                  "delete"
+               ]
             }
          ]
       },
@@ -747,7 +784,7 @@
             "labels": {
                "created-by": "sdi-observer-template",
                "deploymentconfig": "sdi-observer",
-               "sdi-observer/version": "0.1.2"
+               "sdi-observer/version": "0.1.3"
             },
             "name": "sdi-observer",
             "namespace": "${NAMESPACE}"
@@ -756,7 +793,7 @@
             "output": {
                "to": {
                   "kind": "ImageStreamTag",
-                  "name": "sdi-observer:0.1.2-ocp${OCP_MINOR_RELEASE}"
+                  "name": "sdi-observer:0.1.3-ocp${OCP_MINOR_RELEASE}"
                }
             },
             "runPolicy": "Serial",
@@ -947,6 +984,11 @@
       {
          "description": "Expose the vsystem service at the provided hostname using a route. The value is applied\nonly if MANAGE_VSYSTEM_ROUTE is enabled. The hostname defaults to\nvsystem-<SDI_NAMESPACE>.<clustername>.<basedomainname>\n",
          "name": "VSYSTEM_ROUTE_HOSTNAME",
+         "required": false
+      },
+      {
+         "description": "Make pods in SDI_NAMESPACE schedule only on nodes matching the given node selector. The\nselector will be applied to the whole namespace and its daemonsets. Selector can contain\nmultiple key=value labels separated with commas.\nExample value: node-role.kubernetes.io/sdi=\n",
+         "name": "SDI_NODE_SELECTOR",
          "required": false
       },
       {
