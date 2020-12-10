@@ -207,17 +207,19 @@ gotmplRoute=(
     $'{{.kind}}\n'
 )
 
+# shellcheck disable=SC2016
 gotmplNamespace=(
-    '{{with $nm := .}}{{with $n := $nm.name}}'
+    '{{with $nm := .}}{{with $n := $nm.metadata.name}}'
         '{{if or (eq $n "'"$SLCB_NAMESPACE"'")'
             ' (or (eq $n "'"$SDI_NAMESPACE"'") (eq $n "datahub-system"))}}'
             # print (string kind)#(string value of node-selector annotation)?
-            $'{{.kind}}#'
+            $'{{$nm.kind}}#'
             '{{range $k, $v := $nm.metadata.annotations}}'
                 '{{if eq $k "openshift.io/node-selector"}}'
                     '{{$v}}'
                 '{{end}}'
             $'{{end}}\n'
+        '{{end}}'
     '{{end}}{{end}}'
 )
 
@@ -291,7 +293,7 @@ fi
 # The associated value is a go-template producing an output the will be passed to the observer
 # loop.
 declare -A gotmpls=(
-    ["Namespace"]="$(join '' "${gotmplNamespace[@]}")"
+    [":Namespace"]="$(join '' "${gotmplNamespace[@]}")"
     ["${SDI_NAMESPACE}:Deployment"]="$(join '' "${gotmplDeployment[@]}")"
     ["${SDI_NAMESPACE}:DaemonSet"]="$(join '' "${gotmplDaemonSet[@]}")"
     ["${SDI_NAMESPACE}:StatefulSet"]="$(join '' "${gotmplStatefulSet[@]}")"
@@ -740,7 +742,7 @@ function addPvToStatefulSet() {
 function normNodeSelector() {
     local ns="${1:-}"
     tr ',' '\n' <<<"$ns" | sed -e '/^\s*$/d' -e 's/^\s*//' -e 's/\s*$//' | sort -u | \
-        tr '\n' ',' | sed 's/,$'
+        tr '\n' ',' | sed 's/,$//'
 }
 
 function applyNodeSelectorToDS() {
@@ -765,7 +767,7 @@ function applyNodeSelectorToDS() {
         log 'The node selector of daemonset/%s is up to date ...' "$name"
         return 0
     fi
-    log 'Patching daemonset/%s to run on nodes matching the node selector "%s" ...' \
+    log 'Patching daemonset/%s to run its pods on nodes matching the node selector "%s" ...' \
         "$name" "$newNodeSelector"
     local labels=()
     readarray -t -d , labelitems <<<"${newNodeSelector}"
@@ -774,12 +776,10 @@ function applyNodeSelectorToDS() {
             continue
         fi
         IFS='=' read -r key value <<<"${item}"
-        labels+=( '"'"$key"':"'"${value:-}"'"' )
+        labels+=( '"'"$key"'":"'"${value:-}"'"' )
     done
-    set -x
     createOrReplace <<<"$(oc get -o json -n "$nm" "ds/$name" | \
         jq '.spec.template.spec.nodeSelector |= {'"$(join , "${labels[@]}")"'}')"
-    set +x
 }
 
 function getResourceSAPLabels() {
@@ -961,6 +961,14 @@ if [[ -n "${NAMESPACE:-}" && -n "${SDI_NAMESPACE:-}" && "$NAMESPACE" != "$SDI_NA
 fi
 
 while IFS=' ' read -u 3 -r namespace name resource; do
+    if [[ "${name:-}" =~ .+/.+ ]]; then
+        # unscoped (not-namespaced) resource produces just two columns:
+        #   <name> <kind>/<name>
+        resource="$name"
+        name="${namespace:-}"
+        kind="${resource%%/*}"
+        namespace=""
+    fi
     if [[ "${resource:-""}" == '""' ]]; then
         continue
     fi
@@ -973,12 +981,17 @@ while IFS=' ' read -u 3 -r namespace name resource; do
     if [[ -z "${kind:-}" || -z "${name:-}" ]]; then
         continue
     fi
-    tmpl="${gotmpls["$namespace:$kind"]:-}"
+    tmpl="${gotmpls["${namespace:-}:$kind"]:-}"
     if [[ -z "${tmpl:-}" ]]; then
-        log 'WARNING: Could not find go-template for kind "%s" in namespace "%s"!' "$kind" "$namespace"
+        log 'WARNING: Could not find go-template for kind "%s" in namespace "%s"!' \
+            "$kind" "${namespace:-}"
         continue
     fi
-    data="$(oc get -n "$namespace" "$resource" -o go-template="$tmpl")" ||:
+    args=( "$resource" -o go-template="$tmpl" )
+    if [[ -n "${namespace:-}" ]]; then
+        args+=( -n "$namespace" )
+    fi
+    data="$(oc get "${args[@]}")" ||:
     if [[ -z "${data:-}" ]]; then
         continue
     fi
@@ -1363,7 +1376,7 @@ while IFS=' ' read -u 3 -r namespace name resource; do
 
     namespace/*)
         if [[ "$name" != "$SDI_NAMESPACE" && "$name" != "$SLCB_NAMESPACE" && \
-                "$nm" != "datahub-system" ]];
+                "$name" != "datahub-system" ]];
         then
             continue
         fi
@@ -1387,7 +1400,7 @@ while IFS=' ' read -u 3 -r namespace name resource; do
         log 'Patching %s to run on nodes matching the node selector "%s" ...' \
             "$resource" "$newNodeSelector"
         if [[ "${rest:-}" != "${SDI_NODE_SELECTOR:-}"  ]]; then
-            oc annotate "$resource" "openshift.io/node-selector=$newNodeSelector"
+            runOrLog oc annotate --overwrite "$resource" "openshift.io/node-selector=$newNodeSelector"
         fi
         ;;
 
