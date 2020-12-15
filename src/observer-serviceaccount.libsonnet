@@ -224,11 +224,8 @@
       },
       rules: [
         $.rbac.role.GetProjects,
-        $.rbac.role.PatchConfigmaps,
         $.rbac.role.ManageRBAC,
-        $.rbac.role.ManageRoutes,
         $.rbac.role.CreateNamespaces,
-        $.rbac.role.ManageServices,
         $.rbac.role.PatchDaemonSets,
       ],
     },

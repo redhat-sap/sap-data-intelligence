@@ -14,7 +14,6 @@ if [[ "${_SDI_LIB_SOURCED:-0}" == 0 ]]; then
 fi
 common_init
 
-readonly CLUSTERIP_SERVICE_NAME="slcbridge-clusterip"
 readonly CABUNDLE_VOLUME_NAME="sdi-observer-cabundle"
 readonly CABUNDLE_VOLUME_MOUNT_PATH="/mnt/sdi-observer/cabundle"
 readonly UPDATE_CA_TRUST_CONTAINER_NAME="sdi-observer-update-ca-certificates"
@@ -233,22 +232,6 @@ gotmplService=(
                     $'{{$s.kind}}\n'
                 '{{end}}'
             '{{end}}'
-        '{{else}}'
-            '{{if $s.metadata.labels}}'
-                '{{with $run := index $s.metadata.labels "run"}}'
-                    '{{if eq $run "slcbridge"}}'
-                        '{{with $ss := $s.spec}}'
-                            # print (string kind)#(string clusterIP)#(string type)#
-                            #       (string sessionAffinity)#((string targetPort):)+
-                            '{{$s.kind}}#{{$ss.clusterIP}}#{{$ss.type}}#{{$ss.sessionAffinity}}#'
-                            '{{range $i, $p := $ss.ports}}'
-                                '{{$p.targetPort}}:'
-                            '{{end}}'
-                        '{{end}}'
-                       $'\n'
-                    '{{end}}'
-                '{{end}}'
-            '{{end}}'
         '{{end}}'
     '{{end}}'
 )
@@ -302,8 +285,6 @@ declare -A gotmpls=(
     ["${SDI_NAMESPACE}:Service"]="$(join '' "${gotmplService[@]}")"
     ["${SDI_NAMESPACE}:Role"]="$(join '' "${gotmplRole[@]}")"
     ["${SLCB_NAMESPACE}:DaemonSet"]="$(join '' "${gotmplDaemonSet[@]}")"
-    ["${SLCB_NAMESPACE}:ConfigMap"]="$(join '' "${gotmplConfigMap[@]}")"
-    ["${SLCB_NAMESPACE}:Service"]="$(join '' "${gotmplService[@]}")"
 )
 
 if evalBool INJECT_CABUNDLE; then
@@ -356,17 +337,6 @@ function checkPermissions() {
         "*:get/projects"
         get/secrets
         update/daemonsets
-
-        "$SLCB_NAMESPACE:get/configmaps"
-        "$SLCB_NAMESPACE:patch/configmaps"
-        "$SLCB_NAMESPACE:watch/configmaps"
-        "$SLCB_NAMESPACE:get/service"
-        "$SLCB_NAMESPACE:create/service"
-        "$SLCB_NAMESPACE:delete/service"
-        "$SLCB_NAMESPACE:create/route"
-        "$SLCB_NAMESPACE:delete/route"
-        "$SLCB_NAMESPACE:get/route"
-        "$SLCB_NAMESPACE:watch/configmaps"
     )
     if [[ -n "${CABUNDLE_SECRET_NAMESPACE:-}" ]]; then
         toCheck+=( "${CABUNDLE_SECRET_NAMESPACE:-}:get/secrets" )
@@ -441,46 +411,6 @@ function purgeDeprecatedResources() {
         "--selector=deploymentconfig="{vflow-observer,vsystem-observer,sdh-observer} ||:
 }
 
-function processSLCBService() {
-    local namespace="$1"
-    local name="$2"
-    local _type="$3"
-    local sessionAffinity="$4"
-    if [[ "$name" == "$CLUSTERIP_SERVICE_NAME" && \
-          "${_type:-}" == "ClusterIP" &&
-          "${sessionAffinity:-}" == "ClientIP" ]];
-    then
-        log 'Service %s in namespace %s already exists, skipping ...' \
-            "$name" "$namespace"
-        return 0
-    fi
-
-    if [[ "$name" == "$CLUSTERIP_SERVICE_NAME" ]]; then
-        log 'Patching service %s in namespace %s to become clusterIP, ...' \
-            "$name" "$namespace"
-        oc get -n "$namespace" -o json "service/$name" | \
-            jq '.spec.type |= "ClusterIP" |
-                .spec.sessionAffinity |= "ClientIP" |
-                walk(if type == "object" then
-                            delpaths([["nodePort"],["externalTrafficPolicy"]])
-                     else . end)' | createOrReplace -n "$namespace"
-        return 0
-    fi
-    if oc get -n "$namespace" "service/$CLUSTERIP_SERVICE_NAME" -o name >/dev/null 2>&1; then
-        log 'Service %s in namespace %s already exists, ignoring event for service %s ...' \
-            "$CLUSTERIP_SERVICE_NAME" "$namespace" "$name"
-        return 0
-    fi
-
-    log 'Creating service %s in namespace %s, ...' "$CLUSTERIP_SERVICE_NAME" "$namespace"
-    oc get -n "$namespace" -o json "service/$name" | \
-        jq '.spec.type |= "ClusterIP" | .metadata.name |= "'"$CLUSTERIP_SERVICE_NAME"'" |
-            .spec.sessionAffinity |= "ClientIP" | del(.spec.clusterIP) |
-            walk(if type == "object" then
-                        delpaths([["nodePort"],["externalTrafficPolicy"]])
-                 else . end)' | createOrReplace -n "$namespace"
-}
-
 function getJobImage() {
     if [[ -n "${JOB_IMAGE:-}" ]]; then
         printf '%s' "${JOB_IMAGE}"
@@ -491,98 +421,6 @@ function getJobImage() {
         go-template='{{with $c := index .spec.template.spec.containers 0}}{{$c.image}}{{end}}')"
     export JOB_IMAGE
     printf '%s' "${JOB_IMAGE}"
-}
-
-function addUpdateCaTrustInitContainer() {
-    local arr=() object scriptLines=() script
-    mapfile -d $'\0' arr
-    object="${arr[0]:-}"
-    # shellcheck disable=SC2016
-    scriptLines=(
-        'mkdir -pv /etc/pki/ca-trust/source/anchors/ ||:'
-        'k8scacert=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt'
-        # copy a standard k8s cabundle generated and mounted by OCP platform
-        # TODO: make this optional - may not be desirable
-        'if [[ -e "$k8scacert" ]]; then'
-        '  cp -aLv "$k8scacert" /etc/pki/ca-trust/source/anchors/k8s-ca.crt'
-        'fi'
-        # copy also the desired CA certificate bundle
-        "$(join ' ' 'cp -aLv' \
-            '"'"$CABUNDLE_VOLUME_MOUNT_PATH/$SDI_CABUNDLE_SECRET_FILE_NAME"'"' \
-            '/etc/pki/ca-trust/source/anchors/')"
-        # the command is named differently on RHEL and SLES, support both
-        'cmd=update-ca-trust'
-        'if command -v update-ca-certificates >/dev/null; then'
-        '  cmd=update-ca-certificates'
-        'fi'
-        '"$cmd"'
-        # copy the generated updated CA certificates to an empty dir volume which will be mounted
-        # to the injected container at /etc/pki
-        'cd /etc/pki'
-        'cp -av * /mnt/etc-pki/'
-#        "$(join ' ' 'find -L -type f |' \
-#            ' grep -v -F -f <(find -L -type l) |' \
-#            ' xargs -n 1 -r -i install --preserve-context -p -D -v "{}" "/mnt/etc-pki/{}"')"
-    )
-
-    local namespace saName
-    IFS=: read -r namespace saName <<<"$(jq -r \
-        '"\(.metadata.namespace // "'"$SDI_NAMESPACE"'"):\(.spec.template.spec.serviceAccountName)"' \
-            <<<"$object")"
-    local pullSecretName
-    pullSecretName="$(oc get -n "$namespace" "sa/$saName" -o json | \
-        jq -r '.secrets[] | select(.name | test("-dockercfg-")) | .name')"
-
-    script="$(printf '%s\\n' "${scriptLines[@]//\"/\\\"}")"
-    # TODO: report that equivalent `oc set volume --local -f - ...` command results in a traceback
-    # shellcheck disable=SC2016
-    local patches=(
-        '.spec.template.spec.initContainers |= (. // [] | [.[] |
-                select(.name != "'"$UPDATE_CA_TRUST_CONTAINER_NAME"'")]) + [
-            {
-              "command": [
-                "/bin/bash",
-                "-c",
-                "'"$script"'"
-              ],
-              "image": "'"$(getJobImage)"'",
-              "name": "'"$UPDATE_CA_TRUST_CONTAINER_NAME"'"
-            }]'
-
-        '.spec.template.spec |= (. | walk(if type == "object" and has("image") and has("name") then
-                . as $c | .volumeMounts |= (. // [] |
-                    [.[] | select(.name != "'"$CABUNDLE_VOLUME_NAME"'" and .name != "etc-pki")] + [
-                        {
-                            "mountPath": "'"$CABUNDLE_VOLUME_MOUNT_PATH"'",
-                            "name": "'"$CABUNDLE_VOLUME_NAME"'",
-                            "readOnly": true
-                        }, {
-                            "mountPath": (if $c.name == "'"$UPDATE_CA_TRUST_CONTAINER_NAME"'" then
-                                "/mnt/etc-pki"
-                            else
-                                "/etc/pki"
-                            end),
-                            "name": "etc-pki",
-                        }
-                    ])
-                else . end))'
-
-        '.spec.template.spec.volumes |= (. // [] | [.[] |
-            select(.name != "'"$CABUNDLE_VOLUME_NAME"'" and .name != "etc-pki")] + [
-                {
-                    "name": "etc-pki",
-                    "emptyDir": {}
-                }, {
-                    "name": "'"$CABUNDLE_VOLUME_NAME"'",
-                    "secret": {
-                        "secretName": "'"$SDI_CABUNDLE_SECRET_NAME"'"
-                    }
-                }])'
-
-        '.spec.template.spec.imagePullSecrets |= ((. // []) | [.[] | select(.name !=
-            "sdi-observer-registry")] + [{"name":"'"$pullSecretName"'"}])'
-    )
-    jq "$(join '|' "${patches[@]}")" <<<"$object"
 }
 
 function deployComponent() {
@@ -993,18 +831,32 @@ while IFS=' ' read -u 3 -r namespace name resource; do
             "$kind" "${namespace:-}"
         continue
     fi
+    deleted=0
     args=( "$resource" -o go-template="$tmpl" )
     if [[ -n "${namespace:-}" ]]; then
         args+=( -n "$namespace" )
     fi
     data="$(oc get "${args[@]}")" ||:
     if [[ -z "${data:-}" ]]; then
-        continue
-    fi
-    IFS='#' read -r _kind rest <<<"${data}"
-    if [[ "$_kind" != "$kind" ]]; then
-        printf 'Kinds do not match (%s != %s)! Something is terribly wrong!\n' "$kind" "$_kind"
-        continue
+        case "${kind,,}" in
+        "route" | "secret")
+            if ! doesResourceExist -n "$namespace" "$resource"; then
+                deleted=1
+            else
+                log 'Could not get any data for resource %s!' "$resource"
+                continue
+            fi
+            ;;
+        *)
+            continue
+            ;;
+        esac
+    else
+        IFS='#' read -r _kind rest <<<"${data}"
+        if [[ "$_kind" != "$kind" ]]; then
+            printf 'Kinds do not match (%s != %s)! Something is terribly wrong!\n' "$kind" "$_kind"
+            continue
+        fi
     fi
     resource="${resource,,}"
 
@@ -1212,134 +1064,12 @@ while IFS=' ' read -u 3 -r namespace name resource; do
         runOrLog oc delete --force --grace-period=0 "${pods[@]}" ||:
         ;;
 
-    configmap/*nginx*)
-        contents="$(oc get -n "$namespace" "$resource" \
-            -o go-template='{{index .data "nginx.conf"}}')"
-        if [[ -z "${contents:-}" ]]; then
-            log "Failed to get contents of nginx.conf configuration file!"
-            continue
-        fi
-        if      ! grep -q 'https\?://localhost' <<<"$contents" && \
-                ! grep -q '^\s\+listen\s\+\[::' <<<"$contents";
-        then
-            log 'No need to patch %s in %s namespace, skipping...' "$resource" "$SLCB_NAMESPACE"
-            continue
-        fi
-        newContents="$(sed -e 's/^\([[:space:]]\+\)\(listen[[:space:]]\+\[::\)/\1#\2/' \
-            -e 's,\(https\?://\)localhost,\1127.0.0.1,g' <<<"$contents")"
-        # shellcheck disable=SC2001
-        log 'Patching configmap %s in namespace "%s" to disable IPv4 for nginx frontend ...' \
-            "$name" "$namespace"
-        # shellcheck disable=SC2001
-        yamlPatch="$(printf '%s\n' "data:" "    nginx.conf: |" \
-            "$(sed 's/^/        /' <<<"$newContents")")"
-        runOrLog oc patch -n "$SLCB_NAMESPACE" "$resource" -p "$yamlPatch"
-
-        ensureCABundleSecret
-
-        # do not restart slcbridge if modifyin secrets of other pods
-        [[ "$name" =~ master-nginx ]] || continue
-        # do not restart any pods managed by slcbridge as it will make slcbridge unresponsive;
-        # replacing cm of any managed pod is done on best effort - we cannot guarantee that the
-        # pod is started and runs with a patched config file
-        readarray -t pods <<<"$(oc get pods -n "$SLCB_NAMESPACE" -o json -l run=slcbridge | \
-            jq -r '.items[] | select(.spec.volumes |
-                any(.name == "master-nginx-conf")) | "pod/\(.metadata.name)"')"
-        for ((i = $((${#pods[@]} - 1)); i >= 0; i--)); do
-            [[ -z "$(tr -d '[:space:]' <<<"${pods[$i]}")" ]] && unset pods["$i"]
-        done
-        [[ "${#pods[@]}" == 0 ]] && continue
-        log 'Restarting slcbridge pods ...'
-        runOrLog oc delete -n "$namespace" --force --grace-period=0 "${pods[@]}" ||:
-        ;;
-
     configmap/*)
         continue
         ;;
 
     service/vsystem | route/*)
         ensureRoutes ||:
-        ;;
-
-    service/*)
-        IFS='#' read -r _ _type sessionAffinity _ <<<"${rest:-}"
-        processSLCBService "$namespace" "$name" "$_type" "$sessionAffinity"
-
-        # TODO: find out why SLC Bridge is not usable behind router
-        # right now can be used only via the default NodePort (on-premise solution) or the
-        # default LoadBalancer services
-        continue
-
-        desiredTermination="passthrough"
-        evalBool EXPOSE_WITH_LETSENCRYPT && desiredTermination=reencrypt
-
-        routes="$(oc get route -n "$namespace" -l "run=slcbridge" -o json)"
-        for routeName in $(jq -r '.items[] | .metadata.name' <<<"$routes"); do
-            IFS=: read -r termination toKind toName host <<<"$(jq -r '.items[] |
-                select(.metadata.name == "'"$routeName"'") |
-                    "\(.spec.tls.termination):\(.spec.to.kind):\(.spec.to.name):\(.spec.host)"' \
-                                <<<"$routes")"
-            if [[   "${termination:-}" == "$desiredTermination" && \
-                    "${toKind:-}" == "Service" && \
-                    "${toName:-}" == "$CLUSTERIP_SERVICE_NAME" && \
-                    ( -z "${SLCB_ROUTE_HOSTNAME:-}" || \
-                    "${host:-}" == "${SLCB_ROUTE_HOSTNAME}" ) ]];
-            then
-                log -n 'Service %s in namespace %s is already exposed at %s via route %s' \
-                    "$CLUSTERIP_SERVICE_NAME" "$namespace" "${host:-}" "$routeName"
-                log -d ' not exposing again ...'
-                continue 2
-            fi
-        done
-
-        args=(
-            "$desiredTermination"
-            "--namespace=$namespace"
-            "--service=$CLUSTERIP_SERVICE_NAME"
-            "$DRUNARG" -o json
-            "--insecure-policy=Redirect"
-        )
-
-        if [[ -z "${SLCB_ROUTE_HOSTNAME:-}" ]]; then
-            domain="$(oc get -o jsonpath='{.spec.domain}' \
-                ingresses.config.openshift.io/cluster)" ||:
-            if [[ -z "${domain:-}" ]]; then
-                log 'Failed to determine ingress'"'"' wildcard address!'
-            else
-                SLCB_ROUTE_HOSTNAME="slcb.$domain"
-            fi
-        fi
-        if [[ -n "${SLCB_ROUTE_HOSTNAME:-}" ]]; then
-            args+=( --hostname="${SLCB_ROUTE_HOSTNAME:-}" )
-            log 'Exposing service %s in namespace %s at %s via route, ...' \
-                "$CLUSTERIP_SERVICE_NAME" "$namespace" "$SLCB_ROUTE_HOSTNAME"
-        else
-            log 'Exposing service %s in namespace %s via route, ...' \
-                "$CLUSTERIP_SERVICE_NAME" "$namespace"
-        fi
-        if [[ -n "${SLCB_ROUTE_HOSTNAME:-}" ]]; then
-            readarray -t toDelete <<<"$(jq -r '.items[] | select(
-                .metadata.name != "'"$CLUSTERIP_SERVICE_NAME"'" and
-                .spec.host == "'"$SLCB_ROUTE_HOSTNAME"'") | .metadata.name' \
-                    <<<"$routes")"
-            for r in "${toDelete[@]}"; do
-                [[ -z "$(tr -d '[:space:]' <<<"${r:-}")" ]] && continue
-                log 'Deleting conflicting route "%s" having the same hostname "%s"!' \
-                    "$r" "$SLCB_ROUTE_HOSTNAME"
-                printf 'route/%s\n' "$r"
-            done | parallel -- runOrLog oc delete -n "$namespace"
-        fi
-
-        if evalBool DRY_RUN; then
-            runOrLog oc create route "${args[@]}"
-        else
-            object="$(oc create route "${args[@]}")"
-            if evalBool EXPOSE_WITH_LETSENCRYPT; then
-                object="$(jq '.metadata.annotations["kubernetes.io/tls-acme"] |= "true"' \
-                    <<<"$object")"
-            fi
-            createOrReplace -n "$namespace" <<<"$object"
-        fi
         ;;
 
     "secret/${CABUNDLE_SECRET_NAME:-}" | "secret/$VORA_CABUNDLE_SECRET_NAME")
