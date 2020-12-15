@@ -836,8 +836,11 @@ while IFS=' ' read -u 3 -r namespace name resource; do
     if [[ -n "${namespace:-}" ]]; then
         args+=( -n "$namespace" )
     fi
-    data="$(oc get "${args[@]}")" ||:
+    rc=0
+    data="$(oc get "${args[@]}")" || rc=$?
     if [[ -z "${data:-}" ]]; then
+        # no data produced by template means the object is not interesting
+        [[ "$rc" == 0 ]] && continue
         case "${kind,,}" in
         "route" | "secret")
             if ! doesResourceExist -n "$namespace" "$resource"; then
