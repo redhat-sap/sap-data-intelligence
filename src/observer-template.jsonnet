@@ -245,8 +245,19 @@ base.DCTemplate {
     following command: oc logs -f dc/sdi-observer
   |||,
 
-  objects+: [o for o in obstmpl.saObjects.ObjectsForSDI if o.kind != 'ServiceAccount']
-            + bc.objects,
+  local setDeploymentStrategy(strategy, object) = if object.kind == 'DeploymentConfig' then
+    object {
+      spec+: {
+        strategy+: {
+          type: strategy,
+        },
+      },
+    }
+  else object,
+
+  objects: [setDeploymentStrategy('Recreate', o) for o in super.objects] +
+           [o for o in obstmpl.saObjects.ObjectsForSDI if o.kind != 'ServiceAccount']
+           + bc.objects,
 
   parameters+: [p for p in params.LetsencryptParams if p.name != 'LETSENCRYPT_ENVIRONMENT'],
 

@@ -64,7 +64,6 @@ local useCustomSourceImage(tmpl, version, withSecret=false) = tmpl {
             spec+: {
               template+: {
                 spec+: {
-                  local containers = super.containers,
                   containers: [
                     c {
                       env: [
@@ -98,7 +97,7 @@ local useCustomSourceImage(tmpl, version, withSecret=false) = tmpl {
                                   else [])
                            else []),
                     }
-                    for c in containers
+                    for c in super.containers
                   ],
                 },
               },
