@@ -39,7 +39,7 @@ function _observe() {
     local kind="${1##*:}"
     local args=( )
     if [[ "$1" =~ ^(.+):(.+)$ ]]; then
-        args+=( -n "${BASH_REMATCH[1]}" )
+        args+=( -n "${BASH_REMATCH[1]}" --names="echo" --delete="echo")
     fi
     local jobnumber="$2"
     local portnumber="$((11251 + jobnumber))"
