@@ -43,7 +43,7 @@
                "deploymentconfig": "sdi-observer"
             },
             "strategy": {
-               "type": "Rolling"
+               "type": "Recreate"
             },
             "template": {
                "metadata": {
