@@ -8,7 +8,7 @@
          "openshift.io/display-name": "OpenShift enabler and observer for SAP Data intelligence\n",
          "openshift.io/documentation-url": "https://access.redhat.com/articles/4324391",
          "openshift.io/provider-display-name": "Red Hat, Inc.",
-         "sdi-observer/version": "0.1.4"
+         "sdi-observer/version": "0.1.5"
       },
       "name": "sdi-observer"
    },
@@ -32,7 +32,7 @@
             "labels": {
                "created-by": "sdi-observer-template",
                "deploymentconfig": "sdi-observer",
-               "sdi-observer/version": "0.1.4"
+               "sdi-observer/version": "0.1.5"
             },
             "name": "sdi-observer",
             "namespace": "${NAMESPACE}"
@@ -61,7 +61,7 @@
                         "env": [
                            {
                               "name": "SDI_OBSERVER_VERSION",
-                              "value": "0.1.4"
+                              "value": "0.1.5"
                            },
                            {
                               "name": "DRY_RUN",
@@ -201,7 +201,7 @@
                         "resources": {
                            "limits": {
                               "cpu": "2000m",
-                              "memory": "768Mi"
+                              "memory": "1500m"
                            },
                            "requests": {
                               "cpu": "400m",
@@ -227,7 +227,7 @@
                      ],
                      "from": {
                         "kind": "ImageStreamTag",
-                        "name": "sdi-observer:0.1.4-ocp${OCP_MINOR_RELEASE}"
+                        "name": "sdi-observer:0.1.5-ocp${OCP_MINOR_RELEASE}"
                      }
                   },
                   "type": "ImageChange"
@@ -732,7 +732,7 @@
             "labels": {
                "created-by": "sdi-observer-template",
                "deploymentconfig": "sdi-observer",
-               "sdi-observer/version": "0.1.4"
+               "sdi-observer/version": "0.1.5"
             },
             "name": "sdi-observer",
             "namespace": "${NAMESPACE}"
@@ -741,7 +741,7 @@
             "output": {
                "to": {
                   "kind": "ImageStreamTag",
-                  "name": "sdi-observer:0.1.4-ocp${OCP_MINOR_RELEASE}"
+                  "name": "sdi-observer:0.1.5-ocp${OCP_MINOR_RELEASE}"
                }
             },
             "runPolicy": "Serial",
