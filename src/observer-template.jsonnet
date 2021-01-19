@@ -13,11 +13,11 @@ base.DCTemplate {
   command: '/usr/local/bin/observer.sh',
   requests:: {
     cpu: '400m',
-    memory: '500m',
+    memory: '500Mi',
   },
   limits+:: {
     cpu: '2000m',
-    memory: '1500m',
+    memory: '1500Mi',
   },
 
   parametersToExport+: [
