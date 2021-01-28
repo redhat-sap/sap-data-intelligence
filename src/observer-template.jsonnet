@@ -17,7 +17,7 @@ base.DCTemplate {
   },
   limits+:: {
     cpu: '2000m',
-    memory: '1500Mi',
+    memory: '2Gi',
   },
 
   parametersToExport+: [

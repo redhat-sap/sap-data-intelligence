@@ -1,3 +1,4 @@
+- [ ] - do not terminate observer when SDI or slcbridge namespaces are missing
 - [ ] - fix uninstallation
 
     - job datahub.checkpointstore-cleanup keeps restarting
@@ -15,6 +16,14 @@
             ] | group_by(.metadata.annotations["kubernetes.io/service-account.name"]) |
             [.[] | .[0:((. | length)-2)]] | flatten(1)[] |
                 "\(.metadata.name): \(.metadata.creationTimestamp)"' | awk -F : '{print "secret/"$1}' | xargs -r oc delete
+
+- [ ] - prevent from the following build error:
+
+        2m48s       Warning   BuildConfigInstantiateFailed   buildconfig/sdi-observer               error instantiating Build from BuildConfig sdi-observer/sdi-observer (0): Error resolving ImageStreamTag ubi8:latest in namespace sdi-observer: unable to find latest tagged image
+
+    verify manual solution:
+
+        oc tag --reference-policy=local --scheduled --source=docker registry.redhat.io/ubi8/ubi:latest ubi8:latest
 
 - [ ] - do not re-deploy registry each time the observer is restarted
 - [ ] - add job or webhook for observer's automated updates

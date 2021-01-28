@@ -21,8 +21,8 @@ local bctmpl = import 'ubi-buildconfig.libsonnet';
         dnf install -y parallel procps-ng bc git httpd-tools && dnf clean all -y
       # TODO: determine OCP version from environment
       RUN cd tmp; \
-        curl -L -O https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest-${OCP_MINOR_RELEASE}/openshift-client-linux.tar.gz; \
-        curl -L -O https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest-${OCP_MINOR_RELEASE}/sha256sum.txt
+        curl -L -O https://mirror.openshift.com/pub/openshift-v4/clients/ocp/stable-${OCP_MINOR_RELEASE}/openshift-client-linux.tar.gz; \
+        curl -L -O https://mirror.openshift.com/pub/openshift-v4/clients/ocp/stable-${OCP_MINOR_RELEASE}/sha256sum.txt
       # verify the downloaded tar
       RUN /bin/bash -c 'f=/tmp/openshift-client-linux.tar.gz; \
         got="$(awk '"'"'{print $1}'"'"' <(sha256sum "$f"))"; \
