@@ -951,48 +951,49 @@ while IFS=' ' read -u 3 -r namespace name resource; do
     daemonset/diagnostics-fluentd)
         IFS='#' read -r nodeSelector _rest <<<"${rest:-}"
         applyNodeSelectorToDS "$namespace" "$name" "${nodeSelector:-}"
-        IFS=: read -r index _ unprivileged _ hostPath volumeMountIndex mountPath <<<"${_rest:-}"
+        IFS=: read -r index _ unprivileged _ hostPath volumeMountIndex mountPath   <<<"${_rest:-}"
         patches=()
         patchTypes=()
         mountPath="${mountPath%%#*}"
         if [[ "$unprivileged" == "true" ]]; then
             log 'Patching container #%d in daemonset/%s to make its pods privileged ...' \
                     "$index" "$name"
-                    patches+=( "$(join ' ' '{"spec":{"template":{"spec":{"containers":' \
-                                                '[{"name":"diagnostics-fluentd", "securityContext":{"privileged": true}}]}}}}')"
-                    )
-                    patchTypes+=( strategic )
+            patches+=( "$(join ' ' \
+                '.spec.template.spec.containers |= 
+                        map(if .name == "diagnostics-fluentd" then' \
+                            '.securityContext |= (.privileged |= true) else . end)')"
+            )
         else
             log 'Container #%d in daemonset/%s already patched, skipping ...' "$index" "$name"
         fi
-        if [[ -n "${hostPath:-}" && "${hostPath}" != "/var/lib/docker" ]]; then
-            log 'Patching container #%d in daemonset/%s to mount /var/lib/docker instead of %s' \
+
+        if [[ -n "${hostPath:-}" && ( "${hostPath}" != "/var/log/pods" ||
+                ( -n "${mountPath:-}" && "${mountPath}" != "/var/log/pods" ) ) ]];
+        then
+            log 'Patching container #%d in daemonset/%s to mount /var/log/pods instead of %s' \
                     "$index" "$name" "$hostPath"
-            patches+=(
-                "$(join ' ' '[{"op": "replace", "path":' \
-                                '"/spec/template/spec/containers/'"$index/volumeMounts/$volumeMountIndex"'",' \
-                                '"value": {"name":"varlibdockercontainers","mountPath":"/var/lib/docker","readOnly": true}}]' )"
+            patches+=( "$(join ' ' \
+                '.spec.template.spec.containers |=' \
+                    'map(if .name == "diagnostics-fluentd" then' \
+                        '.volumeMounts |= [.[] | select(.name != "varlibdockercontainers")] + [' \
+                        '{"name":"varlibdockercontainers",' \
+                        '"mountPath":"/var/log/pods",' \
+                        '"readOnly": true}] else . end)' )"
             )
-            patchTypes+=( json )
-            patches+=(
-                "$(join ' ' '{"spec":{"template":{"spec":' \
-                            '{"volumes":[{"name": "varlibdockercontainers", "hostPath":' \
-                                '{"path": "/var/lib/docker", "type":""}}]}}}}' )"
+            patches+=( "$(join ' ' \
+                '.spec.template.spec.volumes |= [.[] |' \
+                    'select(.name != "varlibdockercontainers")] + [' \
+                        '{"name": "varlibdockercontainers", "hostPath":' \
+                                '{"path": "/var/log/pods", "type":""}}]' )"
             )
-            patchTypes+=( strategic )
         elif [[ -z "${hostPath:-}" ]]; then
-            log 'Failed to determine hostPath for varlibcontainers volume!'
+            log 'Failed to determine hostPath for varlibdockercontainers volume!'
         else
-            log 'Daemonset/%s already patched to mount /var/lib/docker, skipping ...' "$name"
+            log 'Daemonset/%s already patched to mount %s, skipping ...' "$name" "$hostPath"
         fi
 
         [[ "${#patches[@]}" == 0 ]] && continue
-        dsSpec="$(oc get -o json daemonset/"$name")"
-        for ((i=0; i < "${#patches[@]}"; i++)); do
-            patch="${patches[$i]}"
-            patchType="${patchTypes[$i]}"
-            dsSpec="$(oc patch -o json --local -f - --type "$patchType" -p "${patch}" <<<"${dsSpec}")"
-        done
+        dsSpec="$(jq "$(join '|' "${patches[@]}")" <<<"$(oc get -o json daemonset/"$name")")"
         createOrReplace <<<"${dsSpec}"
         ;;
 
