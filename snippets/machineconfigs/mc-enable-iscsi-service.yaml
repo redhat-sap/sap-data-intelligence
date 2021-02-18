@@ -1,0 +1,23 @@
+---
+apiVersion: machineconfiguration.openshift.io/v1
+kind: MachineConfig
+metadata:
+  labels:
+    storage-provider/iscsi: netapp-trident
+  name: 76-enable-iscsi-service
+spec:
+  config:
+    ignition:
+      version: 2.2.0
+    systemd:
+      units:
+        - enabled: true
+          name: iscsi-loaded.target
+          contents: |
+            [Unit]
+            Description=iSCSI
+            After=network.target
+            After=remote-fs-pre.target
+            Requires=iscsi.service
+            [Install]
+            WantedBy=remote-fs.target
