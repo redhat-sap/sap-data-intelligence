@@ -1,0 +1,11 @@
+---
+apiVersion: machineconfiguration.openshift.io/v1
+kind: ContainerRuntimeConfig
+metadata:
+  name: sdi-pids-limit
+spec:
+  machineConfigPoolSelector:
+    matchLabels:
+      workload: sapdataintelligence
+  containerRuntimeConfig:
+    pidsLimit: 16384

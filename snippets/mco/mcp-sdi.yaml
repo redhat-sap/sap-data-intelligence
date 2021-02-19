@@ -1,0 +1,21 @@
+---
+apiVersion: machineconfiguration.openshift.io/v1
+kind: MachineConfigPool
+metadata:
+  labels:
+    workload: sapdataintelligence
+  name: sdi
+spec:
+  machineConfigSelector:
+    matchExpressions:
+      - key: machineconfiguration.openshift.io/role
+        operator: In
+        values:
+          - sdi
+          - worker
+  nodeSelector:
+    matchExpressions:
+      - key: node-role.kubernetes.io/sdi
+        operator: Exists
+      - key: node-role.kubernetes.io/master
+        operator: DoesNotExist
