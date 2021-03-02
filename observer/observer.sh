@@ -370,6 +370,7 @@ function checkPermissions() {
         "*:get/projects"
         get/secrets
         update/daemonsets
+        get/voraclusters
     )
     if [[ -n "${CABUNDLE_SECRET_NAMESPACE:-}" ]]; then
         toCheck+=( "${CABUNDLE_SECRET_NAMESPACE:-}:get/secrets" )
