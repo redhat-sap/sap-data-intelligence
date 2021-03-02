@@ -35,8 +35,36 @@ function getRegistries() {
     printf '%s\n' "${registries[@]}"
 }
 
+# VoraCluster cannot be observed by the regular mechanisms - need to pull the state manually
+function _observeVoraCluster() {
+    local spec
+    local newSpec
+    sleep 15
+    while true; do
+        newSpec="$(oc get vc/vora -o json)"
+        local kind namespace rev
+        IFS=: read -r kind rev namespace <<<"$(jq -r '[
+            .kind, .metadata.resourceVersion, .metadata.namespace
+        ] | join(":")' <<<"${newSpec}")"
+        if [[ -z "${spec:-}" || \
+                "$(jq -r '.metadata.resourceVersion' <<<"${spec}")" -lt "$rev" ]];
+        then
+            # generate an event only if updated or never checked before
+            echo "${namespace} vora $kind/vora"
+        fi
+        spec="${newSpec}"
+        sleep 35
+    done
+    return 0
+}
+export -f _observeVoraCluster
+
 function _observe() {
     local kind="${1##*:}"
+    if [[ "$kind" == "voracluster" ]]; then
+        _observeVoraCluster
+        return 0
+    fi
     local args=( )
     if [[ "$1" =~ ^(.+):(.+)$ ]]; then
         args+=( -n "${BASH_REMATCH[1]}" --names="echo" --delete="echo" )
@@ -50,7 +78,7 @@ function _observe() {
         args+=( --quiet --output=go-template --template )
     fi
     args+=( '{{.kind}}/{{.metadata.name}}' -- echo )
-    oc observe "${args[@]}"
+    exec oc observe "${args[@]}"
 }
 export -f _observe
 
@@ -94,7 +122,7 @@ function mkVsystemIptablesPatchFor() {
     fi
     if [[ "$unprivileged" == "true" ]]; then
         log 'Patching container #%d in deployment/%s to make its pods privileged ...' \
-                "$containerIndex" "$name" >&2
+                "$containerIndex" "$name"
         printf '{
             "op": "add", "value": true,
             "path": "/spec/template/spec/%s/%d/securityContext/privileged"
@@ -206,6 +234,10 @@ gotmplRoute=(
     $'{{.kind}}\n'
 )
 
+gotmplVoraCluster=(
+    $'{{.kind}}\n'
+)
+
 # shellcheck disable=SC2016
 gotmplNamespace=(
     '{{with $nm := .}}{{with $n := $nm.metadata.name}}'
@@ -284,6 +316,7 @@ declare -A gotmpls=(
     ["${SDI_NAMESPACE}:Route"]="$(join '' "${gotmplRoute[@]}")"
     ["${SDI_NAMESPACE}:Service"]="$(join '' "${gotmplService[@]}")"
     ["${SDI_NAMESPACE}:Role"]="$(join '' "${gotmplRole[@]}")"
+    ["${SDI_NAMESPACE}:VoraCluster"]="$(join '' "${gotmplVoraCluster[@]}")"
     ["${SLCB_NAMESPACE}:DaemonSet"]="$(join '' "${gotmplDaemonSet[@]}")"
 )
 
@@ -727,9 +760,88 @@ function ensureVsystemRoute() {
       oc annotate --local -f - "${annotations[@]}" -o json)"
 }
 
+
 function ensureRoutes() {
     ensureVsystemRoute
 }
+
+function managePullSecret() {
+    # Arguments:
+    #  1. saSpec
+    #  2. secretName
+    #  3. link  - one of "link" or "unlink"
+    local saSpec="$1"
+    local secretName="$2"
+    local link="$3"
+    local present
+    present="$(jq -r --arg secretName "$secretName" '(.imagePullSecrets // [])[] |
+        .name // "" | select(. == $secretName) | "present"' <<<"$saSpec")"
+    case "$present:$link" in
+        present:link)
+            log -n 'Secret %s already linked with the default service acount' "$secretName"
+            log -d ' for image pulls, skipping ...'
+            return 0
+            ;;
+        present:unlink)
+            log 'Unlinking secret %s from the default service account ...' "$secretName"
+            runOrLog oc secret unlink default "$secretName"
+            ;;
+        *:unlink)
+            log -n 'Secret %s not linked with the default service acount' "$secretName"
+            log -d ' for image pulls, skipping ...'
+            ;;
+        *:link)
+            log 'Linking secret %s to the default service account ...' "$secretName"
+            runOrLog oc secret link default "$secretName" --for=pull
+            ;;
+    esac
+    return 0
+}
+export -f managePullSecret
+
+function ensureRegistryPullSecret() {
+    local slpSecretExists="${1:-}" #uid current currentSource bundleData key nm _name _uid
+    local vcSecret
+    vcSecret="$(oc get vc/vora -o jsonpath='{.spec.docker.imagePullSecret}')"
+    declare -A secrets
+    if [[ -n "${vcSecret:-}" ]]; then
+        secrets["${vcSecret:-}"]="link"
+    fi
+
+    case "${slpSecretExists:-}" in
+        0 | removed | no | 1 | exists | yes)
+            ;;
+        *)
+            if doesResourceExist secret/slp-docker-registry-pull-secret; then
+                slpSecretExists=exists
+            else
+                slpSecretExists=removed
+            fi
+            ;;
+    esac
+
+    case "${slpSecretExists:-}:${secrets[slp-docker-registry-pull-secret]:-}" in
+        *:link)
+            ;;
+        0:* | removed:* | no:*)
+            secrets[slp-docker-registry-pull-secret]="unlink"
+            ;;
+        1:* | exists:* | yes:*)
+            secrets[slp-docker-registry-pull-secret]="link"
+            ;;
+    esac
+
+    local secretName
+    local saSpec
+    saSpec="$(oc get sa default -o json)"
+    for secretName in "${!secrets[@]}"; do
+        if [[ -z "${secretName:-}" ]]; then
+            continue
+        fi
+        managePullSecret "$saSpec" "$secretName" "${secrets[${secretName}]}" ||:
+    done
+}
+export -f ensureRegistryPullSecret
 
 _version='unknown'
 function getObserverVersion() {
@@ -1087,6 +1199,14 @@ while IFS=' ' read -u 3 -r namespace name resource; do
         ensurePullsFromNamespace "$NAMESPACE" default "$SLCB_NAMESPACE"
         ensurePullsFromNamespace "$NAMESPACE" default "$SDI_NAMESPACE"
         ensureRoutes
+        ;;
+
+    secret/slp-docker-registry-pull-secret | voracluster/*)
+        exists="unknown"
+        if [[ "${kind,,}" == "secret" && "$deleted" == 1 ]]; then
+            exists=removed
+        fi
+        ensureRegistryPullSecret "$exists"
         ;;
 
     "role/vora-vsystem-${SDI_NAMESPACE}")

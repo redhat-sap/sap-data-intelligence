@@ -32,8 +32,6 @@ readonly CABUNDLE_INJECT_ANNOTATION="sdi-observer-inject-cabundle"
 readonly SDI_CABUNDLE_SECRET_NAME="cmcertificates"
 readonly SDI_CABUNDLE_SECRET_FILE_NAME="cert"
 
-
-
 function join() { local IFS="${1:-}"; shift; echo "$*"; }
 export -f join
 
