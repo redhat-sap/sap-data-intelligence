@@ -1,3 +1,4 @@
+- [ ] - determine access mode in deploy-registry script
 - [ ] - do not terminate observer when SDI or slcbridge namespaces are missing
 - [ ] - fix uninstallation
 

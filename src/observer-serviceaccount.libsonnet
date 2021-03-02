@@ -182,6 +182,14 @@
         },
         $.rbac.role.ManageRoutes,
         $.rbac.role.ManageServices,
+        $.rbac.role.watch {
+          apiGroups: [
+            'sap.com'
+          ],
+          resources: [
+            'voraclusters',
+          ],
+        },
       ] + $.voraVSystem31RBACRules,
     },
 
