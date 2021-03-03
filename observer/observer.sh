@@ -767,13 +767,9 @@ function ensureRoutes() {
 }
 
 function managePullSecret() {
-    # Arguments:
-    #  1. saSpec
-    #  2. secretName
-    #  3. link  - one of "link" or "unlink"
-    local saSpec="$1"
+    local saSpec="$1"   # json of the service account that shall be (un)linked with the secret
     local secretName="$2"
-    local link="$3"
+    local link="$3"     # one of "link" or "unlink"
     local present
     present="$(jq -r --arg secretName "$secretName" '(.imagePullSecrets // [])[] |
         .name // "" | select(. == $secretName) | "present"' <<<"$saSpec")"
@@ -801,7 +797,22 @@ function managePullSecret() {
 export -f managePullSecret
 
 function ensureRegistryPullSecret() {
-    local slpSecretExists="${1:-}" #uid current currentSource bundleData key nm _name _uid
+    # Motivation:
+    #   Some DI backup jobs [1] running under the default service account do not have image pull
+    #   secret set and as a result, OCP cannot pull their images from a registry requiring
+    #   authentication.
+    #   The secret for pulling images is created in the sdi namespace by SLC Bridge and is usually
+    #   called "slp-docker-registry-pull-secret". The secret can be overridden by VoraCluster
+    #   resource configuration.
+    #   By linking the secret with the default service account, jobs will no longer fail on
+    #   ImagePullBackoff.
+    #   [1] e.g. default-*-backup-hana
+    # Requires:
+    #   get on VoraCluster and ServiceAccount resources in the sdi namespace
+    # Triggered by:
+    #   update of VoraCluster or presence of Secret/slp-docker-registry-pull-secret in the sdi
+    #   namespace
+    local slpSecretExists="${1:-}"  # one of "exists", "removed" or "unknown"
     local vcSecret
     vcSecret="$(oc get vc/vora -o jsonpath='{.spec.docker.imagePullSecret}')"
     declare -A secrets
