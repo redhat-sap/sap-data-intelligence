@@ -41,13 +41,13 @@ function _observeVoraCluster() {
     local newSpec
     sleep 15
     while true; do
-        newSpec="$(oc get vc/vora -o json)"
+        newSpec="$(oc get voracluster/vora -o json)"
         local kind namespace rev
         IFS=: read -r kind rev namespace <<<"$(jq -r '[
             .kind, .metadata.resourceVersion, .metadata.namespace
         ] | join(":")' <<<"${newSpec}")"
-        if [[ -z "${spec:-}" || \
-                "$(jq -r '.metadata.resourceVersion' <<<"${spec}")" -lt "$rev" ]];
+        if [[ -n "${newSpec:-}" && ( -z "${spec:-}" || \
+                "$(jq -r '.metadata.resourceVersion' <<<"${spec}")" -lt "$rev" ) ]];
         then
             # generate an event only if updated or never checked before
             echo "${namespace} vora $kind/vora"
@@ -344,7 +344,16 @@ function checkPerm() {
     else
         args+=( -n "$namespace" )
     fi
-    args+=( "${perm%%/*}" "${perm##*/}" )
+    local object="${perm##*/}"
+    if [[ "${object,,}" == "voraclusters" ]] && \
+                ! oc get crd -o jsonpath='{.metadata.name}' \
+                    "voraclusters.sap.com" > /dev/null 2>&1;
+    then
+        log '%s custom resource definition does not exist yet, skipping the check...' \
+            "voraclusters.sap.com"
+        return 0
+    fi
+    args+=( "${perm%%/*}" "$object" )
     if ! oc auth can-i "${args[@]}" >/dev/null; then
         if [[ "${namespace}" != "*" ]]; then
             printf '%s:%s\n' "$namespace" "$perm"
@@ -354,6 +363,27 @@ function checkPerm() {
     fi
 }
 export -f checkPerm
+
+function waitForSDINamespace() {
+    if oc get project/"${SDI_NAMESPACE:-}" >/dev/null 2>&1; then
+        return 0
+    fi
+
+    log 'Waiting for namespace "%s" to be created...' "$SDI_NAMESPACE"
+    local args+=( --names="echo" --delete="echo" )
+    args+=( "namespace"  )
+    if [[ "$(cut -d . -f 2 <<<"${OCP_CLIENT_VERSION:-}")" -lt 6 ]]; then
+        args+=( --no-headers --output=gotemplate --argument )
+    else
+        args+=( --quiet --output=go-template --template )
+    fi
+    args+=( '{{.kind}}/{{.metadata.name}}' -- echo )
+    oc observe "${args[@]}" | while IFS=' ' read -r _ name _; do
+        if [[ "${name#*/}" == "${SDI_NAMESPACE}" ]]; then
+            return 0
+        fi
+    done ||:
+}
 
 function checkPermissions() {
     declare -a lackingPermissions
@@ -814,7 +844,7 @@ function ensureRegistryPullSecret() {
     #   namespace
     local slpSecretExists="${1:-}"  # one of "exists", "removed" or "unknown"
     local vcSecret
-    vcSecret="$(oc get vc/vora -o jsonpath='{.spec.docker.imagePullSecret}')"
+    vcSecret="$(oc get voracluster/vora -o jsonpath='{.spec.docker.imagePullSecret}' ||:)"
     declare -A secrets
     if [[ -n "${vcSecret:-}" ]]; then
         secrets["${vcSecret:-}"]="link"
@@ -893,6 +923,7 @@ function getObserverVersion() {
     printf 'unknown'
 }
 
+waitForSDINamespace
 checkPermissions
 purgeDeprecatedResources
 
@@ -920,7 +951,6 @@ fi
 if [[ -n "${SLCB_NAMESPACE:-}" && "${SLCB_NAMESPACE}" != "${SDI_NAMESPACE:-}" ]]; then
     log 'Monitoring SLC Bridge namespace "%s" for objects...' "$SLCB_NAMESPACE"
 fi
-
 
 gotmplvflow=$'{{range $index, $arg := (index (index .spec.template.spec.containers 0) "args")}}{{$arg}}\n{{end}}'
 

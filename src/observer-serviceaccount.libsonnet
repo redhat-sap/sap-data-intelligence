@@ -9,14 +9,16 @@
     role: {
       local role = self,
 
-      watch:: {
+      get:: {
         apiGroups: [],
         resources: [],
         verbs: [
           'get',
-          'list',
-          'watch',
         ],
+      },
+
+      watch:: role.get {
+        verbs+: ['list', 'watch'],
       },
 
       patch:: role.watch {
@@ -39,13 +41,12 @@
         ],
         verbs+: ['create'],
       },
-      GetProjects: {
+      GetProjects: role.get {
         apiGroups: [
           '',
           'project.openshift.io',
         ],
         resources: ['projects'],
-        verbs: ['get'],
       },
       ManageRBAC: role.manage {
         apiGroups: [
@@ -182,9 +183,20 @@
         },
         $.rbac.role.ManageRoutes,
         $.rbac.role.ManageServices,
+        $.rbac.role.get {
+          apiGroups: [
+            'apiextensions.k8s.io',
+          ],
+          resourceNames: [
+            'datahubs.installers.datahub.sap.com',
+          ],
+          resources: [
+            'customresourcedefinitions',
+          ],
+        },
         $.rbac.role.watch {
           apiGroups: [
-            'sap.com'
+            'sap.com',
           ],
           resources: [
             'voraclusters',
