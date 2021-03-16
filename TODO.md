@@ -1,3 +1,17 @@
+- [ ] - modify observer's jq script for vsystem-vrep patching like this:
+
+        '. as $filtered | . +' \
+        '[if isempty($filtered) then {' \
+            '"metadata": {' \
+
+    to 
+
+        '. as $filtered | . +' \
+        '[if isempty($filtered[]) then {' \
+            '"metadata": {' \
+
+    after verifying it works; as it is, it always evaluates to false
+
 - [ ] - determine access mode in deploy-registry script
 - [ ] - do not terminate observer when SDI or slcbridge namespaces are missing
 - [ ] - fix uninstallation
