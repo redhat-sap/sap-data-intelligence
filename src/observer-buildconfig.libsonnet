@@ -13,9 +13,10 @@ local bctmpl = import 'ubi-buildconfig.libsonnet';
       FROM openshift/cli:latest
       RUN dnf update -y --skip-broken --nobest ||:
       # TODO: jq is not yet available in EPEL-8
+      # make sure to use epel (jq 1.6) instead of rhel repository (jq 1.5)
       RUN dnf install -y \
         https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm && \
-        dnf install -y jq
+        dnf install --disablerepo=\* --enablerepo=epel -y jq
       RUN dnf install -y \
         https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm && \
         dnf install -y parallel procps-ng bc git httpd-tools && dnf clean all -y

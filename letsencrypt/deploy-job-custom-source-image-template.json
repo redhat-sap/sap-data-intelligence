@@ -9,7 +9,7 @@
          "openshift.io/display-name": "Job to deploy a letsencrypt controller.\n",
          "openshift.io/documentation-url": "https://access.redhat.com/articles/4324391",
          "openshift.io/provider-display-name": "Red Hat, Inc.",
-         "sdi-observer/version": "0.1.10"
+         "sdi-observer/version": "0.1.11"
       },
       "name": "deploy-letsencrypt"
    },
@@ -19,11 +19,11 @@
          "kind": "Job",
          "metadata": {
             "labels": {
-               "sdi-observer/version": "0.1.10"
+               "sdi-observer/version": "0.1.11"
             },
             "name": "deploy-letsencrypt",
             "namespace": "${NAMESPACE}",
-            "sdi-observer/version": "0.1.10"
+            "sdi-observer/version": "0.1.11"
          },
          "spec": {
             "activeDeadlineSeconds": 1800,
@@ -195,7 +195,7 @@
             "labels": {
                "created-by": "letsencrypt-deploy",
                "deploymentconfig": "sdi-observer",
-               "sdi-observer/version": "0.1.10"
+               "sdi-observer/version": "0.1.11"
             },
             "name": "sdi-observer",
             "namespace": "${NAMESPACE}"
@@ -204,12 +204,12 @@
             "output": {
                "to": {
                   "kind": "ImageStreamTag",
-                  "name": "sdi-observer:0.1.10-ocp${OCP_MINOR_RELEASE}"
+                  "name": "sdi-observer:0.1.11-ocp${OCP_MINOR_RELEASE}"
                }
             },
             "runPolicy": "Serial",
             "source": {
-               "dockerfile": "FROM openshift/cli:latest\nRUN dnf update -y --skip-broken --nobest ||:\n# TODO: jq is not yet available in EPEL-8\nRUN dnf install -y \\\n  https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm && \\\n  dnf install -y jq\nRUN dnf install -y \\\n  https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm && \\\n  dnf install -y parallel procps-ng bc git httpd-tools && dnf clean all -y\n# TODO: determine OCP version from environment\nRUN cd tmp; \\\n  curl -L -O https://mirror.openshift.com/pub/openshift-v4/clients/ocp/stable-${OCP_MINOR_RELEASE}/openshift-client-linux.tar.gz; \\\n  curl -L -O https://mirror.openshift.com/pub/openshift-v4/clients/ocp/stable-${OCP_MINOR_RELEASE}/sha256sum.txt\n# verify the downloaded tar\nRUN /bin/bash -c 'f=/tmp/openshift-client-linux.tar.gz; \\\n  got=\"$(awk '\"'\"'{print $1}'\"'\"' <(sha256sum \"$f\"))\"; \\\n  exp=\"$(awk '\"'\"'/openshift-client-linux-/ {print $1}'\"'\"' /tmp/sha256sum.txt | head -n 1)\"; \\\n  if [[ \"$got\" != \"$exp\" ]]; then printf \\\n    '\"'\"'Unexpected hashsum of %s (expected \"%s\", got \"%s\")\\n!'\"'\"' \"$f\" \"$exp\" \"$got\" >&2; \\\n    exit 1; \\\n  fi'\nRUN /bin/bash -c 'tar -C /usr/local/bin/ -xzvf /tmp/openshift-client-linux.tar.gz -T <(printf oc)'\nRUN rm -rfv /tmp/*\n# TODO: verify signatures as well\nRUN mkdir -p /usr/local/bin /usr/local/share/openshift-acme\nRUN git clone --depth 5 --single-branch \\\n  --branch ${LETSENCRYPT_REVISION} \\\n  ${LETSENCRYPT_REPOSITORY} /usr/local/share/openshift-acme\nRUN git clone --depth 5 --single-branch \\\n  --branch ${SDI_OBSERVER_GIT_REVISION} \\\n  ${SDI_OBSERVER_REPOSITORY} /usr/local/share/sap-data-intelligence\nRUN for bin in observer.sh deploy-registry.sh deploy-letsencrypt.sh; do \\\n      cp -lv $(find /usr/local/share/sap-data-intelligence \\\n                -type f -executable -name \"$bin\") \\\n        /usr/local/bin/$bin; \\\n      chmod a+rx /usr/local/bin/$bin; \\\n    done\nRUN ln -s /usr/local/share/sap-data-intelligence /usr/local/share/sdi\nWORKDIR /usr/local/share/sdi\nCMD [\"/usr/local/bin/observer.sh\"]"
+               "dockerfile": "FROM openshift/cli:latest\nRUN dnf update -y --skip-broken --nobest ||:\n# TODO: jq is not yet available in EPEL-8\n# make sure to use epel (jq 1.6) instead of rhel repository (jq 1.5)\nRUN dnf install -y \\\n  https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm && \\\n  dnf install --disablerepo=\\* --enablerepo=epel -y jq\nRUN dnf install -y \\\n  https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm && \\\n  dnf install -y parallel procps-ng bc git httpd-tools && dnf clean all -y\n# TODO: determine OCP version from environment\nRUN cd tmp; \\\n  curl -L -O https://mirror.openshift.com/pub/openshift-v4/clients/ocp/stable-${OCP_MINOR_RELEASE}/openshift-client-linux.tar.gz; \\\n  curl -L -O https://mirror.openshift.com/pub/openshift-v4/clients/ocp/stable-${OCP_MINOR_RELEASE}/sha256sum.txt\n# verify the downloaded tar\nRUN /bin/bash -c 'f=/tmp/openshift-client-linux.tar.gz; \\\n  got=\"$(awk '\"'\"'{print $1}'\"'\"' <(sha256sum \"$f\"))\"; \\\n  exp=\"$(awk '\"'\"'/openshift-client-linux-/ {print $1}'\"'\"' /tmp/sha256sum.txt | head -n 1)\"; \\\n  if [[ \"$got\" != \"$exp\" ]]; then printf \\\n    '\"'\"'Unexpected hashsum of %s (expected \"%s\", got \"%s\")\\n!'\"'\"' \"$f\" \"$exp\" \"$got\" >&2; \\\n    exit 1; \\\n  fi'\nRUN /bin/bash -c 'tar -C /usr/local/bin/ -xzvf /tmp/openshift-client-linux.tar.gz -T <(printf oc)'\nRUN rm -rfv /tmp/*\n# TODO: verify signatures as well\nRUN mkdir -p /usr/local/bin /usr/local/share/openshift-acme\nRUN git clone --depth 5 --single-branch \\\n  --branch ${LETSENCRYPT_REVISION} \\\n  ${LETSENCRYPT_REPOSITORY} /usr/local/share/openshift-acme\nRUN git clone --depth 5 --single-branch \\\n  --branch ${SDI_OBSERVER_GIT_REVISION} \\\n  ${SDI_OBSERVER_REPOSITORY} /usr/local/share/sap-data-intelligence\nRUN for bin in observer.sh deploy-registry.sh deploy-letsencrypt.sh; do \\\n      cp -lv $(find /usr/local/share/sap-data-intelligence \\\n                -type f -executable -name \"$bin\") \\\n        /usr/local/bin/$bin; \\\n      chmod a+rx /usr/local/bin/$bin; \\\n    done\nRUN ln -s /usr/local/share/sap-data-intelligence /usr/local/share/sdi\nWORKDIR /usr/local/share/sdi\nCMD [\"/usr/local/bin/observer.sh\"]"
             },
             "strategy": {
                "dockerStrategy": {
@@ -229,7 +229,7 @@
                }
             ]
          },
-         "version": "0.1.10"
+         "version": "0.1.11"
       },
       {
          "apiVersion": "v1",
