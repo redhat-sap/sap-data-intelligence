@@ -16,6 +16,26 @@
     after verifying it works; as it is, it always evaluates to false
 
 - [ ] - determine access mode in deploy-registry script
+- [ ] - inject CA certificate into newly created tenants
+- [ ] - filter out Not found messages like the following
+        
+        Error from server (NotFound): routes.route.openshift.io "vsystem" not found
+        Error from server (NotFound): services "vsystem" not found
+        Error from server (NotFound): secrets "ca-bundle.pem" not found
+        Mon, 15 Mar 2021 15:05:52 +0000 Not creating vsystem route for the missing vsystem service...
+
+- [ ] - filter out Forbidden errors
+
+        oc logs -n sdi-observer -f dc/sdi-observer
+        Error from server (Forbidden): clusterrolebindings.rbac.authorization.k8s.io "sdi-observer-admin-in-sdi-observer" is forbidden: User "system:serviceaccount:sdi-observer:sdi-observer" cannot get resource "clusterrolebindings" in API group "rbac.authorization.k8s.io" at the cluster scope
+        Error from server (Forbidden): error when replacing "STDIN": clusterrolebindings.rbac.authorization.k8s.io "sdi-observer-admin-in-sdi-observer" is forbidden: User "system:serviceaccount:sdi-observer:sdi-observer" cannot update resource "clusterrolebindings" in API group "rbac.authorization.k8s.io" at the cluster scope
+        Mon, 15 Mar 2021 19:34:27 +0000 Not replacing ClusterRole/sdi-observer-cluster-access-in-sdi-observer created by "sdi-observer-template" with a new object created by "registry-deploy".
+        Error from server (Forbidden): clusterrolebindings.rbac.authorization.k8s.io "sdi-observer-cluster-access-in-sdi-observer" is forbidden: User "system:serviceaccount:sdi-observer:sdi-observer" cannot get resource "clusterrolebindings" in API group "rbac.authorization.k8s.io" at the cluster scope
+
+- [ ] - fix: Error from server (NotFound): voraclusters.sap.com "vora" not found
+
+        Names do not match (/vora != ). Something is terribly wrong!
+
 - [ ] - do not terminate observer when SDI or slcbridge namespaces are missing
 - [ ] - fix uninstallation
 
