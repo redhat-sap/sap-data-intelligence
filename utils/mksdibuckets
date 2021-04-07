@@ -1,0 +1,414 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+IFS=$'\n\t'
+
+readonly defaultBucketNames=(
+    sdi-checkpoint-store
+    sdi-data-lake
+)
+
+function join() { local IFS="$1"; shift; echo "$*"; }
+
+readonly jqMinVersion="1.6"
+readonly usage="$(basename "${BASH_SOURCE[0]}") [Options] [ACTION] [[BUCKET_NAME ...]
+
+Create object buckets for use by the SAP Date Intelligence.
+By default, two buckets will be created in the current namespace:
+- First for checkpoint-store and/or backup&restore
+- Second for SAP DI Data Lake (AI/ML learning)
+The number and the names of the buckets can be overriden by specifying BUCKET_NAME(s) directly.
+
+By default, the buckets will use storage class utilizing RADOS Object Gateway S3 directly if
+available, otherwise, storage class provisioning buckets through OCS' NooBaa will be utilized.
+
+ACTION can be one of [ create list delete ]. The default is create.
+- delete - if BUCKET_NAME(s) are specified, only those bucket claims will be deleted
+           if --all flag is given, all bucket claims in the namespace will be deleted
+           otherwise, the following bucket claims will be deleted:
+            [ $(join ' ' "${defaultBucketNames[@]}") ]
+
+Options:
+  -h | --help       Show this help and exit.
+  -n | --namespace NAMESPACE
+                    The namespace where the object bucket claims shall be created.
+                    The current namespace is used by default.
+  --all-namespaces  Make the list and delete actions operate on all namespaces.
+  -a | --all        By default, list and delete actions operate on the default buckets names.
+                    This option extends the range to all the buckets in the namespace.
+  -y | --no-confirm
+                    By default, a confirmation of bucket deletion will is requested. This flag
+                    supresses all confirmations.
+  --dry-run         Do not perform any change on the server side. In case of create action, the
+                    bucket claims will be produced as json.
+  --no-checks       Do not perform any authorization and/or requisities checks before performing
+                    the action. Speeds up the execution.
+  --force           Applicable only to delete action. Immediately remove resources from API and
+                    bypass graceful deletion. Note that immediate deletion of some resources may
+                    result in inconsistency or data loss and requires confirmation.
+"
+
+readonly longOptions=(
+    help namespace: dry-run no-checks all all-namespaces no-confirm force
+)
+
+readonly neededPermissions=(
+    get:StorageClass:\* get:CustomResourceDefinition:\*
+    get:Service:openshift-storage
+    {get,create,delete}:ObjectBucketClaim
+)
+
+action=create
+namespace=""
+dryRun=0
+noChecks=0
+all=0
+allNamespaces=0
+noConfirm=0
+force=0
+
+function checkPermissions() {
+    local fail=0
+    local verb
+    local object
+    local namespace
+    for perms in "${neededPermissions[@]}"; do
+        IFS=: read -r verb object namespace <<<"$perms"
+        local args=( )
+        case "${namespace:-}" in
+            \*)
+                args+=( --all-namespaces )
+                ;;
+            "")
+                ;;
+            *)
+                args+=( -n "$namespace" )
+                ;;
+        esac
+        args+=( "$verb" "$object" )
+        if ! oc auth can-i "${args[@]}" >/dev/null; then
+            printf 'The current user %s cannot %s %s!' >&2 "$(oc whoami)" "$verb" "$object"
+            printf ' Please grant the needed permissions or login as cluster admin!\n' >&2
+            fail=1
+        fi
+    done
+    if [[ "${fail:-0}" == 1 ]]; then
+        exit 1
+    fi
+}
+
+function checkRequirements() {
+    local version
+    version="$(jq --version)"
+    version="${version##*-}"
+    if [[ "$(printf '%s\n%s\n' "$jqMinVersion" "$version" | sort -V | \
+            head -n 1)" != "$jqMinVersion" ]];
+    then
+        printf 'jq is either not installed or too old. Please make sure to make' >&2
+        printf ' jq %s or newer available in the PATH!\n' "$jqMinVersion" >&2
+        exit 1
+    fi
+
+    if ! oc get crd/objectbucketclaims.objectbucket.io >/dev/null; then
+        printf 'Cannot get ObjectBucketClaim custom resource definition, please make sure'
+        printf ' that OCS is installed!\n' >&2
+        exit 1
+    fi
+}
+
+function join() { local IFS="$1"; shift; echo "$*"; }
+
+function getBucketSpecs() {
+    local obcs='[]'
+    local args=()
+    local rt=0
+    if [[ "${allNamespaces:-0}" == 1 ]]; then
+        args+=( --all-namespaces -o json )
+    else
+        args+=( -n "$namespace" -o json )
+    fi
+    local bucketNames=( "${defaultBucketNames[@]}" )
+    if [[ "$#" -gt 0 ]]; then
+        bucketNames=( "$@" )
+    fi
+    if [[ "${all:-0}${allNamespaces:-0}" =~ 1 ]]; then
+        obcs="$(oc get "${args[@]}" obcs | jq \
+            --arg all "${all:-0}" --arg allNamespaces "${allNamespaces:-0}" \
+            --arg namespace "${namespace}" \
+            --arg bucketNames "$(join , "${bucketNames[@]}")" \
+            --argjson obcs "$obcs" '$obcs + (
+                .items as $is |
+                ($all == "1") as $a |
+                ($allNamespaces == "1") as $an |
+                $is | map(.metadata as $md | select(
+                    ($a or ($bucketNames | split(",") | any(. == $md.name)))
+                    and ($an or $md.namespace == $namespace)))
+            )' ||:)"
+    else
+        obcs="$(xargs -r oc get "${args[@]}" \
+            < <(printf 'objectbucketclaim/%s\n' "${bucketNames[@]}") | \
+            jq --argjson obcs "$obcs" '$obcs + .items' ||:)"
+        if [[ "$obcs" == '[]' ]]; then rt=1; fi
+    fi
+    jq 'unique_by([.metadata.name, .metadata.namespace]) |
+        sort_by([.metadata.namespace, .metadata.name])' <<<"$obcs"
+    return "$rt"
+}
+
+function listBuckets() {
+    local obcs
+    obcs="$(getBucketSpecs "$@")"
+    if jq -e '. == []' <<<"$obcs" >/dev/null; then
+        return 0
+    fi
+    local secrets
+    secrets="$(oc get -o json -f - < <(mkListJSON \
+        < <(jq -r 'map({
+            "apiVersion": "v1",
+            "kind": "Secret",
+            "metadata": {
+                "name":      .metadata.name,
+                "namespace": .metadata.namespace
+            }
+        })' <<<"$obcs")) | jq '.items | sort_by([.metadata.namespace, .metadata.name])')"
+    TZ=UTC jq -r --arg allNamespaces "${allNamespaces:-0}" --argjson secrets "$secrets" \
+        '.[] | . as $b | ($allNamespaces == "1") as $an |
+            $b.metadata.name as $cname | $b.metadata.namespace as $cnm | $secrets[] |
+            select(.metadata.name == $cname and .metadata.namespace == $cnm).data as $data |
+            def mkAge($b): $b.metadata.creationTimestamp | fromdateiso8601 as $cts |
+                (now | floor) - $cts | gmtime | [., [
+                    "years", "months", "days", "h", "m", "s"], [
+                    1970, 0, 1, 0, 0, 0]
+                    ] | [ transpose[] |
+                        select(.[1] != null and .[0] - .[2] > 0) | "\(.[0] - .[2])\(.[1])" ] |
+                            [limit(2; .[])] | if all(. | test("\\d+[a-z]$")) then
+                                    join("") else join(" ") end;
+        [
+            "Bucket claim namespace/name (status, age):\t\(
+                $cnm)/\($cname) (\($b.status.phase // "Unknown"), \(mkAge($b)))",
+            "  Bucket name:\t\($b.spec.bucketName)",
+            "  AWS_ACCESS_KEY_ID:\t\($data.AWS_ACCESS_KEY_ID | @base64d)",
+            "  AWS_SECRET_ACCESS_KEY:\t\($data.AWS_SECRET_ACCESS_KEY | @base64d)"
+        ] | join("\n")' <<<"$obcs" | column -t -s $'\t'
+}
+
+function chooseStorageClass() {
+    local scs
+    scs="$(oc get sc -o json)"
+    jq -n --argjson scs "${scs:-}" -r \
+        '$scs.items | [.[] | select(.provisioner |
+        test("\\.(ceph\\.rook\\.io/bucket|noobaa\\.io/obc)$"))] | sort_by(
+            if (.provisioner == "openshift-storage.ceph.rook.io/bucket") and (.metadata.name |
+                    test("rgw")) then
+                [0, .metadata.name]
+            else if (.provisioner == "openshift-storage.ceph.rook.io/bucket") then
+                [5, .metadata.name]
+            else if (.provisioner | endswith(".ceph.rook.io/bucket")) then
+                [10, .metadata.name]
+            else if (.provisioner == "openshift-storage.noobaa.io/obc") then
+                [15, .metadata.name]
+            else if (.provisioner | endswith(".noobaa.io/obc")) then
+                [20, .metadata.name]
+            else
+                [25, .metadata.name]
+            end end end end end)[] | (.metadata.name, halt)'
+}
+
+function createBuckets() {
+    local buckets
+    if [[ "$#" -gt 0 ]]; then
+        buckets+=( "$@" )
+    else
+        buckets+=( "${defaultBucketNames[@]}" )
+    fi
+    local sc
+    sc="$(chooseStorageClass)"
+    if [[ -z "${sc:-}" ]]; then
+        printf 'Could not find any object bucket storage class!\n' >&2
+        exit 1
+    fi
+    local args=( -f - -n "$namespace" )
+    if [[ "${dryRun:-0}" == 1 ]]; then
+        args+=( --dry-run=client -o json )
+    fi
+    local specs
+    specs="$(for name in "${buckets[@]}"; do
+        jq -n --arg name "$name" --arg namespace "$namespace" --arg sc "$sc" \
+        '{
+            "apiVersion": "objectbucket.io/v1alpha1",
+            "kind": "ObjectBucketClaim",
+            "metadata": {
+                "name": $name,
+                "namespace": $namespace
+            },
+            "spec": { 
+                "generateBucketName": $name,
+                "storageClassName": $sc
+            }
+        }'
+    done)"
+    exec oc create "${args[@]}" <<<"$specs"
+}
+
+function mkBucketMeta() {
+    local namespace="$1"
+    local name="$2"
+    jq --arg nm "$namespace" --arg name "$name" '{
+        "apiVersion": "objectbucket.io/v1alpha1",
+        "kind": "ObjectBucketClaim",
+        "metadata": {
+            "name": $name,
+            "namespace": $nm
+        }
+    }'
+}
+function mkListJSON() {
+    # expecting json array on stdin with k8s API objects
+    jq '{
+       "apiVersion": "v1",
+        "kind": "List",
+        "metadata": {
+            "resourceVersion": "",
+            "selfLink": ""
+        },
+        "items": .
+    }'
+}
+
+function confirmDeletion() {
+    printf 'Do you want to delete the following buckets?\n'
+    local list
+    list="$(mkListJSON <&3)"
+    local args=( -f - )
+    if [[ "${allNamespaces:-0}" == 1 ]]; then
+        args+=( --all-namespaces )
+    fi
+    oc get  -f - <<<"$list" | nl -v 0 | { sed -u 's/\(\s*\)0\>/\1/;q'; cat; }
+    local yes
+    # TODO: allow to choose buckets to delete
+    while true; do
+        read -r -p '[y/n] ' yes
+        if [[ "$(tr -d '[:space:]' <<<"${yes,,:-}")" =~ ^[[:space:]]*y(es?)?[[:space:]]*$ ]]; then
+            return 0
+        fi
+        if [[ "$(tr -d '[:space:]' <<<"${yes,,:-}")" \
+                =~ ^[[:space:]]*(no?|false|0)[[:space:]]* ]];
+        then
+            return 1
+        fi
+        printf 'Wrong answer. Please choose '
+    done
+    return 1
+}
+
+function deleteBuckets() {
+    local obcs
+    obcs="$(getBucketSpecs "$@")"
+    if jq -e '. == []' <<<"$obcs" >/dev/null; then
+        return 0
+    fi
+    local args=( -f - )
+    if [[ "${dryRun:-0}" == 1 ]]; then
+        args+=( --dry-run=client )
+    fi
+    if [[ "${force:-0}" == 1 ]]; then
+        args+=( --force )
+    fi
+    if [[ "${dryRun:-0}" == 1 ||  "${noConfirm:-0}" == 1 ]] || confirmDeletion 3<<<"$obcs"; then
+        exec oc delete "${args[@]}" < <(jq '.[]' <<<"$obcs")
+    fi
+}
+
+if [[ "$(basename "$0")" != "$(basename "${BASH_SOURCE[0]}")" ]]; then
+    # this script is being sourced
+    return 0
+fi
+
+TMPARGS="$(getopt -o ahn: --longoptions "$(join , "${longOptions[@]}")" \
+    --name "$(basename "${BASH_SOURCE[0]}")" -- "$@")"
+eval set -- "$TMPARGS"
+
+while true; do
+    case "${1:-}" in
+        -h | --help)
+            printf "%s" "$usage"
+            exit 0
+            ;;
+        -n | --namespace)
+            namespace="$2"
+            shift 2
+            ;;
+        -a | --all)
+            all=1
+            shift
+            ;;
+        --all-namespaces)
+            allNamespaces=1
+            shift
+            ;;
+        -y | --no-confirm)
+            noConfirm=1
+            shift
+            ;;
+        --dry-run)
+            dryRun=1
+            shift
+            ;;
+        --force)
+            force=1
+            shift
+            ;;
+        --no-checks)
+            noChecks=1
+            shift
+            ;;
+        --)
+            shift
+            break
+            ;;
+        *)
+            printf 'Unrecognized option "%s"!\nSee help...\n' >&2 "${1:-}"
+            exit 1
+            ;;
+    esac
+done
+
+if [[ "$#" -gt 0 ]] && grep -qi '^\(create\|list\|delete\)$' <<<"$1"; then
+    action="${1,,}"
+    shift
+fi
+
+if [[ "${allNamespaces:-0}" == 1 && -n "${namespace:-}" ]]; then
+    printf 'Flags --namespace and --all-namespaces are mutually exclusive!\n' >&2
+    exit 1
+fi
+
+if [[ -z "${namespace:-}" ]]; then
+    namespace="$(oc project -q)"
+fi
+
+if [[ "${all:-0}" == 1 && $# -gt 0 ]]; then
+    printf 'Explicit bucket names cannot be specified together with --all flag!\n' >&2
+    exit 1
+fi
+if [[ ( "${all:-0}" == 1 || "${allNamespaces:-0}" == 1 ) && "$action" == "create" ]]; then
+    printf 'Flags --all and --all-namespaces do not apply to create action!\n' >&2
+    exit 1
+fi
+
+if [[ "${noChecks:-0}" == 0 ]]; then
+    checkPermissions
+    checkRequirements
+fi
+
+case "$action" in
+    create)
+        createBuckets "$@"
+        ;;
+    list)
+        listBuckets "$@"
+        ;;
+    delete)
+        deleteBuckets "$@"
+        ;;
+esac
