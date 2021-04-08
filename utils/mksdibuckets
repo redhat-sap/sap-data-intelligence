@@ -36,20 +36,28 @@ Options:
   --all-namespaces  Make the list and delete actions operate on all namespaces.
   -a | --all        By default, list and delete actions operate on the default buckets names.
                     This option extends the range to all the buckets in the namespace.
-  -y | --no-confirm
-                    By default, a confirmation of bucket deletion will is requested. This flag
-                    supresses all confirmations.
   --dry-run         Do not perform any change on the server side. In case of create action, the
                     bucket claims will be produced as json.
   --no-checks       Do not perform any authorization and/or requisities checks before performing
                     the action. Speeds up the execution.
-  --force           Applicable only to delete action. Immediately remove resources from API and
+
+Create flags:
+  --no-generate     Don't generate bucket name. By default, random uid is appended to the bucket
+                    claim name to form the resulting bucket name. This flag will request bucket
+                    name as specified. Note that this may result in bucket name conflicts as they
+                    are global resource as opposed to namespaced bucket claims.
+
+Delete flags:
+  --force           Applicable to delete action only. Immediately remove resources from API and
                     bypass graceful deletion. Note that immediate deletion of some resources may
                     result in inconsistency or data loss and requires confirmation.
+  -y | --no-confirm
+                    By default, a confirmation of bucket deletion will is requested. This flag
+                    supresses all confirmations.
 "
 
 readonly longOptions=(
-    help namespace: dry-run no-checks all all-namespaces no-confirm force
+    help namespace: dry-run no-checks all all-namespaces no-confirm force no-generate
 )
 
 readonly neededPermissions=(
@@ -66,6 +74,7 @@ all=0
 allNamespaces=0
 noConfirm=0
 force=0
+noGenerate=0
 
 function checkPermissions() {
     local fail=0
@@ -171,6 +180,8 @@ function listBuckets() {
                 "namespace": .metadata.namespace
             }
         })' <<<"$obcs")) | jq '.items | sort_by([.metadata.namespace, .metadata.name])')"
+
+    # TODO: list internal http S3 endpoint
     TZ=UTC jq -r --arg allNamespaces "${allNamespaces:-0}" --argjson secrets "$secrets" \
         '.[] | . as $b | ($allNamespaces == "1") as $an |
             $b.metadata.name as $cname | $b.metadata.namespace as $cnm | $secrets[] |
@@ -233,7 +244,8 @@ function createBuckets() {
     fi
     local specs
     specs="$(for name in "${buckets[@]}"; do
-        jq -n --arg name "$name" --arg namespace "$namespace" --arg sc "$sc" \
+        jq -n --arg name "$name" --arg noGenerate "${noGenerate:-0}" \
+                --arg namespace "$namespace" --arg sc "$sc" \
         '{
             "apiVersion": "objectbucket.io/v1alpha1",
             "kind": "ObjectBucketClaim",
@@ -241,10 +253,14 @@ function createBuckets() {
                 "name": $name,
                 "namespace": $namespace
             },
-            "spec": { 
-                "generateBucketName": $name,
-                "storageClassName": $sc
-            }
+            "spec": ({
+                    "storageClassName": $sc
+                } | if $noGenerate == "1" then
+                        .bucketName |= $name
+                    else
+                        .generateBucketName |= $name
+                    end
+            )
         }'
     done)"
     exec oc create "${args[@]}" <<<"$specs"
@@ -356,6 +372,10 @@ while true; do
             ;;
         --force)
             force=1
+            shift
+            ;;
+        --no-generate)
+            noGenerate=1
             shift
             ;;
         --no-checks)
