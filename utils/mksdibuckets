@@ -3,6 +3,7 @@
 set -euo pipefail
 IFS=$'\n\t'
 
+readonly defaultOCSNamespace="openshift-storage"
 readonly defaultBucketNames=(
     sdi-checkpoint-store
     sdi-data-lake
@@ -40,6 +41,8 @@ Options:
                     bucket claims will be produced as json.
   --no-checks       Do not perform any authorization and/or requisities checks before performing
                     the action. Speeds up the execution.
+  --ocs-namespace OCS_NAMESPACE
+                    K8S namespace where OCS is installed. Defaults to $defaultOCSNamespace
 
 Create flags:
   --no-generate     Don't generate bucket name. By default, random uid is appended to the bucket
@@ -58,11 +61,12 @@ Delete flags:
 
 readonly longOptions=(
     help namespace: dry-run no-checks all all-namespaces no-confirm force no-generate
+    ocs-namespace
 )
 
 readonly neededPermissions=(
     get:StorageClass:\* get:CustomResourceDefinition:\*
-    get:Service:openshift-storage
+    get:Service:"$defaultOCSNamespace"
     {get,create,delete}:ObjectBucketClaim
 )
 
@@ -75,6 +79,7 @@ allNamespaces=0
 noConfirm=0
 force=0
 noGenerate=0
+ocsNamespace="$defaultOCSNamespace"
 
 function checkPermissions() {
     local fail=0
@@ -85,6 +90,10 @@ function checkPermissions() {
         IFS=: read -r verb object namespace <<<"$perms"
         local args=( )
         case "${namespace:-}" in
+            openshift-storage)
+                # override the default ocs namespace
+                namespace="$ocsNamespace"
+                ;;&
             \*)
                 args+=( --all-namespaces )
                 ;;
@@ -182,19 +191,22 @@ function listBuckets() {
         })' <<<"$obcs")) | jq '.items | sort_by([.metadata.namespace, .metadata.name])')"
 
     local services
-    services="$(oc get service -o json -n openshift-storage)"
+    services="$(oc get service -o json -n "$ocsNamespace")"
 
-    # TODO: list internal http S3 endpoint
+    # fromdateiso8601 seem to be influenced by local time zone
     TZ=UTC jq -r --arg allNamespaces "${allNamespaces:-0}" \
         --argjson secrets "$secrets" --argjson services "$services" \
         '.[] | . as $b | ($allNamespaces == "1") as $an |
             $b.metadata.name as $cname | $b.metadata.namespace as $cnm | $secrets[] |
             select(.metadata.name == $cname and .metadata.namespace == $cnm).data as $data |
             def mkAge($b): $b.metadata.creationTimestamp | fromdateiso8601 as $cts |
-                (now | floor) - $cts | gmtime | [., [
-                    "years", "months", "days", "h", "m", "s"], [
-                    1970, 0, 1, 0, 0, 0]
-                    ] | [ transpose[] |
+                (now | floor) - $cts | gmtime | [ # zip to form 3-tuples
+                    ., [    # datetime suffixes
+                            "years", "months", "days", "h", "m", "s"
+                    ], [    # epoch offsets that will be subtracted from calculated values
+                            # to produce correct time duration
+                            1970, 0, 1, 0, 0, 0
+                    ] ] | [ transpose[] |
                         select(.[1] != null and .[0] - .[2] > 0) | "\(.[0] - .[2])\(.[1])" ] |
                             [limit(2; .[])] | if all(. | test("\\d+[a-z]$")) then
                                     join("") else join(" ") end;
@@ -215,6 +227,7 @@ function listBuckets() {
                 end;
 
             def mkURL($b): $b.spec.storageClassName as $sc |
+                # filter services based on name and labels
                 if $sc | test("\\.noobaa\\.io$") then
                     $services.items | map(select(
                             (.metadata.name == "s3")
@@ -226,19 +239,20 @@ function listBuckets() {
                 else
                     []
                 end end | map(select(
+                    # further filter services based on ports
                     (.spec.ports | any((.name | test("^(s3|http)") or (.port == 80))
                         and (.protocol == "TCP")))
                 )) | if . == [] then
                     "ERR: Failed to determine!"
                 else
+                    # choose the first matching service
                     .[0] as $svc |
-                    "http://\($svc.metadata.name).openshift-storage.svc.cluster.local\(
+                    "http://\($svc.metadata.name).\($svc.metadata.namespace).svc.cluster.local\(
                         mkPort($svc))"
                 end;
                     
-        [
-            "Bucket claim namespace/name (status, age):\t\(
-                $cnm)/\($cname) (\($b.status.phase // "Unknown"), \(mkAge($b)))",
+        [   "Bucket claim namespace/name:\t\(
+                $cnm)/\($cname)  (Status: \($b.status.phase // "Unknown"), Age: \(mkAge($b)))",
             "  Cluster internal URL:\t\(mkURL($b))",
             "  Bucket name:\t\($b.spec.bucketName)",
             "  AWS_ACCESS_KEY_ID:\t\($data.AWS_ACCESS_KEY_ID | @base64d)",
@@ -249,17 +263,17 @@ function listBuckets() {
 function chooseStorageClass() {
     local scs
     scs="$(oc get sc -o json)"
-    jq -n --argjson scs "${scs:-}" -r \
+    jq -n --arg ocsNamespace --argjson scs "${scs:-}" -r \
         '$scs.items | [.[] | select(.provisioner |
         test("\\.(ceph\\.rook\\.io/bucket|noobaa\\.io/obc)$"))] | sort_by(
-            if (.provisioner == "openshift-storage.ceph.rook.io/bucket") and (.metadata.name |
+            if (.provisioner == "\($ocsNamespace).ceph.rook.io/bucket") and (.metadata.name |
                     test("rgw")) then
                 [0, .metadata.name]
-            else if (.provisioner == "openshift-storage.ceph.rook.io/bucket") then
+            else if (.provisioner == "\($ocsNamespace).ceph.rook.io/bucket") then
                 [5, .metadata.name]
             else if (.provisioner | endswith(".ceph.rook.io/bucket")) then
                 [10, .metadata.name]
-            else if (.provisioner == "openshift-storage.noobaa.io/obc") then
+            else if (.provisioner == "\($ocsNamespace).noobaa.io/obc") then
                 [15, .metadata.name]
             else if (.provisioner | endswith(".noobaa.io/obc")) then
                 [20, .metadata.name]
@@ -404,6 +418,10 @@ while true; do
         --all-namespaces)
             allNamespaces=1
             shift
+            ;;
+        --ocs-namespace)
+            ocsNamespace="$2"
+            shift 2
             ;;
         -y | --no-confirm)
             noConfirm=1
