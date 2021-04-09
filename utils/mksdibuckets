@@ -181,8 +181,12 @@ function listBuckets() {
             }
         })' <<<"$obcs")) | jq '.items | sort_by([.metadata.namespace, .metadata.name])')"
 
+    local services
+    services="$(oc get service -o json -n openshift-storage)"
+
     # TODO: list internal http S3 endpoint
-    TZ=UTC jq -r --arg allNamespaces "${allNamespaces:-0}" --argjson secrets "$secrets" \
+    TZ=UTC jq -r --arg allNamespaces "${allNamespaces:-0}" \
+        --argjson secrets "$secrets" --argjson services "$services" \
         '.[] | . as $b | ($allNamespaces == "1") as $an |
             $b.metadata.name as $cname | $b.metadata.namespace as $cnm | $secrets[] |
             select(.metadata.name == $cname and .metadata.namespace == $cnm).data as $data |
@@ -194,9 +198,48 @@ function listBuckets() {
                         select(.[1] != null and .[0] - .[2] > 0) | "\(.[0] - .[2])\(.[1])" ] |
                             [limit(2; .[])] | if all(. | test("\\d+[a-z]$")) then
                                     join("") else join(" ") end;
+
+            def mkPort($svc): $svc.spec.ports |
+                if any(.port == 80 and (.name | test("^(s3|http)$"))) then
+                            ""
+                else
+                   sort_by(if .name == "s3" then
+                        5
+                    else if .name == "http" then
+                        10
+                    else if .port == 80 then
+                        15
+                    else
+                        20
+                    end end end) | ":\(.[0].port)"
+                end;
+
+            def mkURL($b): $b.spec.storageClassName as $sc |
+                if $sc | test("\\.noobaa\\.io$") then
+                    $services.items | map(select(
+                            (.metadata.name == "s3")
+                        and ((.metadata.labels.app // "") == "noobaa")))
+                else if $sc | test("rgw") then
+                    $services.items | map(select(
+                            (.metadata.name | test("rgw"))
+                        and ((.metadata.labels.app // "") == "rook-ceph-rgw")))
+                else
+                    []
+                end end | map(select(
+                    (.spec.ports | any((.name | test("^(s3|http)") or (.port == 80))
+                        and (.protocol == "TCP")))
+                )) | if . == [] then
+                    "ERR: Failed to determine!"
+                else
+                    .[0] as $svc |
+                    "http://\($svc.metadata.name).openshift-storage.svc.cluster.local\(
+                        mkPort($svc))"
+                end;
+                    
         [
             "Bucket claim namespace/name (status, age):\t\(
                 $cnm)/\($cname) (\($b.status.phase // "Unknown"), \(mkAge($b)))",
+            "  Cluster internal URL:\t\(mkURL($b))",
             "  Bucket name:\t\($b.spec.bucketName)",
             "  AWS_ACCESS_KEY_ID:\t\($data.AWS_ACCESS_KEY_ID | @base64d)",
             "  AWS_SECRET_ACCESS_KEY:\t\($data.AWS_SECRET_ACCESS_KEY | @base64d)"
