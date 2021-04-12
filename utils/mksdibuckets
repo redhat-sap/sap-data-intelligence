@@ -265,7 +265,7 @@ function listBuckets() {
 function chooseStorageClass() {
     local scs
     scs="$(oc get sc -o json)"
-    jq -n --arg ocsNamespace --argjson scs "${scs:-}" -r \
+    jq -n -r --arg ocsNamespace "$ocsNamespace" --argjson scs "${scs:-}" \
         '$scs.items | [.[] | select(.provisioner |
         test("\\.(ceph\\.rook\\.io/bucket|noobaa\\.io/obc)$"))] | sort_by(
             if (.provisioner == "\($ocsNamespace).ceph.rook.io/bucket") and (.metadata.name |
