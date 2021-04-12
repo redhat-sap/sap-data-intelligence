@@ -45,6 +45,12 @@ Options:
                     the action. Speeds up the execution.
   --ocs-namespace OCS_NAMESPACE
                     K8S namespace where OCS is installed. Defaults to $defaultOCSNamespace
+  --sc | --storage-class STORAGE_CLASS
+                    Override the StorageClass for allocating buckets. By default, *.noobaa.io
+                    class will be used for the OCS deployed in the internal mode and
+                    ocs-external-storagecluster-ceph-rgw for the external mode respectively.
+                    With the delete and list actions, the argument further filters out candidate
+                    objects.
 
 Create flags:
   --no-generate     Don't generate bucket name. By default, random uid is appended to the bucket
@@ -63,13 +69,14 @@ Delete flags:
 
 readonly longOptions=(
     help namespace: dry-run no-checks all all-namespaces no-confirm force no-generate
-    ocs-namespace
+    ocs-namespace: sc: storage-class:
 )
 
 readonly neededPermissions=(
     get:StorageClass:\* get:CustomResourceDefinition:\*
     get:Service:"$defaultOCSNamespace"
-    {get,create,delete}:ObjectBucketClaim
+    {get,create,list,delete}:ObjectBucketClaim.objectbucket.io/v1alpha1
+    get:CephCluster.ceph.rook.io:"$defaultOCSNamespace"
 )
 
 action=create
@@ -82,6 +89,7 @@ noConfirm=0
 force=0
 noGenerate=0
 ocsNamespace="$defaultOCSNamespace"
+storageClass=""
 
 function checkPermissions() {
     local fail=0
@@ -156,13 +164,16 @@ function getBucketSpecs() {
             --arg all "${all:-0}" --arg allNamespaces "${allNamespaces:-0}" \
             --arg namespace "${namespace}" \
             --arg bucketNames "$(join , "${bucketNames[@]}")" \
+            --arg storageClass "${storageClass:-}" \
             --argjson obcs "$obcs" '$obcs + (
                 .items as $is |
                 ($all == "1") as $a |
                 ($allNamespaces == "1") as $an |
-                $is | map(.metadata as $md | select(
-                    ($a or ($bucketNames | split(",") | any(. == $md.name)))
-                    and ($an or $md.namespace == $namespace)))
+                $is | map(. as $b | $b.metadata as $md | select(
+                        ($a or ($bucketNames | split(",") | any(. == $md.name)))
+                    and ($an or $md.namespace == $namespace)
+                    and (($storageClass == "") or ($b.spec.storageClassName == $storageClass))
+                ))
             )' ||:)"
     else
         obcs="$(xargs -r oc get "${args[@]}" \
@@ -265,23 +276,29 @@ function listBuckets() {
 function chooseStorageClass() {
     local scs
     scs="$(oc get sc -o json)"
-    jq -n -r --arg ocsNamespace "$ocsNamespace" --argjson scs "${scs:-}" \
+    local externalMode
+    externalMode="$(oc get cephcluster -n "$ocsNamespace" -o json | \
+        jq '.items | any((.spec.external // {}).enable // false)')"
+    jq -n -r --arg storageClass "$storageClass" --arg ocsNamespace "$ocsNamespace" \
+            --argjson externalMode "$externalMode" --argjson scs "${scs:-}" \
         '$scs.items | [.[] | select(.provisioner |
         test("\\.(ceph\\.rook\\.io/bucket|noobaa\\.io/obc)$"))] | sort_by(
-            if (.provisioner == "\($ocsNamespace).ceph.rook.io/bucket") and (.metadata.name |
+            if (($storageClass != "") and ($storageClass == .metadata.name)) then
+                [-5, .metadata.name]
+            else if (.provisioner == "\($ocsNamespace).ceph.rook.io/bucket") and (.metadata.name |
                     test("rgw")) then
-                [0, .metadata.name]
+                [if $externalMode then  0 else 10 end, .metadata.name]
             else if (.provisioner == "\($ocsNamespace).ceph.rook.io/bucket") then
-                [5, .metadata.name]
+                [if $externalMode then  5 else 15 end, .metadata.name]
             else if (.provisioner | endswith(".ceph.rook.io/bucket")) then
-                [10, .metadata.name]
+                [if $externalMode then 10 else 20 end, .metadata.name]
             else if (.provisioner == "\($ocsNamespace).noobaa.io/obc") then
-                [15, .metadata.name]
+                [if $externalMode then 15 else  0 end, .metadata.name]
             else if (.provisioner | endswith(".noobaa.io/obc")) then
-                [20, .metadata.name]
+                [if $externalMode then 20 else  5 end, .metadata.name]
             else
                 [25, .metadata.name]
-            end end end end end)[] | (.metadata.name, halt)'
+            end end end end end end)[] | (.metadata.name, halt)'
 }
 
 function createBuckets() {
@@ -293,7 +310,10 @@ function createBuckets() {
     fi
     local sc
     sc="$(chooseStorageClass)"
-    if [[ -z "${sc:-}" ]]; then
+    if [[ -n "${storageClass:-}" && "${sc:-}" != "${storageClass}" ]]; then
+        printf 'Desired storage class %s not found!\n' >&2 "${storageClass}"
+        exit 1
+    elif [[ -z "${sc:-}" ]]; then
         printf 'Could not find any object bucket storage class!\n' >&2
         exit 1
     fi
@@ -444,6 +464,10 @@ while true; do
         --no-checks)
             noChecks=1
             shift
+            ;;
+        --sc | --storage-class)
+            storageClass="$2"
+            shift 2
             ;;
         --)
             shift
