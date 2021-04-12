@@ -12,7 +12,9 @@ readonly defaultBucketNames=(
 function join() { local IFS="$1"; shift; echo "$*"; }
 
 readonly jqMinVersion="1.6"
-readonly usage="$(basename "${BASH_SOURCE[0]}") [Options] [ACTION] [[BUCKET_NAME ...]
+readonly defaultScriptName=mksdibuckets
+scriptName="$defaultScriptName"
+readonly usage="$scriptName [Options] [ACTION] [[BUCKET_NAME ...]
 
 Create object buckets for use by the SAP Date Intelligence.
 By default, two buckets will be created in the current namespace:
@@ -398,7 +400,7 @@ if [[ "$(basename "$0")" != "$(basename "${BASH_SOURCE[0]}")" ]]; then
 fi
 
 TMPARGS="$(getopt -o ahn: --longoptions "$(join , "${longOptions[@]}")" \
-    --name "$(basename "${BASH_SOURCE[0]}")" -- "$@")"
+    --name "$scriptName" -- "$@")"
 eval set -- "$TMPARGS"
 
 while true; do
