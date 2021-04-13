@@ -1,0 +1,146 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+IFS=$'\n\t'
+
+readonly USAGE="rgwtunebuckets [Options] BUCKET...
+
+Configure the given buckets for SAP Data Intelligence.
+In particular, increase the maximum buckets limit for bucket owners.
+
+Options:
+  -h | --help   Show this help and exit.
+  -m | --max-buckets MAX_BUCKETS
+                Increase the maximum buckets quota to this value.
+  -o | --overwrite
+                Overwrite the quota values even if higher on the RADOS database.
+  --dry-run     Print what would be executed without changing anything.
+  -c | --conf CONFIG_FILE
+                Path to the configuration file for radosgw-admin command.
+  --print       Print bucket owners as a stream of json objects.
+"
+
+readonly longOptions=(
+    help max-buckets: overwrite dry-run config-file: print
+)
+
+function join() { local IFS="$1"; shift; echo "$@"; }
+
+function processBucket() {
+    local bucket="${1:-}"
+    if [[ -z "${bucket:-}" ]]; then
+        return 0
+    fi
+    local args=( user info )
+    if [[ -n "${configFile:-}" ]]; then
+        args+=( --conf "$configFile" )
+    fi
+    local owner
+    owner="$(radosgw-admin bucket stats --bucket="$bucket" | jq -r '.owner' ||:)"
+    if [[ -z "${owner:-}" ]]; then
+        printf 'Failed to determine owner of the "%s" bucket!\n' >&2 "$bucket"
+        return 1
+    fi
+    args+=( --uid="$owner" )
+    local current
+    current="$(radosgw-admin "${args[@]}" | jq -r '.max_buckets // 1')"
+    if [[ ( "${overwrite:-0}" == 0 && "$current" -ge "$maxBuckets" ) ||
+          ( "${overwrite:-0}" == 1 && "$current" == "$maxBuckets" ) ]];
+    then
+        if [[ "${printOwners:-0}" == 1 ]]; then
+           radosgw-admin "${args[@]}" | \
+               jq --argjson maxBuckets "$maxBuckets" '.max_buckets |= $maxBuckets'
+        fi
+        return 0
+    fi
+
+    local dryRunAnn=""
+    if [[ "${dryRun:-0}" == 1 ]]; then
+        dryRunAnn=" (dry run)"
+    fi
+
+    if [[ "$current" -lt "$maxBuckets" ]]; then
+        printf 'Increasing the max buckets quota for the owner=%s' >&2 "$owner"
+        printf ' of the bucket=%s from %d to %s%s\n' >&2 "$bucket" "$current" "$maxBuckets" \
+            "${dryRunAnn:-}"
+    else
+        printf 'Overwriting the max buckets quota for the owner=%s' >&2 "$owner"
+        printf ' of the bucket=%s to %s (current=%d)%s\n' >&2 "$bucket" "$maxBuckets" "$current" \
+            "${dryRunAnn:-}"
+    fi
+    if [[ "${dryRun:-0}" == 1 ]]; then
+        if [[ "${printOwners:-0}" == 1 ]]; then
+           radosgw-admin "${args[@]}" | \
+               jq --argjson maxBuckets "$maxBuckets" '.max_buckets |= $maxBuckets'
+        fi
+        return 0
+    fi
+
+    args[1]=modify
+    args+=( --max-buckets="$maxBuckets" )
+    if [[ "${printOwners:-0}" == 1 ]]; then
+        radosgw-admin "${args[@]}" | jq
+    else
+        radosgw-admin "${args[@]}" >/dev/null
+    fi
+}
+
+maxBuckets=3
+overwrite=0
+dryRun=0
+configFile=""
+printOwners=9
+
+TMPARGS="$(getopt -o hm:o --long "$(join , "${longOptions[@]}")" -n rgwtuneuckets -- "$@")"
+eval set -- "$TMPARGS"
+
+while true; do
+    case "$1" in
+        -h | --help)
+            printf '%s' "$USAGE"
+            exit 0
+            ;;
+        -m | --max-buckets)
+            maxBuckets="$2"
+            shift 2
+            ;;
+        -o | --overwrite)
+            overwrite=1
+            shift
+            ;;
+        --dry-run)
+            dryRun=1
+            shift
+            ;;
+        -c | --config-file)
+            configFile="$2"
+            shift 2
+            ;;
+        --print)
+            printOwners=1
+            shift
+            ;;
+        --)
+            shift
+            break
+            ;;
+        *)
+            printf 'Unrecognized argument "%s"!\n' "$1" >&2
+            exit 1
+            ;;
+    esac
+done
+
+if [[ "$#" -lt 1 ]]; then
+    printf 'No buckets given!\n' >&2
+    exit 0
+fi
+
+rt=0
+for bucket in "$@"; do
+    if ! processBucket "$bucket"; then
+        rt="$?"
+    fi
+done
+
+exit "$rt"

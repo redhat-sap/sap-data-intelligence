@@ -333,7 +333,10 @@ function createBuckets() {
                 "namespace": $namespace
             },
             "spec": ({
-                    "storageClassName": $sc
+                    "storageClassName": $sc,
+                    "additionalConfig": {
+                        "maxBuckets": "3"
+                    }
                 } | if $noGenerate == "1" then
                         .bucketName |= $name
                     else
