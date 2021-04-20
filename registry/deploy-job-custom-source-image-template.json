@@ -1,15 +1,14 @@
 {
    "apiVersion": "template.openshift.io/v1",
-   "description": "TODO",
    "kind": "Template",
-   "message": "TODO",
+   "message": "To get the credentials to access the registry, execute the following:\n\n    # oc get -o go-template='{{index .data \".htpasswd.raw\"}}' \\\n      secret/container-image-registry-htpasswd | base64 -d\n    user-62hsyd:2JFqD8SJqYeLvecNdh3BvAFfKwhJF0De\n\nTo get the registry pull spec exposed by a route:\n\n    # oc get route -n sdi-observer container-image-registry -o jsonpath='{.spec.host}{\"\\n\"}'\n    container-image-registry-sdi-observer.apps.ocp.example.org\n\nTo get the default ceritificate authority unless overridden by a parameter (requires jq of\nversion 1.6 or higher):\n\n    # oc get secret -n openshift-ingress-operator -o json router-ca | \\\n        jq -r '.data as $d | $d | keys[] | select(test(\"\\\\.crt$\")) | $d[.]' | \\\n        base64 -d >router-ca.crt\n\nTo verify the connection via a route:\n\n    # curl -I --cacert ./router-ca.crt --user user-62hsyd:2JFqD8SJqYeLvecNdh3BvAFfKwhJF0De \\\n        https://container-image-registry-sdi-observer.apps.ocp.example.org/v2/\n    HTTP/1.1 200 OK\n    Content-Length: 2\n    Content-Type: application/json; charset=utf-8\n    Docker-Distribution-Api-Version: registry/2.0\n    Date: Thu, 22 Apr 2021 13:26:26 GMT\n    Set-Cookie: d22d6ce08115a899cf6eca6fd53d84b4=97c8742ee7d80fd9461b4b5afc1218f4; path=/; HttpOnly; Secure; SameSite=None\n    Cache-control: private\n\nTo list the images in the registry:\n\n    # curl --silent --cacert ./router-ca.crt \\\n        --user user-62hsyd:2JFqD8SJqYeLvecNdh3BvAFfKwhJF0De \\\n        https://container-image-registry-sdi-observer.apps.ocp.example.org/v2/_catalog | jq\n    {\n      \"repositories\": [\n        \"com.sap.bds.docker/storagegateway\",\n        \"com.sap.datahub.linuxx86_64/app-base\",\n        \"com.sap.datahub.linuxx86_64/app-data\",\n    ...\n\nTo check registry's storage usage:\n\n    # oc rsh -n sdi-observer dc/container-image-registry df /var/lib/registry\n    Filesystem  1K-blocks     Used Available Use% Mounted on\n    10...60     125829120 28389376  97439744  23% /var/lib/registry\n",
    "metadata": {
       "annotations": {
-         "description": "TODO",
+         "description": "The template deploys a container image registry pod suitable to host SAP Data Intelligence\nimages mirrored from SAP's registry. It is also supported for graph images built and\nscheduled by Data Intelligence's Pipeline Modeler. By default, the registry requires\nauthentication. It is exposed by a OpenShift Ingress controller as an encrypted route. The\nroute is secured by a certificate signed by the Ingress certificate authority. The\nregistry can be accessed by SAP Software Lifecycle Bridge and Pipeline Modeler only via\nthis route.\n\nIt is recommended to choose as a storage class the one supporting RedWriteMany access mode\nif there is one. In such case, SDI_REGISTRY_VOLUME_ACCESS_MODE parameter shall be set to\nReadWriteMany.\n\nUnless explicitly specified in template parameters, access credentials will be generated.\n",
          "openshift.io/display-name": "Job to deploy a container image registry.\n",
          "openshift.io/documentation-url": "https://access.redhat.com/articles/4324391",
          "openshift.io/provider-display-name": "Red Hat, Inc.",
-         "sdi-observer/version": "0.1.11"
+         "sdi-observer/version": "0.1.12"
       },
       "name": "deploy-registry"
    },
@@ -19,11 +18,11 @@
          "kind": "Job",
          "metadata": {
             "labels": {
-               "sdi-observer/version": "0.1.11"
+               "sdi-observer/version": "0.1.12"
             },
             "name": "deploy-registry",
             "namespace": "${NAMESPACE}",
-            "sdi-observer/version": "0.1.11"
+            "sdi-observer/version": "0.1.12"
          },
          "spec": {
             "activeDeadlineSeconds": 1800,
@@ -45,12 +44,12 @@
                         ],
                         "env": [
                            {
-                              "name": "DRY_RUN",
-                              "value": "${DRY_RUN}"
-                           },
-                           {
                               "name": "NAMESPACE",
                               "value": "${NAMESPACE}"
+                           },
+                           {
+                              "name": "DRY_RUN",
+                              "value": "${DRY_RUN}"
                            },
                            {
                               "name": "FORCE_REDEPLOY",
@@ -247,7 +246,7 @@
             "labels": {
                "created-by": "registry-deploy",
                "deploymentconfig": "sdi-observer",
-               "sdi-observer/version": "0.1.11"
+               "sdi-observer/version": "0.1.12"
             },
             "name": "sdi-observer",
             "namespace": "${NAMESPACE}"
@@ -256,7 +255,7 @@
             "output": {
                "to": {
                   "kind": "ImageStreamTag",
-                  "name": "sdi-observer:0.1.11-ocp${OCP_MINOR_RELEASE}"
+                  "name": "sdi-observer:0.1.12-ocp${OCP_MINOR_RELEASE}"
                }
             },
             "runPolicy": "Serial",
@@ -280,15 +279,15 @@
                   "type": "ConfigChange"
                }
             ]
-         },
-         "version": "0.1.11"
+         }
       },
       {
          "apiVersion": "v1",
          "kind": "ImageStream",
          "metadata": {
             "labels": {
-               "created-by": "registry-deploy"
+               "created-by": "registry-deploy",
+               "sdi-observer/version": "0.1.12"
             },
             "name": "sdi-observer",
             "namespace": "${NAMESPACE}"
@@ -303,12 +302,16 @@
          "kind": "ImageStream",
          "metadata": {
             "labels": {
-               "created-by": "registry-deploy"
+               "created-by": "registry-deploy",
+               "sdi-observer/version": "0.1.12"
             },
             "name": "${SOURCE_IMAGESTREAM_NAME}",
             "namespace": "${NAMESPACE}"
          },
          "spec": {
+            "lookupPolicy": {
+               "local": true
+            },
             "tags": [
                {
                   "from": {
@@ -332,15 +335,15 @@
    ],
    "parameters": [
       {
-         "description": "If set to true, no action will be performed. The pod will just print\nwhat would have been executed.\n",
+         "description": "The desired namespace to deploy resources to. Defaults to the current one.\n",
+         "name": "NAMESPACE",
+         "required": true
+      },
+      {
+         "description": "If set to true, no action will be performed. The pod will just print what would have been\nexecuted.\n",
          "name": "DRY_RUN",
          "required": false,
          "value": "false"
-      },
-      {
-         "description": "The desired namespace to deploy resources to. Defaults to the current\none.\n",
-         "name": "NAMESPACE",
-         "required": true
       },
       {
          "description": "Whether to forcefully replace existing objects and configuration files. To replace\nexising secrets as well, RECREATE_SECRETS needs to be set.\n",
@@ -424,7 +427,7 @@
          "description": "Minor release of OpenShift Container Platform (e.g. 4.2). This value must match the OCP\nserver version. The biggest tolerated difference between the versions is 1 in the second\ndigit.\n",
          "name": "OCP_MINOR_RELEASE",
          "required": true,
-         "value": "4.2"
+         "value": "4.6"
       },
       {
          "description": "URL of SDI Observer's git repository to clone into sdi-observer image.\n",

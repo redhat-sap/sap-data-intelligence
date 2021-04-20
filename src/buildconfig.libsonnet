@@ -5,19 +5,19 @@ local is = import 'imagestream.libsonnet';
   resourceName:: error 'resourceName must be overriden by a child',
   createdBy:: error 'createdBy must be overridden by a child!',
   srcImageStreamTag:: error 'srcImageStreamTag must be overriden by a child!',
-  dstImageStreamTag:: $.resourceName + ':latest',
+  dstImageStreamTag:: bc.resourceName + ':latest',
   dockerfile:: error 'dockerfile must be overriden by a child!',
   version:: error 'version must be specified',
 
-  Objects: [$.BuildConfig, $.ImageStream],
+  Objects: [bc.BuildConfig, bc.ImageStream],
 
   BuildConfig: {
     apiVersion: 'build.openshift.io/v1',
     kind: 'BuildConfig',
     metadata: {
       labels: {
-        deploymentconfig: $.resourceName,
-        'created-by': $.createdBy,
+        deploymentconfig: bc.resourceName,
+        'created-by': bc.createdBy,
         'sdi-observer/version': bc.version,
       },
       name: $.resourceName,
@@ -54,8 +54,9 @@ local is = import 'imagestream.libsonnet';
     },
   },
 
-  ImageStream: is.ImageStream {
-    resourceName: $.resourceName,
-    createdBy: $.createdBy,
+  ImageStream: is {
+    resourceName:: bc.resourceName,
+    createdBy:: bc.createdBy,
+    version:: bc.version,
   },
 }

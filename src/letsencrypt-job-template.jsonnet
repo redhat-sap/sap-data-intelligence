@@ -3,23 +3,27 @@ local base = import 'job-template.libsonnet';
 local obsbc = import 'observer-buildconfig.libsonnet';
 local obssa = import 'observer-serviceaccount.libsonnet';
 
-base.JobTemplate {
+base {
   local acmejobtmpl = self,
   resourceName: 'deploy-letsencrypt',
   jobImage: null,
   command: acmejobtmpl.resourceName + '.sh',
   createdBy:: 'letsencrypt-deploy',
 
-  local bc = obsbc.ObserverBuildConfigTemplate {
-    createdBy: acmejobtmpl.createdBy,
-    version: acmejobtmpl.version,
+  local bc = obsbc {
+    createdBy:: acmejobtmpl.createdBy,
+    version:: acmejobtmpl.version,
   },
 
-  description: 'TODO',
   metadata+: {
     annotations+: {
       'openshift.io/display-name': |||
         Job to deploy a letsencrypt controller.
+      |||,
+      description: |||
+        Deploys a letsencrypt controller that secures OpenShift Routes with trusted certificates
+        that are periodically refreshed. By default, the controller monitors and secures only
+        routes in the SDI_NAMESPACE. That can be changed with the PROJECTS_TO_MONITOR parameter.
       |||,
     },
   },

@@ -1,3 +1,6 @@
+- [ ] - deploy-registry: do not redeploy if the image cannot be pulled
+    - if image cannot be pulled (because e.g. registry lost the blobs), an endless loop begins
+- [ ] - switch to [certman](https://github.com/openshift/certman-operator)
 - [ ] - modify observer's jq script for vsystem-vrep patching like this:
 
         '. as $filtered | . +' \

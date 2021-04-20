@@ -1,0 +1,203 @@
+{
+   "apiVersion": "template.openshift.io/v1",
+   "kind": "Template",
+   "message": null,
+   "metadata": {
+      "annotations": {
+         "description": "The template creates a daemonset that spawns pods on all matching nodes. The pods will\nconfigure the nodes for running SAP Data Intelligence.\n\nAs of now, the configuration consists of loading kernel modules needed needed to use NFS\nand manipulated iptables.\n\nBefore running this template, Security Context Constraints need to be given to the\nsdi-node-configurator service account. This can be achieved from command line with\nsystem admin role with the following command:\n\n  oc adm policy add-scc-to-user -n $NAMESPACE privileged -z sdi-node-configurator\n",
+         "openshift.io/display-name": "OpenShift compute node configurator for SAP Data Intelligence\n",
+         "openshift.io/documentation-url": "https://access.redhat.com/articles/4324391",
+         "openshift.io/provider-display-name": "Red Hat, Inc.",
+         "sdi-observer/version": "0.1.12"
+      },
+      "name": "sdi-node-configurator"
+   },
+   "objects": [
+      {
+         "apiVersion": "v1",
+         "kind": "ServiceAccount",
+         "metadata": {
+            "labels": {
+               "app": "sdi-node-configurator",
+               "created-by": "manual",
+               "daemonset": "sdi-node-configurator"
+            },
+            "name": "sdi-node-configurator",
+            "namespace": "${NAMESPACE}"
+         }
+      },
+      {
+         "apiVersion": "v1",
+         "kind": "ImageStream",
+         "metadata": {
+            "labels": {
+               "created-by": "manual",
+               "sdi-observer/version": "0.1.12"
+            },
+            "name": "ocp-tools",
+            "namespace": "${NAMESPACE}"
+         },
+         "spec": {
+            "lookupPolicy": {
+               "local": true
+            },
+            "tags": [
+               {
+                  "from": {
+                     "kind": "ImageStreamTag",
+                     "name": "tools:latest",
+                     "namespace": "openshift"
+                  },
+                  "name": "latest"
+               }
+            ]
+         },
+         "status": {
+            "dockerImageRepository": ""
+         }
+      },
+      {
+         "apiVersion": "apps/v1",
+         "kind": "DaemonSet",
+         "metadata": {
+            "annotations": {
+               "image.openshift.io/triggers": "[{\"fieldPath\": \"spec.template.spec.containers[0].image\", \"from\": {\"kind\": \"ImageStreamTag\", \"name\": \"ocp-tools:latest\"}, \"paused\": \"false\"}, {\"fieldPath\": \"spec.template.spec.initContainers[0].image\", \"from\": {\"kind\": \"ImageStreamTag\", \"name\": \"ocp-tools:latest\"}, \"paused\": \"false\"}]"
+            },
+            "labels": {
+               "app": "sdi-node-configurator",
+               "daemonset": "sdi-node-configurator",
+               "sdi-observer/version": "0.1.12"
+            },
+            "name": "sdi-node-configurator",
+            "namespace": "${NAMESPACE}"
+         },
+         "spec": {
+            "revisionHistoryLimit": 7,
+            "selector": {
+               "matchLabels": {
+                  "app": "sdi-node-configurator",
+                  "daemonset": "sdi-node-configurator"
+               }
+            },
+            "template": {
+               "metadata": {
+                  "labels": {
+                     "app": "sdi-node-configurator",
+                     "daemonset": "sdi-node-configurator"
+                  }
+               },
+               "spec": {
+                  "containers": [
+                     {
+                        "command": [
+                           "/bin/sleep",
+                           "infinity"
+                        ],
+                        "image": "ocp-tools:latest",
+                        "imagePullPolicy": "IfNotPresent",
+                        "name": "keep-alive",
+                        "resources": {
+                           "limits": {
+                              "cpu": "50m",
+                              "memory": "50Mi"
+                           },
+                           "requests": {
+                              "cpu": "50m",
+                              "memory": "50Mi"
+                           }
+                        }
+                     }
+                  ],
+                  "hostIPC": true,
+                  "hostNetwork": true,
+                  "hostPID": true,
+                  "initContainers": [
+                     {
+                        "command": [
+                           "chroot",
+                           "/host",
+                           "/bin/bash",
+                           "-c",
+                           "args=( --verbose )\nif [[ \"${DRY_RUN:-0}\" == 1 ]]; then\n  args+=( --dry-run )\nfi\nfor module in nfsd nfsv4 ip_tables ipt_REDIRECT ipt_owner iptable_nat iptable_filter ; do\n  modprobe \"${args[@]}\" $module\ndone"
+                        ],
+                        "env": [
+                           {
+                              "name": "SDI_OBSERVER_VERSION",
+                              "value": "0.1.12"
+                           },
+                           {
+                              "name": "NAMESPACE",
+                              "value": "${NAMESPACE}"
+                           },
+                           {
+                              "name": "DRY_RUN",
+                              "value": "${DRY_RUN}"
+                           }
+                        ],
+                        "image": "ocp-tools:latest",
+                        "imagePullPolicy": "IfNotPresent",
+                        "name": "sdi-node-configurator",
+                        "resources": {
+                           "limits": {
+                              "cpu": "200m",
+                              "memory": "100Mi"
+                           },
+                           "requests": {
+                              "cpu": "100m",
+                              "memory": "100Mi"
+                           }
+                        },
+                        "securityContext": {
+                           "privileged": true,
+                           "runAsUser": 0
+                        },
+                        "volumeMounts": [
+                           {
+                              "mountPath": "/host",
+                              "name": "host-root"
+                           }
+                        ]
+                     }
+                  ],
+                  "nodeSelector": "${{SDI_NODE_SELECTOR}}",
+                  "serviceAccountName": "sdi-node-configurator",
+                  "volumes": [
+                     {
+                        "hostPath": {
+                           "path": "/",
+                           "type": ""
+                        },
+                        "name": "host-root"
+                     }
+                  ]
+               }
+            },
+            "updateStrategy": {
+               "rollingUpdate": {
+                  "maxUnavailable": 7
+               },
+               "type": "RollingUpdate"
+            }
+         }
+      }
+   ],
+   "parameters": [
+      {
+         "description": "The desired namespace to deploy resources to. Defaults to the current one.\n",
+         "name": "NAMESPACE",
+         "required": true
+      },
+      {
+         "description": "If set to true, no action will be performed. The pod will just print what would have been\nexecuted.\n",
+         "name": "DRY_RUN",
+         "required": false,
+         "value": "false"
+      },
+      {
+         "description": "Select the nodes where the SDI node configurator pods shall be scheduled. The selector\nmust match all the nodes where SAP Data Intelligence is running.\nTypically, this should correspond to the SDI_NODE_SELECTOR parameter of the SDI\nObserver template and its resulting DeploymentConfig. The difference is that this field\naccepts JSON object instead of a plain string.\nIf the daemonset shall run on all nodes, set this to \"null\".\n",
+         "name": "SDI_NODE_SELECTOR",
+         "required": true,
+         "value": "{\"node-role.kubernetes.io/sdi\": \"\"}"
+      }
+   ]
+}

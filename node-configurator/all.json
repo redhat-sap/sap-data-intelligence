@@ -1,0 +1,166 @@
+{
+   "apiVersion": "v1",
+   "items": [
+      {
+         "apiVersion": "v1",
+         "kind": "ServiceAccount",
+         "metadata": {
+            "labels": {
+               "app": "sdi-node-configurator",
+               "created-by": "manual",
+               "daemonset": "sdi-node-configurator"
+            },
+            "name": "sdi-node-configurator"
+         }
+      },
+      {
+         "apiVersion": "v1",
+         "kind": "ImageStream",
+         "metadata": {
+            "labels": {
+               "created-by": "manual",
+               "sdi-observer/version": "0.1.12"
+            },
+            "name": "ocp-tools"
+         },
+         "spec": {
+            "lookupPolicy": {
+               "local": true
+            },
+            "tags": [
+               {
+                  "from": {
+                     "kind": "ImageStreamTag",
+                     "name": "tools:latest",
+                     "namespace": "openshift"
+                  },
+                  "name": "latest"
+               }
+            ]
+         },
+         "status": {
+            "dockerImageRepository": ""
+         }
+      },
+      {
+         "apiVersion": "apps/v1",
+         "kind": "DaemonSet",
+         "metadata": {
+            "annotations": {
+               "image.openshift.io/triggers": "[{\"fieldPath\": \"spec.template.spec.containers[0].image\", \"from\": {\"kind\": \"ImageStreamTag\", \"name\": \"ocp-tools:latest\"}, \"paused\": \"false\"}, {\"fieldPath\": \"spec.template.spec.initContainers[0].image\", \"from\": {\"kind\": \"ImageStreamTag\", \"name\": \"ocp-tools:latest\"}, \"paused\": \"false\"}]"
+            },
+            "labels": {
+               "app": "sdi-node-configurator",
+               "daemonset": "sdi-node-configurator",
+               "sdi-observer/version": "0.1.12"
+            },
+            "name": "sdi-node-configurator"
+         },
+         "spec": {
+            "revisionHistoryLimit": 7,
+            "selector": {
+               "matchLabels": {
+                  "app": "sdi-node-configurator",
+                  "daemonset": "sdi-node-configurator"
+               }
+            },
+            "template": {
+               "metadata": {
+                  "labels": {
+                     "app": "sdi-node-configurator",
+                     "daemonset": "sdi-node-configurator"
+                  }
+               },
+               "spec": {
+                  "containers": [
+                     {
+                        "command": [
+                           "/bin/sleep",
+                           "infinity"
+                        ],
+                        "image": "ocp-tools:latest",
+                        "imagePullPolicy": "IfNotPresent",
+                        "name": "keep-alive",
+                        "resources": {
+                           "limits": {
+                              "cpu": "50m",
+                              "memory": "50Mi"
+                           },
+                           "requests": {
+                              "cpu": "50m",
+                              "memory": "50Mi"
+                           }
+                        }
+                     }
+                  ],
+                  "hostIPC": true,
+                  "hostNetwork": true,
+                  "hostPID": true,
+                  "initContainers": [
+                     {
+                        "command": [
+                           "chroot",
+                           "/host",
+                           "/bin/bash",
+                           "-c",
+                           "args=( --verbose )\nif [[ \"${DRY_RUN:-0}\" == 1 ]]; then\n  args+=( --dry-run )\nfi\nfor module in nfsd nfsv4 ip_tables ipt_REDIRECT ipt_owner iptable_nat iptable_filter ; do\n  modprobe \"${args[@]}\" $module\ndone"
+                        ],
+                        "env": [
+                           {
+                              "name": "SDI_OBSERVER_VERSION",
+                              "value": "0.1.12"
+                           },
+                           {
+                              "name": "DRY_RUN",
+                              "value": "false"
+                           }
+                        ],
+                        "image": "ocp-tools:latest",
+                        "imagePullPolicy": "IfNotPresent",
+                        "name": "sdi-node-configurator",
+                        "resources": {
+                           "limits": {
+                              "cpu": "200m",
+                              "memory": "100Mi"
+                           },
+                           "requests": {
+                              "cpu": "100m",
+                              "memory": "100Mi"
+                           }
+                        },
+                        "securityContext": {
+                           "privileged": true,
+                           "runAsUser": 0
+                        },
+                        "volumeMounts": [
+                           {
+                              "mountPath": "/host",
+                              "name": "host-root"
+                           }
+                        ]
+                     }
+                  ],
+                  "serviceAccountName": "sdi-node-configurator",
+                  "volumes": [
+                     {
+                        "hostPath": {
+                           "path": "/",
+                           "type": ""
+                        },
+                        "name": "host-root"
+                     }
+                  ]
+               }
+            },
+            "updateStrategy": {
+               "rollingUpdate": {
+                  "maxUnavailable": 7
+               },
+               "type": "RollingUpdate"
+            }
+         }
+      }
+   ],
+   "kind": "List",
+   "metadata": { }
+}

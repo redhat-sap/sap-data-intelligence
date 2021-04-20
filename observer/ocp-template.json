@@ -8,7 +8,7 @@
          "openshift.io/display-name": "OpenShift enabler and observer for SAP Data intelligence\n",
          "openshift.io/documentation-url": "https://access.redhat.com/articles/4324391",
          "openshift.io/provider-display-name": "Red Hat, Inc.",
-         "sdi-observer/version": "0.1.11"
+         "sdi-observer/version": "0.1.12"
       },
       "name": "sdi-observer"
    },
@@ -32,7 +32,7 @@
             "labels": {
                "created-by": "sdi-observer-template",
                "deploymentconfig": "sdi-observer",
-               "sdi-observer/version": "0.1.11"
+               "sdi-observer/version": "0.1.12"
             },
             "name": "sdi-observer",
             "namespace": "${NAMESPACE}"
@@ -61,15 +61,15 @@
                         "env": [
                            {
                               "name": "SDI_OBSERVER_VERSION",
-                              "value": "0.1.11"
-                           },
-                           {
-                              "name": "DRY_RUN",
-                              "value": "${DRY_RUN}"
+                              "value": "0.1.12"
                            },
                            {
                               "name": "NAMESPACE",
                               "value": "${NAMESPACE}"
+                           },
+                           {
+                              "name": "DRY_RUN",
+                              "value": "${DRY_RUN}"
                            },
                            {
                               "name": "FORCE_REDEPLOY",
@@ -148,12 +148,12 @@
                               "value": "${VSYSTEM_ROUTE_HOSTNAME}"
                            },
                            {
-                              "name": "SDI_NODE_SELECTOR",
-                              "value": "${SDI_NODE_SELECTOR}"
-                           },
-                           {
                               "name": "LETSENCRYPT_ENVIRONMENT",
                               "value": "${LETSENCRYPT_ENVIRONMENT}"
+                           },
+                           {
+                              "name": "SDI_NODE_SELECTOR",
+                              "value": "${SDI_NODE_SELECTOR}"
                            },
                            {
                               "name": "REPLACE_PERSISTENT_VOLUME_CLAIMS",
@@ -227,7 +227,7 @@
                      ],
                      "from": {
                         "kind": "ImageStreamTag",
-                        "name": "sdi-observer:0.1.11-ocp${OCP_MINOR_RELEASE}"
+                        "name": "sdi-observer:0.1.12-ocp${OCP_MINOR_RELEASE}"
                      }
                   },
                   "type": "ImageChange"
@@ -759,7 +759,7 @@
             "labels": {
                "created-by": "sdi-observer-template",
                "deploymentconfig": "sdi-observer",
-               "sdi-observer/version": "0.1.11"
+               "sdi-observer/version": "0.1.12"
             },
             "name": "sdi-observer",
             "namespace": "${NAMESPACE}"
@@ -768,7 +768,7 @@
             "output": {
                "to": {
                   "kind": "ImageStreamTag",
-                  "name": "sdi-observer:0.1.11-ocp${OCP_MINOR_RELEASE}"
+                  "name": "sdi-observer:0.1.12-ocp${OCP_MINOR_RELEASE}"
                }
             },
             "runPolicy": "Serial",
@@ -802,7 +802,8 @@
          "kind": "ImageStream",
          "metadata": {
             "labels": {
-               "created-by": "sdi-observer-template"
+               "created-by": "sdi-observer-template",
+               "sdi-observer/version": "0.1.12"
             },
             "name": "sdi-observer",
             "namespace": "${NAMESPACE}"
@@ -817,12 +818,16 @@
          "kind": "ImageStream",
          "metadata": {
             "labels": {
-               "created-by": "sdi-observer-template"
+               "created-by": "sdi-observer-template",
+               "sdi-observer/version": "0.1.12"
             },
             "name": "ubi8",
             "namespace": "${NAMESPACE}"
          },
          "spec": {
+            "lookupPolicy": {
+               "local": true
+            },
             "tags": [
                {
                   "from": {
@@ -846,15 +851,15 @@
    ],
    "parameters": [
       {
-         "description": "If set to true, no action will be performed. The pod will just print\nwhat would have been executed.\n",
+         "description": "The desired namespace to deploy resources to. Defaults to the current one.\n",
+         "name": "NAMESPACE",
+         "required": true
+      },
+      {
+         "description": "If set to true, no action will be performed. The pod will just print what would have been\nexecuted.\n",
          "name": "DRY_RUN",
          "required": false,
          "value": "false"
-      },
-      {
-         "description": "The desired namespace to deploy resources to. Defaults to the current\none.\n",
-         "name": "NAMESPACE",
-         "required": true
       },
       {
          "description": "Whether to forcefully replace existing objects and configuration files. To replace\nexising secrets as well, RECREATE_SECRETS needs to be set.\n",
@@ -877,7 +882,7 @@
          "description": "Minor release of OpenShift Container Platform (e.g. 4.2). This value must match the OCP\nserver version. The biggest tolerated difference between the versions is 1 in the second\ndigit.\n",
          "name": "OCP_MINOR_RELEASE",
          "required": true,
-         "value": "4.2"
+         "value": "4.6"
       },
       {
          "description": "URL of SDI Observer's git repository to clone into sdi-observer image.\n",
@@ -962,15 +967,15 @@
          "required": false
       },
       {
-         "description": "Make pods in SDI_NAMESPACE schedule only on nodes matching the given node selector. The\nselector will be applied to the whole namespace and its daemonsets. Selector can contain\nmultiple key=value labels separated with commas.\nExample value: node-role.kubernetes.io/sdi=\n",
-         "name": "SDI_NODE_SELECTOR",
-         "required": false
-      },
-      {
          "description": "Either \"live\" or \"staging\". Use the latter when debugging SDI Observer's deployment.\n",
          "name": "LETSENCRYPT_ENVIRONMENT",
          "required": false,
          "value": "live"
+      },
+      {
+         "description": "Make pods in SDI_NAMESPACE schedule only on nodes matching the given node selector. The\nselector will be applied to the whole namespace and its daemonsets. Selector can contain\nmultiple key=value labels separated with commas.\nExample value: node-role.kubernetes.io/sdi=\n",
+         "name": "SDI_NODE_SELECTOR",
+         "required": false
       },
       {
          "description": "Whether to replace existing persistent volume claims like the one belonging to SDI\nRegistry.\n",
