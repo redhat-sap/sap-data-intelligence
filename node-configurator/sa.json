@@ -1,0 +1,12 @@
+{
+   "apiVersion": "v1",
+   "kind": "ServiceAccount",
+   "metadata": {
+      "labels": {
+         "app": "sdi-node-configurator",
+         "created-by": "manual",
+         "daemonset": "sdi-node-configurator"
+      },
+      "name": "sdi-node-configurator"
+   }
+}

@@ -9,7 +9,7 @@
          "openshift.io/display-name": "Job to deploy a letsencrypt controller.\n",
          "openshift.io/documentation-url": "https://access.redhat.com/articles/4324391",
          "openshift.io/provider-display-name": "Red Hat, Inc.",
-         "sdi-observer/version": "0.1.11"
+         "sdi-observer/version": "0.1.12"
       },
       "name": "deploy-letsencrypt"
    },
@@ -19,11 +19,11 @@
          "kind": "Job",
          "metadata": {
             "labels": {
-               "sdi-observer/version": "0.1.11"
+               "sdi-observer/version": "0.1.12"
             },
             "name": "deploy-letsencrypt",
             "namespace": "${NAMESPACE}",
-            "sdi-observer/version": "0.1.11"
+            "sdi-observer/version": "0.1.12"
          },
          "spec": {
             "activeDeadlineSeconds": 1800,
@@ -195,7 +195,7 @@
             "labels": {
                "created-by": "letsencrypt-deploy",
                "deploymentconfig": "sdi-observer",
-               "sdi-observer/version": "0.1.11"
+               "sdi-observer/version": "0.1.12"
             },
             "name": "sdi-observer",
             "namespace": "${NAMESPACE}"
@@ -204,7 +204,7 @@
             "output": {
                "to": {
                   "kind": "ImageStreamTag",
-                  "name": "sdi-observer:0.1.11-ocp${OCP_MINOR_RELEASE}"
+                  "name": "sdi-observer:0.1.12-ocp${OCP_MINOR_RELEASE}"
                }
             },
             "runPolicy": "Serial",
@@ -228,15 +228,15 @@
                   "type": "ConfigChange"
                }
             ]
-         },
-         "version": "0.1.11"
+         }
       },
       {
          "apiVersion": "v1",
          "kind": "ImageStream",
          "metadata": {
             "labels": {
-               "created-by": "letsencrypt-deploy"
+               "created-by": "letsencrypt-deploy",
+               "sdi-observer/version": "0.1.12"
             },
             "name": "sdi-observer",
             "namespace": "${NAMESPACE}"
@@ -251,12 +251,16 @@
          "kind": "ImageStream",
          "metadata": {
             "labels": {
-               "created-by": "letsencrypt-deploy"
+               "created-by": "letsencrypt-deploy",
+               "sdi-observer/version": "0.1.12"
             },
             "name": "${SOURCE_IMAGESTREAM_NAME}",
             "namespace": "${NAMESPACE}"
          },
          "spec": {
+            "lookupPolicy": {
+               "local": true
+            },
             "tags": [
                {
                   "from": {

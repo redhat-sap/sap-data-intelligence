@@ -31,7 +31,6 @@ local useCustomSourceImage(tmpl, version, withSecret=false) = tmpl {
         }
       else if o.kind == 'BuildConfig' then
         o {
-          version: version,
           metadata+: {
             labels+: {
               'sdi-observer/version': version,

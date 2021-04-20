@@ -1,6 +1,7 @@
 // `src/` shall be included into Jsonnet library path
 local useCustomSourceImage = import 'custom-source-image.libsonnet';
 local acmejobtmpl = import 'letsencrypt-job-template.jsonnet';
+local nctmpl = import 'node-configurator.jsonnet';
 local obstmpl = import 'observer-template.jsonnet';
 local regjobtmpl = import 'registry-job-template.jsonnet';
 local regtmpl = import 'registry-template.jsonnet';
@@ -11,6 +12,10 @@ function(version) {
   'registry/ocp-template.json': regtmpl { version: version },
   'letsencrypt/deploy-job-template.json': acmejobtmpl { version: version },
   'registry/deploy-job-template.json': regjobtmpl { version: version },
+  'node-configurator/is.json': nctmpl { version: version }.ImageStream,
+  'node-configurator/sa.json': nctmpl { version: version }.ServiceAccount,
+  'node-configurator/daemonset.json': nctmpl { version: version }.DaemonSet,
+  'node-configurator/all.json': nctmpl { version: version }.List,
 
   'observer/ocp-custom-source-image-template.json': useCustomSourceImage(
     obstmpl { version: version },

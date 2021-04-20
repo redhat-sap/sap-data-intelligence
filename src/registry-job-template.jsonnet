@@ -3,16 +3,17 @@ local base = import 'job-template.libsonnet';
 local obsbc = import 'observer-buildconfig.libsonnet';
 local obssa = import 'observer-serviceaccount.libsonnet';
 
-base.JobTemplate {
+base {
   local regjobtmpl = self,
   resourceName: 'deploy-registry',
   jobImage: null,
   command: regjobtmpl.resourceName + '.sh',
   createdBy:: 'registry-deploy',
+  version:: error 'version must be specified',
 
-  local bc = obsbc.ObserverBuildConfigTemplate {
-    createdBy: regjobtmpl.createdBy,
-    version: regjobtmpl.version,
+  local bc = obsbc {
+    createdBy:: regjobtmpl.createdBy,
+    version:: regjobtmpl.version,
   },
 
   description: 'TODO',

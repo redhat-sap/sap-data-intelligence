@@ -3,16 +3,16 @@ local base = import 'job-template.libsonnet';
 local obsbc = import 'observer-buildconfig.libsonnet';
 local obssa = import 'observer-serviceaccount.libsonnet';
 
-base.JobTemplate {
+base {
   local acmejobtmpl = self,
   resourceName: 'deploy-letsencrypt',
   jobImage: null,
   command: acmejobtmpl.resourceName + '.sh',
   createdBy:: 'letsencrypt-deploy',
 
-  local bc = obsbc.ObserverBuildConfigTemplate {
-    createdBy: acmejobtmpl.createdBy,
-    version: acmejobtmpl.version,
+  local bc = obsbc {
+    createdBy:: acmejobtmpl.createdBy,
+    version:: acmejobtmpl.version,
   },
 
   description: 'TODO',

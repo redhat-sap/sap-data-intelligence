@@ -7,8 +7,9 @@ base.DCTemplate {
   local regtmpl = self,
   local container = super.objects[0].spec.template.spec.containers[0],
   resourceName: 'container-image-registry',
-  imageStreamTag: regtmpl.resourceName + ':latest',
   createdBy: 'registry-template',
+  version:: error 'version must be specified',
+  imageStreamTag: regtmpl.resourceName + ':latest',
 
   metadata+: {
     annotations+: {
@@ -24,13 +25,13 @@ base.DCTemplate {
     },
   },
 
-  local bc = bctmpl.BuildConfigTemplate {
-    resourceName: regtmpl.resourceName,
-    imageStreamTag: regtmpl.imageStreamTag,
-    createdBy: regtmpl.createdBy,
-    version: regtmpl.version,
+  local bc = bctmpl {
+    resourceName:: regtmpl.resourceName,
+    imageStreamTag:: regtmpl.imageStreamTag,
+    createdBy:: regtmpl.createdBy,
+    version:: regtmpl.version,
 
-    dockerfile: |||
+    dockerfile:: |||
       FROM openshift/ubi8:latest
       # docker-distribution is not yet available on UBI - install from fedora repo
       # RHEL8 / UBI8 is based on fedora 28

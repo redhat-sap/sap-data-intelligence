@@ -8,7 +8,7 @@
          "openshift.io/display-name": "Docker's Container Image Registry",
          "openshift.io/documentation-url": "https://access.redhat.com/articles/4324391",
          "openshift.io/provider-display-name": "Red Hat, Inc.",
-         "sdi-observer/version": "0.1.11"
+         "sdi-observer/version": "0.1.12"
       },
       "name": "container-image-registry"
    },
@@ -32,7 +32,7 @@
             "labels": {
                "created-by": "registry-template",
                "deploymentconfig": "container-image-registry",
-               "sdi-observer/version": "0.1.11"
+               "sdi-observer/version": "0.1.12"
             },
             "name": "container-image-registry",
             "namespace": "${NAMESPACE}"
@@ -59,7 +59,7 @@
                         "env": [
                            {
                               "name": "SDI_OBSERVER_VERSION",
-                              "value": "0.1.11"
+                              "value": "0.1.12"
                            },
                            {
                               "name": "REGISTRY_AUTH_HTPASSWD_REALM",
@@ -175,7 +175,7 @@
             "labels": {
                "created-by": "registry-template",
                "deploymentconfig": "container-image-registry",
-               "sdi-observer/version": "0.1.11"
+               "sdi-observer/version": "0.1.12"
             },
             "name": "container-image-registry",
             "namespace": "${NAMESPACE}"
@@ -208,15 +208,15 @@
                   "type": "ConfigChange"
                }
             ]
-         },
-         "version": "0.1.11"
+         }
       },
       {
          "apiVersion": "v1",
          "kind": "ImageStream",
          "metadata": {
             "labels": {
-               "created-by": "registry-template"
+               "created-by": "registry-template",
+               "sdi-observer/version": "0.1.12"
             },
             "name": "container-image-registry",
             "namespace": "${NAMESPACE}"
@@ -231,12 +231,16 @@
          "kind": "ImageStream",
          "metadata": {
             "labels": {
-               "created-by": "registry-template"
+               "created-by": "registry-template",
+               "sdi-observer/version": "0.1.12"
             },
             "name": "${SOURCE_IMAGESTREAM_NAME}",
             "namespace": "${NAMESPACE}"
          },
          "spec": {
+            "lookupPolicy": {
+               "local": true
+            },
             "tags": [
                {
                   "from": {

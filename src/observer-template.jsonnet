@@ -178,9 +178,9 @@ base.DCTemplate {
     }),
   ],
 
-  local bc = obsbc.ObserverBuildConfigTemplate {
-    createdBy: obstmpl.createdBy,
-    version: obstmpl.version,
+  local bc = obsbc {
+    createdBy:: obstmpl.createdBy,
+    version:: obstmpl.version,
   },
 
   metadata+: {

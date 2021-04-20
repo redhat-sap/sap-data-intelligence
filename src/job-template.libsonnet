@@ -1,85 +1,83 @@
 local params = import 'common-parameters.libsonnet';
 local base = import 'ocp-template.libsonnet';
 
-{
-  JobTemplate: base.OCPTemplate {
-    local jobtmpl = self,
-    resourceName:: error 'resourceName must be overriden!',
-    version:: error 'version must be specified',
-    command:: error 'command must be overriden!',
-    defaultArguments:: ['--wait'],
-    args:: null,
-    jobImage:: 'JOB_IMAGE',
-    parametersToExport:: super.parameters + [
-      params.ForceRedeployParam,
-      params.ReplaceSecretsParam,
-    ],
+base.OCPTemplate {
+  local jobtmpl = self,
+  resourceName:: error 'resourceName must be overriden!',
+  version:: error 'version must be specified',
+  command:: error 'command must be overriden!',
+  defaultArguments:: ['--wait'],
+  args:: null,
+  jobImage:: 'JOB_IMAGE',
+  parametersToExport:: super.parameters + [
+    params.ForceRedeployParam,
+    params.ReplaceSecretsParam,
+  ],
 
-    objects+: [
-      {
-        apiVersion: 'batch/v1',
-        kind: 'Job',
-        metadata: {
-          name: jobtmpl.resourceName,
-          namespace: '${NAMESPACE}',
-          'sdi-observer/version': jobtmpl.version,
-        },
-        spec: {
-          activeDeadlineSeconds: 30 * 60,
-          backoffLimit: 9999,
-          completions: 1,
-          template: {
-            metadata: {
-              labels: {
-                job: jobtmpl.resourceName,
-              },
-            },
-            spec: {
-              containers: [
-                {
-                  args: '${{SCRIPT_ARGUMENTS}}',
-                  command: if std.isString(jobtmpl.command) then
-                    [jobtmpl.command]
-                  else if std.isArray(jobtmpl.command) then
-                    jobtmpl.command
-                  else
-                    error 'command must be either string or array!',
-
-                  env: [{
-                    name: p.name,
-                    value: '${' + p.name + '}',
-                  } for p in jobtmpl.parametersToExport],
-                  image: '${JOB_IMAGE}',
-                  name: 'deploy-sdi-registry',
-                },
-              ],
-              restartPolicy: 'OnFailure',
-              serviceAccountName: 'sdi-observer',
+  objects+: [
+    {
+      apiVersion: 'batch/v1',
+      kind: 'Job',
+      metadata: {
+        name: jobtmpl.resourceName,
+        namespace: '${NAMESPACE}',
+        'sdi-observer/version': jobtmpl.version,
+      },
+      spec: {
+        activeDeadlineSeconds: 30 * 60,
+        backoffLimit: 9999,
+        completions: 1,
+        template: {
+          metadata: {
+            labels: {
+              job: jobtmpl.resourceName,
             },
           },
-          parallelism: 1,
-        },
-      },
-    ],
+          spec: {
+            containers: [
+              {
+                args: '${{SCRIPT_ARGUMENTS}}',
+                command: if std.isString(jobtmpl.command) then
+                  [jobtmpl.command]
+                else if std.isArray(jobtmpl.command) then
+                  jobtmpl.command
+                else
+                  error 'command must be either string or array!',
 
-    parameters: jobtmpl.parametersToExport + [
-      {
-        description: 'Pull specification of the built SDI Observer image.\n',
-        name: 'JOB_IMAGE',
-        required: true,
-        value: if jobtmpl.jobImage != 'JOB_IMAGE' then jobtmpl.jobImage,
+                env: [{
+                  name: p.name,
+                  value: '${' + p.name + '}',
+                } for p in jobtmpl.parametersToExport],
+                image: '${JOB_IMAGE}',
+                name: 'deploy-sdi-registry',
+              },
+            ],
+            restartPolicy: 'OnFailure',
+            serviceAccountName: 'sdi-observer',
+          },
+        },
+        parallelism: 1,
       },
-      {
-        description: |||
-          Arguments for job's script. Passed as a json array of strings.
-        |||,
-        name: 'SCRIPT_ARGUMENTS',
-        required: false,
-        value: std.toString(
-          jobtmpl.defaultArguments
-          + if jobtmpl.args != null then jobtmpl.args else []
-        ),
-      },
-    ],
-  },
+    },
+  ],
+
+  parameters: jobtmpl.parametersToExport + [
+    {
+      description: 'Pull specification of the built SDI Observer image.\n',
+      name: 'JOB_IMAGE',
+      required: true,
+      value: if jobtmpl.jobImage != 'JOB_IMAGE' then jobtmpl.jobImage,
+    },
+    {
+      description: |||
+        Arguments for job's script. Passed as a json array of strings.
+      |||,
+      name: 'SCRIPT_ARGUMENTS',
+      required: false,
+      value: std.toString(
+        jobtmpl.defaultArguments
+        + if jobtmpl.args != null then jobtmpl.args else []
+      ),
+    },
+  ],
 }
