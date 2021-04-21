@@ -81,11 +81,11 @@ local list = import 'list.libsonnet';
             },
           ]
         ),
-        labels: {
-          daemonset: ndcfgr.resourceName,
-          app: ndcfgr.resourceName,
-          'sdi-observer/version': ndcfgr.version,
-        },
+      },
+      labels: {
+        daemonset: ndcfgr.resourceName,
+        app: ndcfgr.resourceName,
+        'sdi-observer/version': ndcfgr.version,
       },
       name: ndcfgr.resourceName,
     },

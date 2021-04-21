@@ -3,12 +3,12 @@
    "kind": "DaemonSet",
    "metadata": {
       "annotations": {
-         "image.openshift.io/triggers": "[{\"fieldPath\": \"spec.template.spec.containers[0].image\", \"from\": {\"kind\": \"ImageStreamTag\", \"name\": \"ocp-tools:latest\"}, \"paused\": \"false\"}, {\"fieldPath\": \"spec.template.spec.initContainers[0].image\", \"from\": {\"kind\": \"ImageStreamTag\", \"name\": \"ocp-tools:latest\"}, \"paused\": \"false\"}]",
-         "labels": {
-            "app": "sdi-node-configurator",
-            "daemonset": "sdi-node-configurator",
-            "sdi-observer/version": "0.1.12"
-         }
+         "image.openshift.io/triggers": "[{\"fieldPath\": \"spec.template.spec.containers[0].image\", \"from\": {\"kind\": \"ImageStreamTag\", \"name\": \"ocp-tools:latest\"}, \"paused\": \"false\"}, {\"fieldPath\": \"spec.template.spec.initContainers[0].image\", \"from\": {\"kind\": \"ImageStreamTag\", \"name\": \"ocp-tools:latest\"}, \"paused\": \"false\"}]"
+      },
+      "labels": {
+         "app": "sdi-node-configurator",
+         "daemonset": "sdi-node-configurator",
+         "sdi-observer/version": "0.1.12"
       },
       "name": "sdi-node-configurator"
    },
