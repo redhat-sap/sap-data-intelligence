@@ -15,11 +15,15 @@ base {
     version:: acmejobtmpl.version,
   },
 
-  description: 'TODO',
   metadata+: {
     annotations+: {
       'openshift.io/display-name': |||
         Job to deploy a letsencrypt controller.
+      |||,
+      description: |||
+        Deploys a letsencrypt controller that secures OpenShift Routes with trusted certificates
+        that are periodically refreshed. By default, the controller monitors and secures only
+        routes in the SDI_NAMESPACE. That can be changed with the PROJECTS_TO_MONITOR parameter.
       |||,
     },
   },

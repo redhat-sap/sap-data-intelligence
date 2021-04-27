@@ -4,7 +4,7 @@ local obsbc = import 'observer-buildconfig.libsonnet';
 local obssa = import 'observer-serviceaccount.libsonnet';
 local urls = import 'urls.jsonnet';
 
-base.DCTemplate {
+base {
   local obstmpl = self,
   resourceName: 'sdi-observer',
   imageStreamTag: obstmpl.resourceName + ':' + obstmpl.version + '-ocp${OCP_MINOR_RELEASE}',
@@ -151,21 +151,11 @@ base.DCTemplate {
       required: false,
       name: 'VSYSTEM_ROUTE_HOSTNAME',
     },
-    {
-      description: |||
-        Make pods in SDI_NAMESPACE schedule only on nodes matching the given node selector. The
-        selector will be applied to the whole namespace and its daemonsets. Selector can contain
-        multiple key=value labels separated with commas.
-        Example value: node-role.kubernetes.io/sdi=
-      |||,
-      required: false,
-      name: 'SDI_NODE_SELECTOR',
-    },
   ] + [
     params.NotRequired(p)
     for p in params.LetsencryptParams
     if p.name == 'LETSENCRYPT_ENVIRONMENT'
-  ] + [params.ReplacePersistentVolumeClaimsParam] + params.RegistryDeployParams + [
+  ] + [params.NodeSelector, params.ReplacePersistentVolumeClaimsParam] + params.RegistryDeployParams + [
     params.NotRequired(if p.name == 'SDI_REGISTRY_ROUTE_HOSTNAME' then
       p { description+: 'Overrides REGISTRY parameter.' }
     else p)

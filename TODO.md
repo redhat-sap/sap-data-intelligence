@@ -1,3 +1,4 @@
+- [ ] - switch to [certman](https://github.com/openshift/certman-operator)
 - [ ] - modify observer's jq script for vsystem-vrep patching like this:
 
         '. as $filtered | . +' \

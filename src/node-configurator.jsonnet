@@ -1,5 +1,7 @@
+local params = import 'common-parameters.libsonnet';
 local is = import 'imagestream.libsonnet';
 local list = import 'list.libsonnet';
+local tmplbase = import 'ocp-template.libsonnet';
 
 {
   local ndcfgr = self,
@@ -131,14 +133,31 @@ local list = import 'list.libsonnet';
           hostPID: true,
           initContainers: [
             {
+              env+: [
+                {
+                  name: 'SDI_OBSERVER_VERSION',
+                  value: ndcfgr.version,
+                },
+                {
+                  local param = params.DryRun,
+                  name: param.name,
+                  value: param.value,
+                },
+              ],
               command: [
                 'chroot',
                 '/host',
                 '/bin/bash',
                 '-c',
+                |||
+                  args=( --verbose )
+                  if [[ "${DRY_RUN:-0}" == 1 ]]; then
+                    args+=( --dry-run )
+                  fi
+                ||| +
                 std.join('\n', [
                   std.join(' ', ['for module in'] + ds.modulesToLoad + ['; do']),
-                  '  modprobe -v $module',
+                  '  modprobe "${args[@]}" $module',
                   'done',
                 ]),
               ],
@@ -196,5 +215,84 @@ local list = import 'list.libsonnet';
 
   List: list {
     items: $.Objects,
+  },
+
+  Template: tmplbase {
+    local tmpl = self,
+    metadata+: {
+      annotations+: {
+        'openshift.io/display-name': |||
+          OpenShift compute node configurator for SAP Data Intelligence
+        |||,
+        description: |||
+          The template creates a daemonset that spawns pods on all matching nodes. The pods will
+          configure the nodes for running SAP Data Intelligence.
+
+          As of now, the configuration consists of loading kernel modules needed needed to use NFS
+          and manipulated iptables.
+
+          Before running this template, Security Context Constraints need to be given to the
+          %(saName)s service account. This can be achieved from command line with
+          system admin role with the following command:
+
+            oc adm policy add-scc-to-user -n $NAMESPACE privileged -z %(saName)s
+        ||| % { saName: ndcfgr.resourceName },
+      },
+    },
+
+    resourceName:: ndcfgr.resourceName,
+    version:: ndcfgr.version,
+    objects+: [
+      local setNamespace = function(o) o {
+        metadata+: { namespace::: '${NAMESPACE}' },
+      };
+      (
+        if o.kind == 'DaemonSet' then
+          setNamespace(o) {
+            spec+: {
+              template+: {
+                local old = super.spec,
+                local parammap = std.foldl(
+                  (function(o, p) (o { [p.name]: null })), tmpl.parameters, {}
+                ),
+                spec+: {
+                  initContainers: [
+                    (c {
+                       local oldEnv = super.env,
+                       env: [e for e in oldEnv if !std.objectHas(parammap, e.name)] +
+                            [
+                              {
+                                name: p.name,
+                                value: '${' + p.name + '}',
+                              }
+                              for p in tmpl.parameters
+                            ],
+                     })
+                    for c in old.initContainers
+                  ],
+                  nodeSelector: '${{SDI_NODE_SELECTOR}}',
+                },
+              },
+            },
+          }
+        else
+          setNamespace(o)
+      )
+      for o in ndcfgr.Objects
+    ],
+    parameters+: [
+      (params.NodeSelector {
+         description: |||
+           Select the nodes where the SDI node configurator pods can be scheduled. The selector must
+           match all the nodes where SAP Data Intelligence is running.
+           Typically, this should correspond to the SDI_NODE_SELECTOR parameter of the SDI Observer
+           template and its resulting DeploymentConfig. The difference is that this field accepts
+           JSON object instead of a plain string.
+           If the daemonset shall run on all nodes, set this to "null".
+         |||,
+         value: std.toString(params.SDINodeRoleSelector),
+         required: true,
+       }),
+    ],
   },
 }

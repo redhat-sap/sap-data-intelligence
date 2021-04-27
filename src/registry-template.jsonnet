@@ -3,7 +3,7 @@ local base = import 'dc-template.libsonnet';
 local bctmpl = import 'ubi-buildconfig.libsonnet';
 local urls = import 'urls.jsonnet';
 
-base.DCTemplate {
+base {
   local regtmpl = self,
   local container = super.objects[0].spec.template.spec.containers[0],
   resourceName: 'container-image-registry',

@@ -39,7 +39,17 @@ local urls = import 'urls.jsonnet';
     |||,
     name: 'OCP_MINOR_RELEASE',
     required: true,
-    value: '4.2',
+    value: '4.6',
+  },
+
+  DryRun: {
+    description: |||
+      If set to true, no action will be performed. The pod will just print what would have been
+      executed.
+    |||,
+    name: 'DRY_RUN',
+    required: false,
+    value: 'false',
   },
 
   LetsencryptParams: [
@@ -187,6 +197,22 @@ local urls = import 'urls.jsonnet';
     },
   ],
 
+  SDINodeRoleLabel: 'node-role.kubernetes.io/sdi=',
+  SDINodeRoleSelector: {
+    'node-role.kubernetes.io/sdi': '',
+  },
+  NodeSelector: {
+    description: |||
+      Make pods in SDI_NAMESPACE schedule only on nodes matching the given node selector. The
+      selector will be applied to the whole namespace and its daemonsets. Selector can contain
+      multiple key=value labels separated with commas.
+      Example value: %(selector)s
+    ||| % { selector: $.SDINodeRoleLabel },
+    required: false,
+    name: 'SDI_NODE_SELECTOR',
+    recommended:: $.SDINodeRoleLabel,
+  },
+
   NotRequired: function(p)
     local _mkopt = function(i) i { required: false };
     if std.isArray(p) then
@@ -195,5 +221,4 @@ local urls = import 'urls.jsonnet';
       _mkopt(p)
     else
       error 'Expected parameter object, not "' + std.type(p) + '"!',
-
 }

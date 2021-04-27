@@ -1,6 +1,18 @@
 {
-   "apiVersion": "v1",
-   "items": [
+   "apiVersion": "template.openshift.io/v1",
+   "kind": "Template",
+   "message": null,
+   "metadata": {
+      "annotations": {
+         "description": "The template creates a daemonset that spawns pods on all matching nodes. The pods will\nconfigure the nodes for running SAP Data Intelligence.\n\nAs of now, the configuration consists of loading kernel modules needed needed to use NFS\nand manipulated iptables.\n\nBefore running this template, Security Context Constraints need to be given to the\nsdi-node-configurator service account. This can be achieved from command line with\nsystem admin role with the following command:\n\n  oc adm policy add-scc-to-user -n $NAMESPACE privileged -z sdi-node-configurator\n",
+         "openshift.io/display-name": "OpenShift compute node configurator for SAP Data Intelligence\n",
+         "openshift.io/documentation-url": "https://access.redhat.com/articles/4324391",
+         "openshift.io/provider-display-name": "Red Hat, Inc.",
+         "sdi-observer/version": "0.1.12"
+      },
+      "name": "sdi-node-configurator"
+   },
+   "objects": [
       {
          "apiVersion": "v1",
          "kind": "ServiceAccount",
@@ -10,7 +22,8 @@
                "created-by": "manual",
                "daemonset": "sdi-node-configurator"
             },
-            "name": "sdi-node-configurator"
+            "name": "sdi-node-configurator",
+            "namespace": "${NAMESPACE}"
          }
       },
       {
@@ -21,7 +34,8 @@
                "created-by": "manual",
                "sdi-observer/version": "0.1.12"
             },
-            "name": "ocp-tools"
+            "name": "ocp-tools",
+            "namespace": "${NAMESPACE}"
          },
          "spec": {
             "lookupPolicy": {
@@ -54,7 +68,8 @@
                "daemonset": "sdi-node-configurator",
                "sdi-observer/version": "0.1.12"
             },
-            "name": "sdi-node-configurator"
+            "name": "sdi-node-configurator",
+            "namespace": "${NAMESPACE}"
          },
          "spec": {
             "revisionHistoryLimit": 7,
@@ -111,8 +126,16 @@
                               "value": "0.1.12"
                            },
                            {
+                              "name": "NAMESPACE",
+                              "value": "${NAMESPACE}"
+                           },
+                           {
                               "name": "DRY_RUN",
-                              "value": "false"
+                              "value": "${DRY_RUN}"
+                           },
+                           {
+                              "name": "SDI_NODE_SELECTOR",
+                              "value": "${SDI_NODE_SELECTOR}"
                            }
                         ],
                         "image": "ocp-tools:latest",
@@ -140,6 +163,7 @@
                         ]
                      }
                   ],
+                  "nodeSelector": "${{SDI_NODE_SELECTOR}}",
                   "serviceAccountName": "sdi-node-configurator",
                   "volumes": [
                      {
@@ -161,6 +185,23 @@
          }
       }
    ],
-   "kind": "List",
-   "metadata": { }
+   "parameters": [
+      {
+         "description": "The desired namespace to deploy resources to. Defaults to the current one.\n",
+         "name": "NAMESPACE",
+         "required": true
+      },
+      {
+         "description": "If set to true, no action will be performed. The pod will just print what would have been\nexecuted.\n",
+         "name": "DRY_RUN",
+         "required": false,
+         "value": "false"
+      },
+      {
+         "description": "Select the nodes where the SDI node configurator pods can be scheduled. The selector must\nmatch all the nodes where SAP Data Intelligence is running.\nTypically, this should correspond to the SDI_NODE_SELECTOR parameter of the SDI Observer\ntemplate and its resulting DeploymentConfig. The difference is that this field accepts\nJSON object instead of a plain string.\nIf the daemonset shall run on all nodes, set this to \"null\".\n",
+         "name": "SDI_NODE_SELECTOR",
+         "required": true,
+         "value": "{\"node-role.kubernetes.io/sdi\": \"\"}"
+      }
+   ]
 }

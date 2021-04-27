@@ -3,7 +3,7 @@ local params = import 'common-parameters.libsonnet';
 local base = import 'ocp-template.libsonnet';
 local ubiis = import 'ubi-imagestream.jsonnet';
 
-base.OCPTemplate {
+base {
   local bctmpl = self,
   resourceName:: error 'resourceName must be overriden by a child!',
   dockerfile:: error 'dockerfile must be overriden by a child!',

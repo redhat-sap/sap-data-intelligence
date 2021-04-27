@@ -1,7 +1,7 @@
 {
    "apiVersion": "template.openshift.io/v1",
    "kind": "Template",
-   "message": "TODO",
+   "message": null,
    "metadata": {
       "annotations": {
          "description": "Generic purpose Container Image Registry secured from unauthorized access. It is more\ntolerant to image names than the integrated OpenShift image registry. Therefore it also\nallows for hosting of SAP Data Intelligence images.\n",
@@ -333,7 +333,7 @@
    ],
    "parameters": [
       {
-         "description": "The desired namespace to deploy resources to. Defaults to the current\none.\n",
+         "description": "The desired namespace to deploy resources to. Defaults to the current one.\n",
          "name": "NAMESPACE",
          "required": true
       },

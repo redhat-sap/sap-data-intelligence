@@ -1,7 +1,7 @@
 local params = import 'common-parameters.libsonnet';
 local base = import 'ocp-template.libsonnet';
 
-base.OCPTemplate {
+base {
   local jobtmpl = self,
   resourceName:: error 'resourceName must be overriden!',
   version:: error 'version must be specified',

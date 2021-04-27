@@ -59,7 +59,17 @@
                      "/host",
                      "/bin/bash",
                      "-c",
-                     "for module in nfsd nfsv4 ip_tables ipt_REDIRECT ipt_owner iptable_nat iptable_filter ; do\n  modprobe -v $module\ndone"
+                     "args=( --verbose )\nif [[ \"${DRY_RUN:-0}\" == 1 ]]; then\n  args+=( --dry-run )\nfi\nfor module in nfsd nfsv4 ip_tables ipt_REDIRECT ipt_owner iptable_nat iptable_filter ; do\n  modprobe \"${args[@]}\" $module\ndone"
+                  ],
+                  "env": [
+                     {
+                        "name": "SDI_OBSERVER_VERSION",
+                        "value": "0.1.12"
+                     },
+                     {
+                        "name": "DRY_RUN",
+                        "value": "false"
+                     }
                   ],
                   "image": "ocp-tools:latest",
                   "imagePullPolicy": "IfNotPresent",
