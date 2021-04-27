@@ -143,6 +143,7 @@
          "kind": "ServiceAccount",
          "metadata": {
             "labels": {
+               "app": "sdi-observer",
                "created-by": "registry-deploy",
                "deploymentconfig": "sdi-observer"
             },

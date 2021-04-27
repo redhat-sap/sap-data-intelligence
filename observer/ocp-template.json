@@ -18,6 +18,7 @@
          "kind": "ServiceAccount",
          "metadata": {
             "labels": {
+               "app": "sdi-observer",
                "created-by": "sdi-observer-template",
                "deploymentconfig": "sdi-observer"
             },
@@ -30,6 +31,7 @@
          "kind": "DeploymentConfig",
          "metadata": {
             "labels": {
+               "app": "sdi-observer",
                "created-by": "sdi-observer-template",
                "deploymentconfig": "sdi-observer",
                "sdi-observer/version": "0.1.12"

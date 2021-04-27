@@ -91,6 +91,7 @@
          "kind": "ServiceAccount",
          "metadata": {
             "labels": {
+               "app": "sdi-observer",
                "created-by": "letsencrypt-deploy",
                "deploymentconfig": "sdi-observer"
             },

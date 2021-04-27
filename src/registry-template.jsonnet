@@ -153,6 +153,11 @@ base {
                  },
                  name: regtmpl.resourceName,
                  namespace: '${NAMESPACE}',
+                 labels: {
+                   app: regtmpl.resourceName,
+                   deploymentconfig: regtmpl.resourceName,
+                   'created-by': regtmpl.createdBy,
+                 },
                },
                spec: {
                  ports: [
@@ -162,6 +167,7 @@ base {
                    },
                  ],
                  selector: {
+                   // TODO: switch to app=... in some newer tag (1.13+)
                    deploymentconfig: regtmpl.resourceName,
                  },
                  sessionAffinity: 'ClientIP',
@@ -178,6 +184,11 @@ base {
                  },
                  name: regtmpl.resourceName,
                  namespace: '${NAMESPACE}',
+                 labels: {
+                   app: regtmpl.resourceName,
+                   deploymentconfig: regtmpl.resourceName,
+                   'created-by': regtmpl.createdBy,
+                 },
                },
                spec: {
                  host: '${SDI_REGISTRY_ROUTE_HOSTNAME}',
@@ -202,6 +213,9 @@ base {
                metadata: {
                  name: regtmpl.resourceName,
                  namespace: '${NAMESPACE}',
+                 app: regtmpl.resourceName,
+                 deploymentconfig: regtmpl.resourceName,
+                 'created-by': regtmpl.createdBy,
                },
                spec: {
                  accessModes: ['${SDI_REGISTRY_VOLUME_ACCESS_MODE}'],

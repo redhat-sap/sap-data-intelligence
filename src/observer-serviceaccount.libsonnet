@@ -108,6 +108,7 @@
     kind: 'ServiceAccount',
     metadata: {
       labels: {
+        app: $.resourceName,
         deploymentconfig: $.resourceName,
         'created-by': $.createdBy,
       },

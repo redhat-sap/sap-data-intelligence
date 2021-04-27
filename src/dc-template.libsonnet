@@ -24,6 +24,7 @@ base {
     kind: 'ServiceAccount',
     metadata: {
       labels: {
+        app: dctmpl.resourceName,
         deploymentconfig: dctmpl.resourceName,
         'created-by': dctmpl.createdBy,
       },
@@ -40,6 +41,7 @@ base {
       kind: 'DeploymentConfig',
       metadata: {
         labels: {
+          app: dctmpl.resourceName,
           deploymentconfig: dctmpl.resourceName,
           'created-by': dctmpl.createdBy,
           'sdi-observer/version': dctmpl.version,
