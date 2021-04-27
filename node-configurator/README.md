@@ -16,7 +16,7 @@ Before running this template, Security Context Constraints need to be given to t
 sdi-node-configurator service account. This can be achieved from command line with
 system admin role with the following command:
 
-  # oc adm policy add-scc-to-user -n $NAMESPACE privileged -z sdi-node-configurator
+    # oc adm policy add-scc-to-user -n $NAMESPACE privileged -z sdi-node-configurator
 
 ### Create the objects
 
