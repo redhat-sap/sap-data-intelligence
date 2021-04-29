@@ -3,6 +3,7 @@ local useCustomSourceImage = import 'custom-source-image.libsonnet';
 local acmejobtmpl = import 'letsencrypt-job-template.jsonnet';
 local nc = import 'node-configurator.jsonnet';
 local obstmpl = import 'observer-template.jsonnet';
+local usePrebuiltImage = import 'prebuilt-image.libsonnet';
 local regjobtmpl = import 'registry-job-template.jsonnet';
 local regtmpl = import 'registry-template.jsonnet';
 
@@ -13,6 +14,10 @@ function(version) {
   local observerTemplate = obstmpl { version: version },
   'observer/ocp-template.json': observerTemplate,
   'observer/ocp-custom-source-image-template.json': useCustomSourceImage(
+    observerTemplate,
+    version,
+  ),
+  'observer/ocp-prebuilt-image-template.json': usePrebuiltImage(
     observerTemplate,
     version,
   ),

@@ -52,6 +52,35 @@ local urls = import 'urls.jsonnet';
     value: 'false',
   },
 
+  ObserverBuildParams: [
+    {
+      description: |||
+        URL of SDI Observer's git repository to clone into sdi-observer image.
+      |||,
+      name: 'SDI_OBSERVER_REPOSITORY',
+      required: true,
+      value: 'https://github.com/redhat-sap/sap-data-intelligence',
+    },
+    {
+      description: |||
+        Revision (e.g. tag, commit or branch) of SDI Observer's git repository to check out.
+      |||,
+      name: 'SDI_OBSERVER_GIT_REVISION',
+      required: true,
+      value: 'master',
+    },
+  ],
+
+  LetsencryptDeployParam: {
+    description: |||
+      Whether to deploy letsencrypt controller. Requires project admin role attached to the
+      sdi-observer service account.
+    |||,
+    name: 'DEPLOY_LETSENCRYPT',
+    required: false,
+    value: 'false',
+  },
+
   LetsencryptParams: [
     {
       description: |||
@@ -88,6 +117,18 @@ local urls = import 'urls.jsonnet';
     name: 'EXPOSE_WITH_LETSENCRYPT',
     value: 'false',
   },
+
+  RegistryDeployParam: {
+    description: |||
+      Whether to deploy container image registry for the purpose of SAP Data Intelligence.
+      Requires project admin role attached to the sdi-observer service account. If enabled,
+      REDHAT_REGISTRY_SECRET_NAME must be provided.
+    |||,
+    name: 'DEPLOY_SDI_REGISTRY',
+    required: false,
+    value: 'false',
+  },
+
 
   // these are used only by the registry's deployment job, not in registry's OCP template
   RegistryDeployParams: [
@@ -221,4 +262,12 @@ local urls = import 'urls.jsonnet';
       _mkopt(p)
     else
       error 'Expected parameter object, not "' + std.type(p) + '"!',
+
+  FilterOut: function(unwanted, from)
+    local byName = function(member) member.name;
+    [
+      p
+      for p in from
+      if !std.setMember(p, std.set(unwanted, byName), byName)
+    ],
 }

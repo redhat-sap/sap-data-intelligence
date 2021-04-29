@@ -55,23 +55,6 @@ bctmpl {
 
   newParameters+: [
     params.OCPMinorReleaseParam,
-
-    {
-      description: |||
-        URL of SDI Observer's git repository to clone into sdi-observer image.
-      |||,
-      name: 'SDI_OBSERVER_REPOSITORY',
-      required: true,
-      value: 'https://github.com/redhat-sap/sap-data-intelligence',
-    },
-    {
-      description: |||
-        Revision (e.g. tag, commit or branch) of SDI Observer's git repository to check out.
-      |||,
-      name: 'SDI_OBSERVER_GIT_REVISION',
-      required: true,
-      value: 'master',
-    },
-  ],
+  ] + params.ObserverBuildParams,
 
 }
