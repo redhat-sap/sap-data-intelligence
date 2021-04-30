@@ -29,10 +29,10 @@ Please make sure to set the NAMESPACE parameter to the namespace name of the SDI
 
 - Create the objects directly from GitHub:
 
-        # oc process NAMESPACE=sdi -f \
+        # oc process NAMESPACE=sdi-observer -f \
             https://raw.githubusercontent.com/redhat-sap/sap-data-intelligence/master/node-configurator/ocp-template.json | \
             oc create -f -
     
 - Create the objects from a local checkout:
 
-        # oc process NAMESPACE=sdi -f ./node-configurator/ocp-template.json | oc create -f -
+        # oc process NAMESPACE=sdi-observer -f ./node-configurator/ocp-template.json | oc create -f -
