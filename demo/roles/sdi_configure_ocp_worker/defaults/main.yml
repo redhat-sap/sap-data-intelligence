@@ -1,0 +1,9 @@
+---
+# defaults file for sdi-configure-ocp-worker
+#
+
+# API Key to get access to OpenShift Server
+sdi_configure_ocp_worker_apikey:
+
+# define a List of servers to apply the required changes
+sdi_configure_ocp_worker_nodelist: []

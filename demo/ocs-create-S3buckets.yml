@@ -1,0 +1,78 @@
+---
+- name: Create OCS buckets for SAP DataHub 
+  hosts: ocp
+
+  vars_prompt:
+         - name: "guid"
+           prompt: "Enter GUID"
+           private: no
+           default: "{{ lookup('env', 'GUID') }}"
+
+         - name: "ocadmin"
+           prompt: "User"
+           private: no
+           default: "admin"
+
+         - name: "ocpass"
+           prompt: "password"
+           private: yes
+
+         - name: "ocapi"
+           prompt: "OpenShift API"
+           private: no
+           default: "https://api.cluster-{{ lookup('env', 'GUID') }}.dynamic.opentlc.com:6443"
+           #default: https://api.cluster-{{ guid }}.{{ guid }}.example.opentlc.com:6443
+
+  module_defaults:
+      group/k8s:
+        host: "{{ ocapi }}"
+        validate_certs: no
+
+  tasks:
+  - block:
+    - name: Log in (obtain access token)
+      k8s_auth:
+        username: "{{ ocadmin }}"
+        password: "{{ ocpass }}"
+      register: k8s_auth_results
+
+    - name: Ensure Project is created
+      k8s:
+        api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+        state: present
+        api_version: project.openshift.io/v1
+        kind: Project
+        name: sdi-infra
+
+    - name: Ensure S3 buckets are present
+      k8s:
+        api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+        state: present
+        namespace: sdi-infra
+        definition:
+           apiVersion: objectbucket.io/v1alpha1
+           kind: ObjectBucketClaim
+           metadata:
+             name: "{{ claimName }}"
+           spec:
+             generateBucketName: "{{ claimName }}"
+             storageClassName: openshift-storage.noobaa.io
+      loop:
+        - sdi-checkpoint-store
+        - sdi-data-lake
+      loop_control:
+        loop_var: claimName
+      register: storageclaim_results
+
+    - name: Output Results
+      debug: 
+        var: storageclaim_results
+
+    always:
+    - name: If login succeeded, try to log out (revoke access token)
+      when: k8s_auth_results.k8s_auth.api_key is defined
+      k8s_auth:
+        state: absent
+        api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+
+

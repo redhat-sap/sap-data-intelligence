@@ -1,0 +1,11 @@
+---
+# tasks file for sdi_configure_ocp_worker
+
+- name: List API-Key
+  debug: 
+    msg: "API KEY: {{ sdi_configure_ocp_worker_apikey }}"
+
+- name: List Nodes
+  debug: 
+    var: sdi_configure_ocp_worker_nodelist
+

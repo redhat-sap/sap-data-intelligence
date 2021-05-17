@@ -1,0 +1,69 @@
+---
+- name: Prepare OCP Worker Nodes for SDI
+  hosts: ocp
+
+  vars_prompt:
+         - name: "guid"
+           prompt: "Enter GUID"
+           private: no
+           default: "{{ lookup('env', 'GUID') }}"
+
+         - name: "ocadmin"
+           prompt: "User"
+           private: no
+           default: "admin"
+
+         - name: "ocpass"
+           prompt: "password"
+           private: yes
+
+         - name: "ocapi"
+           prompt: "OpenShift API"
+           private: no
+           default: "https://api.cluster-{{ lookup('env', 'GUID') }}.dynamic.opentlc.com:6443"
+           #default: https://api.cluster-{{ guid }}.{{ guid }}.example.opentlc.com:6443
+
+  module_defaults:
+      group/k8s:
+        host: "{{ ocapi }}"
+        validate_certs: no
+
+  tasks:
+  - block:
+    - name: Log in (obtain access token)
+      k8s_auth:
+        username: "{{ ocadmin }}"
+        password: "{{ ocpass }}"
+      register: k8s_auth_results
+
+    # Previous task provides the token/api_key, while all other parameters
+    # are taken from module_defaults
+    - name: Get a list of all nodes from any namespace
+      k8s_info:
+        api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+        kind: Node
+      register: node_list
+
+    - name: Add Nodenames to worker list
+      set_fact:
+            sdi_configure_ocp_worker_nodelist: "{{ sdi_configure_ocp_worker_nodelist | default([]) + [info.metadata.name] }}"
+      when: '"node-role.kubernetes.io/worker" in info.metadata.labels'
+      loop: "{{ node_list.resources }}"
+      loop_control:
+            loop_var: info
+            label: "{{ info.metadata.uid }}"
+
+    - name: Configure Nodes for use with SDI
+      import_role:
+         name: sdi_configure_ocp_worker
+      vars:
+         sdi_configure_ocp_worker_apikey: "{{ k8s_auth_results.k8s_auth.api_key }}"
+
+    always:
+    - name: If login succeeded, try to log out (revoke access token)
+      when: k8s_auth_results.k8s_auth.api_key is defined
+      k8s_auth:
+        state: absent
+        api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+
+
