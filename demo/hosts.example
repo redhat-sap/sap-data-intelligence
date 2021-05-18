@@ -1,0 +1,2 @@
+[ocp]
+bastion.bd63.dynamic.opentlc.com ansible_user=generic_emea_mkoch

@@ -1,0 +1,115 @@
+---
+- name: prep bastion
+  hosts: ocp
+  become: yes
+
+  tasks:
+     - name: ensure EPEL RPM Key is loaded
+       rpm_key:
+          state: present
+          key: http://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-{{ ansible_distribution_major_version }}
+
+     - name: ensure EPEL is enabled
+       yum:
+         state: present
+         name:  https://dl.fedoraproject.org/pub/epel/epel-release-latest-{{ ansible_distribution_major_version }}.noarch.rpm
+
+     - name: Ensure required packages are available
+       yum:
+         name: 
+           - ansible
+           - jq
+           - python3-pyyaml
+           - python3-urllib3.noarch
+           - python3-requests
+           - python3-requests-oauthlib 
+           - python3-openshift
+           - yum-utils
+
+- name: Ensure sap-serverless and side-by-side will be terminated
+  hosts: ocp
+
+  vars_prompt:
+         - name: "guid"
+           prompt: "Enter GUID"
+           private: no
+           default: "{{ lookup('env', 'GUID') }}"
+
+         - name: "ocadmin"
+           prompt: "User"
+           private: no
+           default: "admin"
+
+         - name: "ocpass"
+           prompt: "password"
+           private: yes
+
+         - name: "ocapi"
+           prompt: "OpenShift API"
+           private: no
+           default: "https://api.cluster-{{ lookup('env', 'GUID') }}.dynamic.opentlc.com:6443"
+           #default: https://api.cluster-{{ guid }}.{{ guid }}.example.opentlc.com:6443
+
+  module_defaults:
+      group/k8s:
+        host: "{{ ocapi }}"
+        validate_certs: no
+
+  tasks:
+  - block:
+    - name: Log in (obtain access token)
+      k8s_auth:
+        username: "{{ ocadmin }}"
+        password: "{{ ocpass }}"
+      register: k8s_auth_results
+
+    - name: delete project
+      k8s:
+        api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+        state: absent
+        definition:
+          apiVersion: project.openshift.io/v1
+          kind: Project
+          metadata:
+            name: "{{ project }}"
+      loop: 
+          - sap-serverless
+          - side-by-side
+      loop_control:
+            loop_var: project
+
+    ## TODO
+    #
+    # Remove the following operators
+    #
+    # 3scale
+    # serverless
+    # fuse online
+    # camel k
+    - name: delete Camel K Operator
+      k8s:
+        api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+        state: absent
+        definition:
+          apiVersion: operators.coreos.com/v1alpha1
+          kind: Operator
+          metadata:
+            name: "{{ op }}"
+      loop:
+          - 3scale-operator.3scale
+          - camel-k.openshift-operators
+          - fuse-online.fuse-online
+          # jaeger-product.openshift-operators
+          # openshift-gitops-operator.openshift-operators
+          # openshift-pipelines-operator-rh.openshift-operators
+          - serverless-operator.openshift-serverless
+      loop_control:
+            loop_var: op
+    always:
+    - name: If login succeeded, try to log out (revoke access token)
+      when: k8s_auth_results.k8s_auth.api_key is defined
+      k8s_auth:
+        state: absent
+        api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+
+

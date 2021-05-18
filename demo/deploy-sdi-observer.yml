@@ -1,0 +1,138 @@
+---
+- name: Prepare OCP Worker Nodes for SDI
+  hosts: ocp
+
+  vars_prompt:
+         - name: "guid"
+           prompt: "Enter GUID"
+           private: no
+           default: "{{ lookup('env', 'GUID') }}"
+
+         - name: "ocadmin"
+           prompt: "User"
+           private: no
+           default: "admin"
+
+         - name: "ocpass"
+           prompt: "password"
+           private: yes
+
+         - name: "ocapi"
+           prompt: "OpenShift API"
+           private: no
+           default: "https://api.cluster-{{  lookup('env', 'GUID') }}.dynamic.opentlc.com:6443"
+           #default: https://api.cluster-{{ guid }}.{{ guid }}.example.opentlc.com:6443
+
+
+  module_defaults:
+      group/k8s:
+        host: "{{ ocapi }}"
+        validate_certs: no
+
+  tasks:
+  - block:
+    - name: Log in (obtain access token)
+      k8s_auth:
+        username: "{{ ocadmin }}"
+        password: "{{ ocpass }}"
+      register: k8s_auth_results
+
+    - name: Ensure Projects for SDI and SDI Observer are created
+      k8s:
+        api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+        state: present
+        api_version: project.openshift.io/v1
+        kind: Project
+        name: "{{ namespace }}"
+      loop:
+        - sdi-observer 
+        - sdi
+        - sap-slcbridge
+      loop_control:
+        loop_var: namespace
+
+    - name: Create Secret 
+      k8s:
+        api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+        state: present
+        namespace: sdi-observer
+        definition: "{{ lookup('file', './rht-registry-secret.yaml') | from_yaml }}"
+      register: sdi_observer_secret
+    
+    - name: debug secret
+      debug:
+              var: sdi_observer_secret
+
+    - name: debug secret
+      debug:
+              msg: "Secret name: {{ sdi_observer_secret.result.metadata.name }}"
+
+    # Ugly: Replace by community.okd.openshift_process
+    # Install: ansible-galaxy collection install community.okd
+    # https://galaxy.ansible.com/community/okd?extIdCarryOver=true&sc_cid=701f2000001OH6uAAG
+    - name: Update template for SDI observer
+      shell: |
+         NAMESPACE=sdi-observer
+         SDI_NAMESPACE=sdi
+         SLCB_NAMESPACE=sap-slcbridge
+         OCP_MINOR_RELEASE=4.7
+         #NODE_LOG_FORMAT=text
+         DEPLOY_SDI_REGISTRY=true
+         INJECT_CABUNDLE=true
+         #BUNDLE_SECRET_NAME=openshift-ingress-operator/router-ca
+         MANAGE_VSYSTEM_ROUTE=true
+         REDHAT_REGISTRY_SECRET_NAME={{ sdi_observer_secret.result.metadata.name }}
+         SDI_NODE_SELECTOR=node-role.kubernetes.io/sdi=
+         
+         oc process -f https://raw.githubusercontent.com/redhat-sap/sap-data-intelligence/master/observer/ocp-template.json \
+                 NAMESPACE="${NAMESPACE:-sdi-observer}" \
+                 SDI_NAMESPACE="${SDI_NAMESPACE:-sdi}" \
+                 SLCB_NAMESPACE="${SLCB_NAMESPACE:-sap-slcbridge}" \
+                 OCP_MINOR_RELEASE="${OCP_MINOR_RELEASE:-4.7}" \
+                 DEPLOY_SDI_REGISTRY="${DEPLOY_SDI_REGISTRY:-true}" \
+                 INJECT_CABUNDLE="${INJECT_CABUNDLE:-true}" \
+                 MANAGE_VSYSTEM_ROUTE="${MANAGE_VSYSTEM_ROUTE:-true}" \
+                 SDI_NODE_SELECTOR="${SDI_NODE_SELECTOR}" \
+                 REDHAT_REGISTRY_SECRET_NAME="$REDHAT_REGISTRY_SECRET_NAME"
+      register: deploy_sdi_observer_config
+
+    - name: Output SDI Observer Config
+      debug: 
+        msg: "{{  deploy_sdi_observer_config.stdout }}"
+      
+
+    - name: Ensure SDI Observer is launched
+      k8s:
+        api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+        state: present
+        namespace: sdi-observer
+        definition: "{{ deploy_sdi_observer_config.stdout }}"
+
+    - name: Output of account setup
+      debug:
+        msg: "{{  deploy_sdi_observer_config.stdout }}"
+
+
+    # Ugly: need to have proper privileges locally
+    - name: Ensure SDI account is setup properly
+      shell: | 
+        oc login --insecure-skip-tls-verify=true   -u {{ ocadmin }} -p {{ ocpass }} {{ ocapi }}
+        oc project sdi
+        oc adm policy add-scc-to-group anyuid "system:serviceaccounts:$(oc project -q)"
+        oc adm policy add-scc-to-user privileged -z "$(oc project -q)-elasticsearch"
+        oc adm policy add-scc-to-user privileged -z "$(oc project -q)-fluentd"
+        oc adm policy add-scc-to-user privileged -z default
+        oc adm policy add-scc-to-user privileged -z mlf-deployment-api
+        oc adm policy add-scc-to-user privileged -z vora-vflow-server
+        oc adm policy add-scc-to-user privileged -z "vora-vsystem-$(oc project -q)"
+        oc adm policy add-scc-to-user privileged -z "vora-vsystem-$(oc project -q)-vrep"
+      register: deploy_sdi_observer_priviledge_setup
+
+    always:
+    - name: If login succeeded, try to log out (revoke access token)
+      when: k8s_auth_results.k8s_auth.api_key is defined
+      k8s_auth:
+        state: absent
+        api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+
+

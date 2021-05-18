@@ -1,0 +1,71 @@
+---
+- name: get OCP node info
+  hosts: ocp
+
+  vars_prompt:
+         - name: "guid"
+           prompt: "Enter GUID"
+           private: no
+           default: "{{ lookup('env', 'GUID') }}"
+
+         - name: "ocadmin"
+           prompt: "User"
+           private: no
+           default: "admin"
+
+         - name: "ocpass"
+           prompt: "password"
+           private: yes
+
+         - name: "ocapi"
+           prompt: "OpenShift API"
+           private: no
+           default: "https://api.cluster-{{ guid }}.dynamic.opentlc.com:6443"
+           #default: https://api.cluster-{{ guid }}.{{ guid }}.example.opentlc.com:6443
+
+  module_defaults:
+      group/k8s:
+        host: "{{ ocapi }}"
+        validate_certs: no
+
+  tasks:
+  - block:
+    - name: Log in (obtain access token)
+      k8s_auth:
+        username: "{{ ocadmin }}"
+        password: "{{ ocpass }}"
+      register: k8s_auth_results
+
+    # Previous task provides the token/api_key, while all other parameters
+    # are taken from module_defaults
+    - name: Get a list of all nodes from any namespace
+      k8s_info:
+        api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+        kind: Node
+      register: node_list
+
+    - name: debug output cluster nodes
+      debug:
+        var: node_list.resources
+
+    - name: get type of variable
+      debug:
+              msg: "node_list.resources: {{ node_list.resources | type_debug }}"
+
+    - name: get nodenames
+      debug:
+              msg: "Name: {{ info.metadata.name }} is unschedulable: {{ info.spec.unschedulable | default(false) }}"
+      when: '"node-role.kubernetes.io/worker" in info.metadata.labels'
+      loop: "{{ node_list.resources  }}"
+      loop_control:
+            loop_var: info
+            label: "{{ info.metadata.uid }}"
+
+    always:
+    - name: If login succeeded, try to log out (revoke access token)
+      when: k8s_auth_results.k8s_auth.api_key is defined
+      k8s_auth:
+        state: absent
+        api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+
+

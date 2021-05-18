@@ -1,0 +1,144 @@
+---
+# tasks file for sdi_configure_ocp_worker
+
+- name: Ensure variable sdi_configure_ocp_worker_apikey is set
+  fail: 
+    msg: "Please make sure sdi_configure_ocp_worker_apikey is set"
+  when:
+     - (sdi_configure_ocp_worker_apikey is none) or (sdi_configure_ocp_worker_apikey | trim == '')
+
+- name: Ensure variable sdi_configure_ocp_worker_nodelist is set
+  fail: 
+    msg: "Please make sure sdi_configure_ocp_worker_nodelist is set"
+  when:
+     - (sdi_configure_ocp_worker_nodelist is none) or (sdi_configure_ocp_worker_nodelist | trim == '')
+
+- name: List API-Key
+  debug: 
+    msg: "API KEY: {{ sdi_configure_ocp_worker_apikey }}"
+
+- name: List Nodes
+  debug: 
+    var: sdi_configure_ocp_worker_nodelist
+
+- name: Ensure Worker Nodes are labeled for SDI use
+  k8s:
+        api_key: "{{ sdi_configure_ocp_worker_apikey }}"
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Node
+          metadata:
+            name: "{{ workernode }}"
+            labels:
+              node-role.kubernetes.io/sdi: ""
+  loop: "{{ sdi_configure_ocp_worker_nodelist|list }}"
+  loop_control:
+            loop_var: workernode
+
+- name: Ensure net-raw capability is enabled for containers on schedulable nodes
+  k8s:
+        api_key: "{{ sdi_configure_ocp_worker_apikey }}"
+        state: present
+        definition:
+          apiVersion: machineconfiguration.openshift.io/v1
+          kind: MachineConfig
+          metadata:
+            labels:
+              machineconfiguration.openshift.io/role: sdi
+            name: 97-crio-net-raw
+          spec:
+            config:
+              ignition:
+                version: 2.2.0
+              storage:
+                files:
+                  - contents:
+                      source: data:text/plain;charset=utf-8;base64,W2NyaW8ucnVudGltZV0KZGVmYXVsdF9jYXBhYmlsaXRpZXMgPSBbCiAgICAgICAgIkNIT1dOIiwKICAgICAgICAiREFDX09WRVJSSURFIiwKICAgICAgICAiRlNFVElEIiwKICAgICAgICAiRk9XTkVSIiwKICAgICAgICAiU0VUR0lEIiwKICAgICAgICAiU0VUVUlEIiwKICAgICAgICAiU0VUUENBUCIsCiAgICAgICAgIk5FVF9CSU5EX1NFUlZJQ0UiLAogICAgICAgICJLSUxMIiwKICAgICAgICAiTkVUX1JBVyIsCl0K
+                      verification: {}
+                    filesystem: root
+                    mode: 420
+                    path: /etc/crio/crio.conf.d/90-default-capabilities
+
+- name: Ensure needed additional kernel modules are pre-loaded
+  k8s:
+        api_key: "{{ sdi_configure_ocp_worker_apikey }}"
+        state: present
+        definition:
+          apiVersion: machineconfiguration.openshift.io/v1
+          kind: MachineConfig
+          metadata:
+            labels:
+              machineconfiguration.openshift.io/role: sdi
+            name: 75-worker-sap-data-intelligence
+          spec:
+            config:
+              ignition:
+                version: 2.2.0
+              storage:
+                files:
+                  - contents:
+                      source: "data:text/plain;charset=utf-8;base64,bmZzZApuZnN2NAppcF90YWJsZXMKaXB0X1JFRElSRUNUCmlwdF9vd25lcgo="
+                      verification: {}
+                    filesystem: root
+                    mode: 420
+                    path: /etc/modules-load.d/sdi-dependencies.conf
+              systemd:
+                units:
+                  - contents: |
+                      [Unit]
+                      Description=Pre-load kernel modules for SAP Data Intelligence
+                      After=network.target
+          
+                      [Service]
+                      Type=oneshot
+                      ExecStart=/usr/sbin/modprobe iptable_nat
+                      ExecStart=/usr/sbin/modprobe iptable_filter
+                      RemainAfterExit=yes
+          
+                      [Install]
+                      WantedBy=multi-user.target
+                    enabled: true
+                    name: sdi-modules-load.service
+
+- name: Ensure maximum number of PIDs per container
+  k8s:
+        api_key: "{{ sdi_configure_ocp_worker_apikey }}"
+        state: present
+        definition:
+          apiVersion: machineconfiguration.openshift.io/v1
+          kind: ContainerRuntimeConfig
+          metadata:
+            name: sdi-pids-limit
+          spec:
+            machineConfigPoolSelector:
+              matchLabels:
+                workload: sapdataintelligence
+            containerRuntimeConfig:
+              pidsLimit: 16384
+
+- name: Ensure MachineConfigs are associated
+  k8s:
+        api_key: "{{ sdi_configure_ocp_worker_apikey }}"
+        state: present
+        definition:
+          apiVersion: machineconfiguration.openshift.io/v1
+          kind: MachineConfigPool
+          metadata:
+            labels:
+              workload: sapdataintelligence
+            name: sdi
+          spec:
+            machineConfigSelector:
+              matchExpressions:
+                - key: machineconfiguration.openshift.io/role
+                  operator: In
+                  values:
+                    - sdi
+                    - worker
+            nodeSelector:
+              matchExpressions:
+                - key: node-role.kubernetes.io/sdi
+                  operator: Exists
+                - key: node-role.kubernetes.io/master
+                  operator: DoesNotExist 
