@@ -3,6 +3,8 @@
 set -euo pipefail
 IFS=$'\n\t'
 
+readonly DEFAULT_TIMEOUT=35
+TIMEOUT=$DEFAULT_TIMEOUT
 
 # TODO: specify volume capacity
 readonly USAGE="$(basename "${BASH_SOURCE[0]}") [options]
@@ -15,6 +17,8 @@ Options:
                     SDI namespace.
   -s | --slcb-namespace SLCB_NAMESPACE
                     Namespace where SLC Bridge is installed.
+  -t | --timeout TIMEOUT
+                    Defaults to ${DEFAULT_TIMEOUT}s
 "
 
 function forceDeleteResource() {
@@ -23,11 +27,11 @@ function forceDeleteResource() {
     local nm="$2"
     local name="$3"
     oc patch -n "$nm" "$crd/$name" --type merge -p '{"metadata":{"finalizers":null}}'
-    oc delete --timeout 21s --wait -n "$nm" "$crd/$name" ||:
+    oc delete --timeout "${TIMEOUT}s" --wait -n "$nm" "$crd/$name" ||:
     if ! oc get -n "$nm" "$crd/$name" >/dev/null 2>&1; then
         return 0
     fi
-    oc delete --timeout 21s --wait --force --grace-period=0 -n "$nm" "$crd/$name"
+    oc delete --timeout "${TIMEOUT}s" --wait --force --grace-period=0 -n "$nm" "$crd/$name"
 }
 export -f forceDeleteResource
 
@@ -36,6 +40,7 @@ function deleteCRD() {
     local crd="$1"
     local resources=()
     local rsnm nm name
+    export TIMEOUT
 
     # we expect all the resources to be namespaces
     readarray -t resources <<<"$(oc get --all-namespaces "$crd" \
@@ -47,13 +52,16 @@ function deleteCRD() {
                 continue
             fi
             IFS=/ read -r nm name <<<"${rsnm}"
-            parallel --semaphore --id "del-$crd" \
-                oc delete --timeout 21s --wait -n "$nm" "$crd/$name"
+            parallel --lb --semaphore --id "del-$crd" \
+                oc delete --timeout "${TIMEOUT}s" --wait -n "$nm" "$crd/$name"
         done
-        parallel --semaphore --id "del-$crd" --wait ||:
+        parallel --lb --semaphore --id "del-$crd" --wait ||:
 
         readarray -t resources <<<"$(oc get --all-namespaces "$crd" \
             -o jsonpath='{range .items[*]}{.metadata.namespace}/{.metadata.name}{"\n"}{end}' ||:)"
+        if [[ "$crd" =~ ^datahub ]]; then
+            oc delete validatingwebhookconfiguration validating-webhook-configuration --ignore-not-found
+        fi
         if [[ "${#resources[@]}" -gt 1 || ( "${#resources[@]}" == 1 && -n "${resources[0]:-}" ) ]]; then
             for rsnm in "${resources[@]}"; do
                 if [[ -z "${rsnm:-}" ]]; then
@@ -61,18 +69,24 @@ function deleteCRD() {
                     continue
                 fi
                 IFS=/ read -r nm name <<<"${rsnm}"
-                parallel --semaphore --id "del-$crd" forceDeleteResource "$crd" "$nm" "$name"
+                parallel --lb --semaphore --id "del-$crd" forceDeleteResource "$crd" "$nm" "$name"
             done
-            parallel --semaphore --id "del-$crd" --wait ||:
+            parallel --lb --semaphore --id "del-$crd" --wait ||:
         fi
     fi
 
-    oc delete --timeout 21s --wait "crd/$crd"
+    if ! oc delete --timeout "${TIMEOUT}s" --wait "crd/$crd" && oc get "crd/$crd" >/dev/null 2>&1; then
+        oc patch -n "$nm" "crd/$crd" --type merge -p '{"metadata":{"finalizers":null}}'
+        oc delete --timeout "${TIMEOUT}s" --wait "crd/$crd"
+    fi
 }
 export -f deleteCRD
 
 readarray -t crds <<<"$(oc get crd | awk '/\.sap\./ {print $1}')"
 
+# TODO: make sure to delete datahub-system project as well
+
 if [[ "${#crds[@]}" -gt 0 ]]; then
-    parallel deleteCRD ::: "${crds[@]}"
+    export TIMEOUT
+    parallel --lb deleteCRD ::: "${crds[@]}"
 fi
