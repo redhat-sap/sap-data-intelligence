@@ -617,9 +617,10 @@ function ensureCABundleSecret() {
         fi
     fi
     
-    bundleData="$(oc get -o json -n "$CABUNDLE_SECRET_NAMESPACE" "$kind" \
+    bundleData="$(oc get -o json -n "$CABUNDLE_SECRET_NAMESPACE" secret \
         "$CABUNDLE_SECRET_NAME" | \
-        jq -r '.data as $d | $d | keys[] | select(test("\\.(?:crt|pem)$")) | $d[.] | @base64d')" ||:
+        jq -r '.data as $d | $d | keys[] | select(test(
+            "^(?:cert(?:ificate)?|ca(?:-?bundle)?|.*\\.(?:crt|pem))$")) | $d[.] | @base64d')" ||:
     if [[ -z "$(tr -d '[:space:]' <<<"${bundleData:-}")" ]]; then
         log 'Failed to get any ca certificates out of secret %s in namespace %s!' \
             "$CABUNDLE_SECRET_NAME" "$CABUNDLE_SECRET_NAMESPACE"

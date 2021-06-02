@@ -291,7 +291,9 @@ if evalBool INJECT_CABUNDLE || [[ -n "${REDHAT_REGISTRY_SECRET_NAME:-}" ]]; then
     if [[ -z "${CABUNDLE_SECRET_NAME:-}" ]]; then
         CABUNDLE_SECRET_NAME="openshift-ingress-operator/router-ca"
     fi
-    CABUNDLE_SECRET_NAMESPACE="${CABUNDLE_SECRET_NAME%%/*}"
+    if [[ -z "${CABUNDLE_SECRET_NAMESPACE:-}" && "${CABUNDLE_SECRET_NAME:-}" =~ ^(.+)/ ]]; then
+        CABUNDLE_SECRET_NAMESPACE="${BASH_REMATCH[1]}"
+    fi
     CABUNDLE_SECRET_NAME="${CABUNDLE_SECRET_NAME##*/}"
     CABUNDLE_SECRET_NAMESPACE="${CABUNDLE_SECRET_NAMESPACE:-$NAMESPACE}"
     gotmplSecret=(
