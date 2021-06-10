@@ -1,3 +1,4 @@
+- ensure clusterrolebinding to get clusteroperators/openshift-apiserver to get reliably OCP server version
 - [ ] - deploy-registry: do not redeploy if the image cannot be pulled
     - if image cannot be pulled (because e.g. registry lost the blobs), an endless loop begins
 - [ ] - switch to [certman](https://github.com/openshift/certman-operator)
