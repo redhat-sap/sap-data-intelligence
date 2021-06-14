@@ -106,7 +106,7 @@ base {
         the "openshift-ingress-operator" stands for secret's namespace and "router-ca" stands for
         secret's name. If no $namespace prefix is given, the secret is expected to reside in
         NAMESPACE where the SDI observer runs. All the entries present in the "data" field having
-        ".crt" or ".pem" suffix will be concated to form the resulting "cert" file. This bundle
+        ".crt" or ".pem" suffix will be concatenated to form the resulting "cert" file. This bundle
         will also be used to create cmcertificates secret in SDI_NAMESPACE according to %s
       ||| % (urls.sapSdiSettingUpCertificates),
       required: false,

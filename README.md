@@ -1,28 +1,16 @@
-# Work in Progress!!
+# SAP Data Intelligence on Red Hat OpenShift
 
-SAP Data Intelligence 3.0 on OCP 4 to be supported soon.
+All the essential tools for running SAP Data Intelligence (SDI) on Red Hat OpenShift Container Platform (OCP) are located here.
 
-Stay tuned.
+Please visit the [SDI on OCP installation guide](https://access.redhat.com/articles/5100521) maintained by Red Hat for a complete overview.
 
+Components:
 
-## HOWTO
+- [SDI Observer](./sdi-observer)
+- [Node Configurator](./node-configurator)
+- [Utilities](./utilities)
 
-1. Get a secret for accessing registry.redhat.io at: https://access.redhat.com/terms-based-registry/
-See [Red Hat Container Registry Authentication](https://access.redhat.com/RegistryAuthentication) for more information.
+The individual components and snippets shall later be turned into an operator further to further simplify and automate installation and life-cycle management.
 
-2. Create a project to host SDI Observer (e.g. `sdi-observer`): `oc new-project sdi-observer`
+Please visit the individual component links for more information.
 
-3. Create the downloaded secret in there and add it as a pull secret for builds:
-
-        # oc create -f rht-registry-miminar-secret.yaml
-        secret/1979710-miminar-pull-secret created
-        # oc secrets link default 1979710-miminar-pull-secret --for=pull
-
-4. Create the deployment files:
-
-        # oc process NAMESPACE=sdi-observer SDI_NAMESPACE=sdi \
-            REDHAT_REGISTRY_SECRET_NAME=1979710-miminar-pull-secret \
-            DEPLOY_SDI_REGISTRY=true DEPLOY_LETSENCRYPT=true \
-            -f observer/ocp-template.json | oc create -f -
-            
-## Update instructions
