@@ -4,22 +4,33 @@
 
 set -euo pipefail
 
-NAMESPACE=sdi-observer
-DRY_RUN=false
 SDI_NAMESPACE=sdi
+NAMESPACE=sdi-observer
+SLCB_NAMESPACE=sap-slcbridge
+DRY_RUN=false
 OCP_MINOR_RELEASE=4.6
-DEPLOY_SDI_REGISTRY=true
+DEPLOY_SDI_REGISTRY=false
 INJECT_CABUNDLE=true
 MANAGE_VSYSTEM_ROUTE=true
 #VSYSTEM_ROUTE_HOSTNAME=vsystem-<SDI_NAMESPACE>.<clustername>.<base_domain>
 SDI_NODE_SELECTOR="node-role.kubernetes.io/sdi="
 
-# (recommended) (a must for production), set the following variable (use UBI8 for the base image)
-REDHAT_REGISTRY_SECRET_NAME=""
-# otherwise, comment it out and uncomment the following lines 
+
+# There are three flavours of OCP Template:
+# 1. ubi-build      (recommended, connected)
+# 2. ubi-prebuilt   (disconnected/offline/air-gapped) - use pre-built images
+# 3. custom-build   (best-effort-support)
+FLAVOUR=ubi-build
+
+# Required parameters for each template flavour:
+# 1. ubi-build: set the following variable (use UBI8 for the base image)
+#REDHAT_REGISTRY_SECRET_NAME=""
+# 2. ubi-prebuilt
 #SOURCE_IMAGE_PULL_SPEC=registry.centos.org/centos:8
 #SOURCE_IMAGESTREAM_NAME=centos8
 #SOURCE_IMAGESTREAM_TAG=latest
+# 3. custom-build
+#IMAGE_PULL_SPEC=quay.io/miminar/sdi-observer:0.1.13-ocp4.6
 
 
 # whether the observer shall deploy a container image registry in its NAMESPACE
@@ -51,19 +62,21 @@ SDI_OBSERVER_GIT_REVISION=master
 
 readonly gitRepo=https://github.com/redhat-sap/sap-data-intelligence
 
-readonly envVars=(
-    NAMESPACE
-    DRY_RUN
+readonly commonEnvVars=(
     SDI_NAMESPACE
+    NAMESPACE
+    SLCB_NAMESPACE
+    DRY_RUN
     OCP_MINOR_RELEASE
-    DEPLOY_SDI_REGISTRY
     MANAGE_VSYSTEM_ROUTE
     VSYSTEM_ROUTE_HOSTNAME
-    REDHAT_REGISTRY_SECRET_NAME
     SDI_NODE_SELECTOR
-    SDI_OBSERVER_REPOSITORY
-    SDI_OBSERVER_GIT_REVISION
 
+    INJECT_CABUNDLE
+    CABUNDLE_SECRET_NAME
+)
+
+readonly registryEnvVars=(
     DEPLOY_SDI_REGISTRY
     SDI_REGISTRY_STORAGE_CLASS_NAME
     SDI_REGISTRY_VOLUME_ACCESS_MODE
@@ -73,28 +86,52 @@ readonly envVars=(
     SDI_REGISTRY_USERNAME
     SDI_REGISTRY_PASSWORD
     SDI_REGISTRY_HTPASSWD_SECRET_NAME
-
-    INJECT_CABUNDLE
-    CABUNDLE_SECRET_NAME
 )
+
+readonly buildEnvVars=(
+    SDI_OBSERVER_REPOSITORY
+    SDI_OBSERVER_GIT_REVISION
+)
+
+envVars=( "${commonEnvVars[@]}" )
 
 function join() { local IFS="$1"; shift; echo "$*"; }
 
-template=ocp-template
+case "${FLAVOUR:-ubi-build}" in
+    ubi-build)
+        envVars+=(
+            REDHAT_REGISTRY_SECRET_NAME
+            "${buildEnvVars[@]}"
+            "${registryEnvVars[@]}"
+        )
+        template=ocp-template
+        ;;
+    ubi-prebuilt)
+        template=ocp-prebuilt-image-template
+        ;;
+    custom-build)
+        envVars+=(
+            SOURCE_IMAGE_PULL_SPEC
+            SOURCE_IMAGESTREAM_NAME
+            SOURCE_IMAGESTREAM_TAG
+            "${buildEnvVars[@]}"
+            "${registryEnvVars[@]}" 
+        )
+        template=ocp-custom-source-image-template
+        ;;
+    *)
+        printf 'Unsupported FLAVOUR="%s", please choose one of:' "${FLAVOUR:-}" >&2
+        printf ' ubi-build, ubi-prebuilt, custom-build\n' >&2
+        exit 1
+        ;;
+esac
+
 sourceLocation="$gitRepo"
 root="$(dirname "$(dirname "${BASH_SOURCE[0]}")")"
 if [[ -n "${SDI_OBSERVER_REPOSITORY:-}" ]]; then
     sourceLocation="${SDI_OBSERVER_REPOSITORY:-}"
 elif [[ -e "$root/observer/${template}.json" ]]; then
     sourceLocation="$root"
-fi
-
-if [[ -z "${REDHAT_REGISTRY_SECRET_NAME:-}" && ( \
-            -n "${SOURCE_IMAGE_PULL_SPEC:-}" || \
-            -n "${SOURCE_IMAGESTREAM_NAME:-}" || \
-            -n "${SOURCE_IMAGESTREAM_TAG:-}" ) ]];
-then
-    template=ocp-custom-source-image-template
 fi
 
 args=( -f )
@@ -124,6 +161,9 @@ for var in "${envVars[@]}"; do
             ;;
     esac
     args+=( "$var=$value" )
+    printf '%s="%s"\n' "$var" "$value"
 done
+printf '\n'
 
-oc process "${args[@]}" | oc apply -f -
+oc process "${args[@]}" "$@" | oc apply -f - | grep -v -F \
+    'Warning: oc apply should be used on resource created by'
