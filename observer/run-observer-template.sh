@@ -37,7 +37,8 @@ FLAVOUR=ubi-build
 DEPLOY_SDI_REGISTRY=false
 #SDI_REGISTRY_STORAGE_CLASS_NAME=       # use the default sc unless set
 # change to ReadWriteMany if supported by the storage class
-SDI_REGISTRY_VOLUME_ACCESS_MODE=ReadWriteOnce   # ReadWriteMany
+# leave unset for script to decide in a best-effort manor
+#SDI_REGISTRY_VOLUME_ACCESS_MODE=       # ReadWriteMany or ReadWriteOnce
 SDI_REGISTRY_VOLUME_CAPACITY=120Gi
 #SDI_REGISTRY_ROUTE_HOSTNAME=container-image-registry-<NAMESPACE>-apps.<cluster_name>.<base_domain>
 SDI_REGISTRY_AUTHENTICATION=basic       # "none" disables the authentication
@@ -93,6 +94,10 @@ readonly buildEnvVars=(
     SDI_OBSERVER_GIT_REVISION
 )
 
+readonly rwxStorageClasses=(
+    ocs-storagecluster-cephfs
+)
+
 envVars=( "${commonEnvVars[@]}" )
 
 function join() { local IFS="$1"; shift; echo "$*"; }
@@ -146,6 +151,32 @@ else
         "$(join / "$sourceLocation" \
             "observer/${template}.json")"
     )
+fi
+
+if [[ -z "${SDI_REGISTRY_VOLUME_ACCESS_MODE:-}" ]]; then
+    if grep -F -x -q -f <(printf '%s\n' "${rwxStorageClasses[@]}") \
+                <<<"${SDI_REGISTRY_STORAGE_CLASS_NAME:-}";
+    then
+        SDI_REGISTRY_VOLUME_ACCESS_MODE=ReadWriteMany
+    fi
+
+    tmpl="$(printf '%s' \
+        '{{range $i, $sc := .items}}' \
+            '{{with $mt := $sc.metadata}}' \
+                '{{if $mt.annotations}}' \
+                    '{{if eq "true" (index $mt.annotations' \
+                        ' "storageclass.kubernetes.io/is-default-class")}}' \
+                        '{{$mt.name}}{{"\n"}}' \
+                    '{{end}}' \
+                '{{end}}' \
+            '{{end}}' \
+        '{{end}}')"
+    if grep -F -x -q -f <(printf '%s\n' "${rwxStorageClasses[@]}") \
+        < <(oc get sc -o go-template="$tmpl");
+    then
+        SDI_REGISTRY_VOLUME_ACCESS_MODE=ReadWriteMany
+    fi
+
 fi
 
 for var in "${envVars[@]}"; do
