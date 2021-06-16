@@ -176,7 +176,6 @@ if [[ -z "${SDI_REGISTRY_VOLUME_ACCESS_MODE:-}" ]]; then
     then
         SDI_REGISTRY_VOLUME_ACCESS_MODE=ReadWriteMany
     fi
-
 fi
 
 for var in "${envVars[@]}"; do
@@ -195,6 +194,12 @@ for var in "${envVars[@]}"; do
     printf '%s="%s"\n' "$var" "$value"
 done
 printf '\n'
+
+# create namespaces if they do not exist yet
+projects="$(printf 'project/%s\n' "$NAMESPACE" "$SDI_NAMESPACE" "$SLCB_NAMESPACE" | sort -u)"
+grep -v -x -f <(xargs -r oc get -o jsonpath='{range .items[*]}project/{.metadata.name}{"\n"}{end}' \
+            2>/dev/null <<<"$projects") <<<"$projects" | sed 's,^project.*/,,' | \
+    xargs -n 1 -r oc create namespace ||:
 
 oc process "${args[@]}" "$@" | oc apply -f - | grep -v -F \
     'Warning: oc apply should be used on resource created by'
