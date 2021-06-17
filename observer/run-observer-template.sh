@@ -4,11 +4,16 @@
 
 set -euo pipefail
 
+# namespace where SAP Data Intelligence is or will be installed
 SDI_NAMESPACE=sdi
+# namespace where SDI Observer is or will be installed; shall be different from SDI_NAMESPACE
 NAMESPACE=sdi-observer
 SLCB_NAMESPACE=sap-slcbridge
+# SDI Observer will not do any modifications to the k8s resources, it will only print what would
+# have been done
 DRY_RUN=false
-OCP_MINOR_RELEASE=4.6
+# if left unset, it will be determined from OCP server API
+#OCP_MINOR_RELEASE=4.6
 DEPLOY_SDI_REGISTRY=false
 INJECT_CABUNDLE=true
 MANAGE_VSYSTEM_ROUTE=true
@@ -30,7 +35,10 @@ FLAVOUR=ubi-build
 #SOURCE_IMAGESTREAM_NAME=centos8
 #SOURCE_IMAGESTREAM_TAG=latest
 # 3. custom-build
-#IMAGE_PULL_SPEC=quay.io/miminar/sdi-observer:0.1.13-ocp4.6
+# The image shall be first mirrored from the quay.io registry to a local container image registry.
+# Then the below variable must be set accordingly. The %%OCP_MINOR_RELEASE%% macro will be
+# replaced with the value of OCP_MINOR_RELEASE variable.
+#IMAGE_PULL_SPEC=quay.io/miminar/sdi-observer:latest-ocp%%OCP_MINOR_RELEASE%%
 
 
 # whether the observer shall deploy a container image registry in its NAMESPACE
@@ -112,6 +120,7 @@ case "${FLAVOUR:-ubi-build}" in
         template=ocp-template
         ;;
     ubi-prebuilt)
+        envVars+=( IMAGE_PULL_SPEC )
         template=ocp-prebuilt-image-template
         ;;
     custom-build)
@@ -127,6 +136,57 @@ case "${FLAVOUR:-ubi-build}" in
     *)
         printf 'Unsupported FLAVOUR="%s", please choose one of:' "${FLAVOUR:-}" >&2
         printf ' ubi-build, ubi-prebuilt, custom-build\n' >&2
+        exit 1
+        ;;
+esac
+
+if [[ -z "${OCP_MINOR_RELEASE:-}" ]]; then
+    ocpServerVersion="$(oc version | awk 'BEGIN {
+        IGNORECASE=1
+    }
+    match($0, /^server\s*version:\s*([0-9]+.[0-9]+)/, a) {
+        print a[1]
+    }')"
+    if [[ -n "${ocpServerVersion:-}" ]]; then
+        OCP_MINOR_RELEASE="${ocpServerVersion}"
+    else
+        { printf '%s\n' \
+            'Failed to determine the OCP server version!' \
+            'Please either set the OCP_MINOR_RELEASE variable or ensure that you are' \
+            'logged in to the cluster and that your user has cluster-reader role.'; \
+        } >&2
+        exit 1
+    fi
+fi
+
+ocpClientVersion="$(oc version | awk 'BEGIN {
+    IGNORECASE=1
+}
+match($0, /^client\s*version:\s*([0-9]+.[0-9]+)/, a) {
+    print a[1]
+}')"
+minorMismatch="$(bc -l <<< 'define abs(i) {
+    if (i < 0) return (-i)
+    return (i)
+}'" abs(${OCP_MINOR_RELEASE#*.} - ${ocpClientVersion#*.})")"
+
+case "$minorMismatch" in
+    0 | 1)
+        ;;
+    2)
+        {
+            printf 'WARNING: oc client version does not match the desired OCP'; \
+            printf ' server version (%s =! %s)!\n' \
+                "$ocpClientVersion" "$OCP_MINOR_RELEASE"
+        } >&2
+        ;;
+    *)
+        {
+            printf 'ERROR: oc client version does not match the desired server OCP release'; \
+            printf ' (%s =! %s)!\n' "$ocpClientVersion" "$OCP_MINOR_RELEASE"; \
+            printf 'ERROR: Please download and use oc client matching the server minor'; \
+            printf ' release %s.\n' "$OCP_MINOR_RELEASE"; \
+        } >&2
         exit 1
         ;;
 esac
@@ -188,6 +248,12 @@ for var in "${envVars[@]}"; do
             if ! [[ "${value}" =~ ^(http|ftp|https):// ]]; then
                 value="$gitRepo"
             fi
+            ;;
+        *IMAGE_PULL_SPEC*)
+            if [[ -z "${value:-}" ]]; then
+                value='quay.io/miminar/sdi-observer:latest-ocp%%OCP_MINOR_RELEASE%%'
+            fi
+            value="${value//%%OCP_MINOR_RELEASE%%/$OCP_MINOR_RELEASE}"
             ;;
     esac
     args+=( "$var=$value" )
