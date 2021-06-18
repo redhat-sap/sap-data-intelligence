@@ -26,7 +26,7 @@ base {
   ] + bc.newParameters + [
     {
       description: |||
-        The name of the SAP Data Intelligance namespace to manage. Defaults to the current one. It
+        The name of the SAP Data Intelligence namespace to manage. Defaults to the current one. It
         must be set only in case the observer is running in a different namespace (see NAMESPACE).
       |||,
       name: 'SDI_NAMESPACE',

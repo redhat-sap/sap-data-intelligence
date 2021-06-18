@@ -106,6 +106,10 @@ readonly rwxStorageClasses=(
     ocs-storagecluster-cephfs
 )
 
+declare -r -A envVarDefaults=(
+    [IMAGE_PULL_SPEC]='quay.io/miminar/sdi-observer:latest-ocp%%OCP_MINOR_RELEASE%%'
+)
+
 envVars=( "${commonEnvVars[@]}" )
 
 function join() { local IFS="$1"; shift; echo "$*"; }
@@ -241,7 +245,10 @@ fi
 for var in "${envVars[@]}"; do
     eval 'value="${'"$var"':-}"'
     if [[ -z "${value:-}" ]]; then
-        continue
+        if [[ -z "${envVarDefaults[$var]:-}" ]]; then
+            continue
+        fi
+        value="${envVarDefaults[$var]:-}"
     fi
     case "$var" in
         SDI_OBSERVER_REPOSITORY)
@@ -250,9 +257,6 @@ for var in "${envVars[@]}"; do
             fi
             ;;
         *IMAGE_PULL_SPEC*)
-            if [[ -z "${value:-}" ]]; then
-                value='quay.io/miminar/sdi-observer:latest-ocp%%OCP_MINOR_RELEASE%%'
-            fi
             value="${value//%%OCP_MINOR_RELEASE%%/$OCP_MINOR_RELEASE}"
             ;;
     esac

@@ -86,7 +86,7 @@ Parameter                           | Default Value   | Description
 
 For more information, please see [registry](./registry/) directory.
 
-### Enable iptables manipulation for pods
+### *(obsolete)* Enable iptables manipulation for pods
 
 **NOTE**: this functionality is disabled by default as there are far better alternatives.
 
@@ -121,14 +121,17 @@ Parameter | Description
 The template must be instantiated before the SDI installation. It is strongly recommended
 to run the observer in a separate namespace from SDI.
 
-Prerequisites:
-  - OCP cluster must be healthy including all the cluster operators.
-  - The OCP integrated image registry must be properly configured and working.
-  - Pull secret for the registry.redhat.io must be configured.
+### Prerequisites
 
-Usage:
+- OCP cluster must be healthy including all the cluster operators.
+- The OCP integrated image registry must be properly configured and working.
+- For connected systems, pull secret for the registry.redhat.io must be configured.
+
+
+
+
   Assuming the SDI will be run in the `SDI_NAMESPACE` which is different from the observer
-  NAMESPACE, instantiate the template with parameters like this:
+  `NAMESPACE`, instantiate the template with parameters like this:
 
     oc new-project $SDI_NAMESPACE
     oc new-project sdi-observer
