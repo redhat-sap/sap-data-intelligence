@@ -236,7 +236,7 @@ case of issues though.
 |===
 
 The `FLAVOUR` parameter shall be set in the `run-observer-template.sh` script described
-xref:#ubi-build-tmpl-run[below].
+xref:#tmpl-run[below].
 
 === Ensuring Red Hat registry pull secret
 
@@ -261,7 +261,7 @@ In order to use `ubi-build` flavour, the pull secret must be configured:
 ....
 
 
-[[ubi-build-tmpl-run]]
+[[tmpl-run]]
 === Template instantiation
 
 Assuming the SDI will be run in the `SDI_NAMESPACE` which is different from the observer
@@ -276,7 +276,6 @@ Assuming the SDI will be run in the `SDI_NAMESPACE` which is different from the 
 2. Edit the downloaded `run-observer-template.sh` file in your favorite editor. Especially, mind
    the `FLAVOUR`, `NAMESPACE`, `SDI_NAMESPACE` parameters.
 +
-[[run-observer-template]]
 3. Run it in bash like this:
 +
 ....
@@ -353,7 +352,7 @@ cluster.
 +
 .Please make sure to modify the `4.6` suffix according to your OCP server minor release.
 +
-2. Execute the same steps as outlined in xref:ubi-build-tmpl-run[] while making sure that in step 2,
+2. Execute the same steps as outlined in xref:tmpl-run[Template instantiation] while making sure that in step 2,
    `FLAVOUR` is set to the `ocp-prebuilt` and `IMAGE_PULL_SPEC` to your `local.image.registry:5000`
 
 ===== Where the management host _lacks_ access to internet
@@ -378,8 +377,8 @@ For example, on RHEL8:
     docker://local.image.registry:5000/sdi-observer:latest-ocp4.6
 ....
 +
-3. Execute the same steps as outlined in xref:ubi-build-tmpl-run[] while making sure that in step
-   2, `FLAVOUR` is set to the `ocp-prebuilt` and `IMAGE_PULL_SPEC` to your
+3. Execute the same steps as outlined in xref:tmpl-run[Template instantiation] while making sure
+   that in step 2, `FLAVOUR` is set to the `ocp-prebuilt` and `IMAGE_PULL_SPEC` to your
    `local.image.registry:5000`
 
 == Update instructions
@@ -404,8 +403,7 @@ So far, updates need to be performed manually.
    against the old `run-observer-template.sh` or against the output of
    `oc set env --list dc/sdi-observer` and update the parameters accordingly.
 +
-4. Continue with the xref:#run-observer-template[regular template instantiation from step 3
-   onward].
+4. Continue with the xref:#tmpl-run[regular template instantiation] starting with the step 3.
 
 == Deprecated parameters
 
