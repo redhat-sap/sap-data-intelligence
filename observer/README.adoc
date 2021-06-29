@@ -23,7 +23,7 @@ exports.
 === Configures host path mount for diagnostic pods
 
 SDI’s diagnostics-fluentd daemonset is patched to allow its pods to access log files on the host
-system. It also modifies it to parse plain text log files instead of preconfigured json.
+system. It also modifies it to parse plain text log files instead of preconfigured JSON.
 
 === Exposes SDI System Management service
 
@@ -175,7 +175,7 @@ order to load iptables-related kernel modules. SDI containers named `vsystem-ipt
 part of every `vsystem-app` deployment attempt to modify iptables rules without having the
 necessary permissions.
 
-The ideal solution is to pre-load these modules during node’s startup. When not feasable, this
+The ideal solution is to pre-load these modules during node’s startup. When not feasible, this
 template can also fix the permissions on-the-fly as the deployments are created. The drawback is a
 slower startup of SDI components.
 
@@ -209,89 +209,40 @@ the observer in a separate namespace from SDI.
 === Prerequisites
 
 . OCP cluster must be healthy including all the cluster operators.
-. The OCP integrated image registry must be properly configured and working.
+. The
+  link:https://docs.openshift.com/container-platform/4.6/registry/configuring-registry-operator.html[OCP
+  integrated image registry] must be properly configured and working.
 . _(`ubi-build` flavour)_ Pull secret for the registry.redhat.io must be configured. 
 
 === Template flavours
 
 There are three different OCP templates designed for different scenarios:
 
+[[template-flavours]]
+[width="100%",cols="17%,35%,48%",options="header",]
 |===
 |Flavour | Template file| Description
-|`ubi-build` | link:./ocp-tempate.json | (_recommended_, _connected_, _default_) To be used in connected OCP
-clusters. A local build of SDI Observer image will be performed using UBI8 as the base image.
+|`ubi-build` | link:./ocp-template.json[] | (_recommended_, _connected_, _default_) To be used in
+connected OCP clusters. A local build of SDI Observer image will be performed using UBI8 as the
+base image.
 
-|`ubi-prebuilt` | link:./ocp-prebuilt-image-template.json | _disconnected_ To be used in
-disconnected/offline/air-gapped OCP slusters. The image must be first mirrored to a local
+|`ubi-prebuilt` | link:./ocp-prebuilt-image-template.json[] | (_disconnected_) To be used in
+disconnected/offline/air-gapped OCP clusters. The image must be first mirrored to a local
 registry.
 
-|`custom-build` | link:./ocp-custom-source-image-template.json.orig | For non-production, it is
-possible to use a custom base image (e.g. centos). A very limited or no support will be offered in
+|`custom-build` | link:./ocp-custom-source-image-template.json[] | For non-production, it is
+possible to use a custom base image (e.g. CentOS). A very limited or no support will be offered in
 case of issues though.
-
-The flavour shall be set in the `run-observer-template.sh` script described below.
-
-=== Template instantiation
-
-Assuming the SDI will be run in the `SDI_NAMESPACE` which is different from the observer
-`NAMESPACE`, instantiate the template with default parameters like this:
-
-1. Download the run script from git repository like this:
-+
-....
-# curl -O https://raw.githubusercontent.com/redhat-sap/sap-data-intelligence/master/observer/run-observer-template.sh
-....
-+
-2. Edit the downloaded `run-observer-template.sh` file in your favorite editor. Especially, mind
-   the `FLAVOUR`, `NAMESPACE`, `SDI_NAMESPACE` parameters.
-3. Run it in bash like this:
-+
-....
-# bash ./run-observer-template.sh
-....
-
-==== General template parameters
-
-[width="100%",cols="25%,15%,60%",options="header",]
-|===
-| Parameter           | Default value   | Description
-| `SDI_NAMESPACE`     | `sdi`           | Kubernetes namespace where SAP Data Intelligence runs or
-will be running.
-
-| `NAMESPACE`         | `sdi-observer`  | Kubernetes namespace where SDI Observer runs or will be running.
-
-| `SLCB_NAMESPACE`    | `sap-slcbridge` | Kubernetes namespace where Software Lifecycle Container
-Bridge runs or will be running.
-
-| `DRY_RUN`           | `false`         | Make SDI Observer perform no changes to k8s resources.
-The observer will only output what would have been done. Use `oc logs -n $NAMESPACE -f
-dc/sdi-observer` to monitor its progress.
-
-| `OCP_MINOR_RELEASE` | `4.6`           | Determines the desired release of oc client binary. It
-should match the OCP cluster's minor release.
 |===
 
-==== Disconnected OCP cluster
+The `FLAVOUR` parameter shall be set in the `run-observer-template.sh` script described
+xref:#ubi-build-tmpl-run[below].
 
-To override the parameters, execute the template this:
+=== Ensuring Red Hat registry pull secret
 
-1. first, download the following bash script
+In order to use `ubi-build` flavour, the pull secret must be configured:
 
-....
-# curl -L -O https://raw.githubusercontent.com/redhat-sap/sap-data-intelligence/master/observer/run-observer-template.sh
-....
-
-2. edit the file in your favourite editor, change the parameters according to your preference
-
-3. run it in bash:
-
-....
-# bash ./run-observer-template.sh
-....
-
-== HOWTO
-
-. Get a secret for accessing registry.redhat.io at:
+. Get a secret for accessing registry.redhat.io at
   link:https://access.redhat.com/terms-based-registry/[Red Hat Registry Service Accounts]. See
   link:https://access.redhat.com/RegistryAuthentication[Red Hat Container Registry Authentication]
   for more information.
@@ -308,21 +259,157 @@ To override the parameters, execute the template this:
  secret/1234567-miminar-pull-secret created
  # oc secrets link default 1234567-miminar-pull-secret --for=pull
 ....
-. Create the deployment files:
+
+
+[[ubi-build-tmpl-run]]
+=== Template instantiation
+
+Assuming the SDI will be run in the `SDI_NAMESPACE` which is different from the observer
+`NAMESPACE`, instantiate the template with default parameters like this:
+
+1. Download the run script from git repository like this:
 +
 ....
- # oc process NAMESPACE=sdi-observer SDI_NAMESPACE=sdi \
-     REDHAT_REGISTRY_SECRET_NAME=1979710-miminar-pull-secret \
-     DEPLOY_SDI_REGISTRY=true DEPLOY_LETSENCRYPT=true \
-     -f observer/ocp-template.json | oc create -f -
+# curl -O https://raw.githubusercontent.com/redhat-sap/sap-data-intelligence/master/observer/run-observer-template.sh
 ....
++
+2. Edit the downloaded `run-observer-template.sh` file in your favorite editor. Especially, mind
+   the `FLAVOUR`, `NAMESPACE`, `SDI_NAMESPACE` parameters.
++
+[[run-observer-template]]
+3. Run it in bash like this:
++
+....
+# bash ./run-observer-template.sh
+....
++
+4. Keep the modified script around for case of updates.
+
+==== General template parameters
+
+[width="100%",cols="25%,15%,60%",options="header",]
+|===
+| Parameter           | Default value   | Description
+| `SDI_NAMESPACE`     | `sdi`           | Kubernetes namespace where SAP Data Intelligence runs or
+will be running.
+
+| `NAMESPACE`         | `sdi-observer`  | Kubernetes namespace where SDI Observer runs or will be
+running.
+
+| `SLCB_NAMESPACE`    | `sap-slcbridge` | Kubernetes namespace where Software Lifecycle Container
+Bridge runs or will be running.
+
+| `DRY_RUN`           | `false`         | Make SDI Observer perform no changes to k8s resources.
+The observer will only output what would have been done. Use the following command to monitor its
+progress: `oc logs -n $NAMESPACE -f dc/sdi-observer` 
+
+| `OCP_MINOR_RELEASE` | `4.6`           | Determines the desired release of oc client binary. It
+should match the OCP cluster's minor release.
+|===
+
+To see all the available template parameters, execute the following commands:
+
+1. Switch to sdi-observer project:
++
+....
+# oc project sdi-observer
+# # or alternatively, create it if it does not exist yet
+# oc new-project sdi-observer
+....
++
+2. Make the template available on the cluster, please replace the `ocp-template.json` suffix with
+   the xref:template-flavours[template file name] of your choice:
++
+....
+# oc create -f https://raw.githubusercontent.com/redhat-sap/sap-data-intelligence/master/observer/ocp-template.json
+....
++
+3. Describe the template:
++
+....
+# oc describe template
+....
+
+==== Disconnected OCP cluster
+
+The prerequisite is a local registry deployed external to the OCP cluster, secured by TLS and
+suitable to host the SAP Date Intelligence container images.
+
+[[disconnected-mgmt-on]]
+===== Where the management host _has_ access to internet
+
+In this case only the OCP cluster does not have access to the internet. On the other hand,
+management host has the access to reach both the local container image registry as well as OCP
+cluster.
+
+1. Mirror the SDI Observer image to the local registry. For example, on RHEL8:
++
+....
+# podman login local.image.registry:5000    # if the local registry requires authentication
+# skopeo copy \
+    docker://quay.io/miminar/sdi-observer:latest-ocp4.6 \
+    docker://local.image.registry:5000/sdi-observer:latest-ocp4.6
+....
++
+.Please make sure to modify the `4.6` suffix according to your OCP server minor release.
++
+2. Execute the same steps as outlined in xref:ubi-build-tmpl-run[] while making sure that in step 2,
+   `FLAVOUR` is set to the `ocp-prebuilt` and `IMAGE_PULL_SPEC` to your `local.image.registry:5000`
+
+===== Where the management host _lacks_ access to internet
+
+Same as xref:disconnected-mgmt-on[] with the management host having no access to the internet.
+
+1. On a host with access to the internet, copy the SDI Observer image to an archive on USB drive.
+For example, on RHEL8:
++
+....
+# skopeo copy \
+    docker://quay.io/miminar/sdi-observer:latest-ocp4.6 \
+    oci-archive:/var/run/user/1000/usb-disk/sdi-observer.tar:latest-ocp4.6
+....
++
+2. Plug the USB drive to the management host and mirror the image from it to your
+`local.image.registry:5000`:
++
+....
+# skopeo copy \
+    oci-archive:/var/run/user/1000/usb-disk/sdi-observer.tar:latest-ocp4.6 \
+    docker://local.image.registry:5000/sdi-observer:latest-ocp4.6
+....
++
+3. Execute the same steps as outlined in xref:ubi-build-tmpl-run[] while making sure that in step
+   2, `FLAVOUR` is set to the `ocp-prebuilt` and `IMAGE_PULL_SPEC` to your
+   `local.image.registry:5000`
 
 == Update instructions
 
+So far, updates need to be performed manually.
+
+1. Backup the previous `run-observer-template.sh` script and open it as long as available. If not
+   available, run the following to see the previous environment variables:
++
+....
+# oc set env --list dc/sdi-observer -n "${NAMESPACE:-sdi-observer}"
+....
++
+2. Download the run script from git repository like this:
++
+....
+# curl -O https://raw.githubusercontent.com/redhat-sap/sap-data-intelligence/master/observer/run-observer-template.sh
+....
++
+3. Edit the downloaded `run-observer-template.sh` file in your favorite editor. Especially, mind
+   the `FLAVOUR`, `NAMESPACE`, `SDI_NAMESPACE` and `OCP_MINOR_RELEASE` parameters. Compare it
+   against the old `run-observer-template.sh` or against the output of
+   `oc set env --list dc/sdi-observer` and update the parameters accordingly.
++
+4. Continue with the xref:#run-observer-template[regular template instantiation from step 3
+   onward].
+
 == Deprecated parameters
 
-The following parameters will be removed in future versions of SDI
-Observer.
+The following parameters will be removed in future versions of SDI Observer.
 
 [width="100%",cols="22%,12%,21%,45%",options="header",]
 |===
