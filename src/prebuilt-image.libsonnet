@@ -67,7 +67,12 @@ local usePrebuiltImage(tmpl, version) = tmpl {
               spec+: {
                 containers: [
                   c {
-                    env: params.FilterOut(onlineParams, c.env),
+                    env: params.FilterOut(onlineParams, c.env) + [
+                      {
+                        name: 'SOURCE_IMAGE_PULL_SPEC',
+                        value: '${IMAGE_PULL_SPEC}',
+                      },
+                    ],
                   }
                   for c in super.containers
                 ],
