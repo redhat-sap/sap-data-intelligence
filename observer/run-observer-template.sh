@@ -206,7 +206,7 @@ fi
 args=( -f )
 if [[ "${sourceLocation:-}" =~ ^https:// ]]; then
     args+=(
-        "$(join / "$sourceLocation" \
+        "$(join / "$(sed 's,/github.com/,/raw.githubusercontent.com/,' <<<"$sourceLocation")" \
             "${SDI_OBSERVER_GIT_REVISION:-master}" \
             "observer/${template}.json")"
     )
