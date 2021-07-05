@@ -31,14 +31,14 @@ FLAVOUR=ubi-build
 # 1. ubi-build: set the following variable (use UBI8 for the base image)
 #REDHAT_REGISTRY_SECRET_NAME=""
 # 2. ubi-prebuilt
-#SOURCE_IMAGE_PULL_SPEC=registry.centos.org/centos:8
-#SOURCE_IMAGESTREAM_NAME=centos8
-#SOURCE_IMAGESTREAM_TAG=latest
-# 3. custom-build
 # The image shall be first mirrored from the quay.io registry to a local container image registry.
 # Then the below variable must be set accordingly. The %%OCP_MINOR_RELEASE%% macro will be
 # replaced with the value of OCP_MINOR_RELEASE variable.
 #IMAGE_PULL_SPEC=quay.io/miminar/sdi-observer:latest-ocp%%OCP_MINOR_RELEASE%%
+# 3. custom-build
+#SOURCE_IMAGE_PULL_SPEC=registry.centos.org/centos:8
+#SOURCE_IMAGESTREAM_NAME=centos8
+#SOURCE_IMAGESTREAM_TAG=latest
 
 
 # whether the observer shall deploy a container image registry in its NAMESPACE

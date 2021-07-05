@@ -338,7 +338,7 @@ suitable to host the SAP Date Intelligence container images.
 ===== Where the management host _has_ access to internet
 
 In this case only the OCP cluster does not have access to the internet. On the other hand,
-management host has the access to reach both the local container image registry as well as OCP
+management host has access to the local container image registry as well as OCP
 cluster.
 
 1. Mirror the SDI Observer image to the local registry. For example, on RHEL8:
