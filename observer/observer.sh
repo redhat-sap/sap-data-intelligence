@@ -327,7 +327,7 @@ declare -A gotmpls=(
     ["${SDI_NAMESPACE}:Service"]="$(join '' "${gotmplService[@]}")"
     ["${SDI_NAMESPACE}:Role"]="$(join '' "${gotmplRole[@]}")"
     ["${SDI_NAMESPACE}:VoraCluster"]="$(join '' "${gotmplVoraCluster[@]}")"
-    ["${SLCB_NAMESPACE}:Route"]="$(join '' "${gotmplService[@]}")"
+    ["${SLCB_NAMESPACE}:Route"]="$(join '' "${gotmplRoute[@]}")"
     ["${SLCB_NAMESPACE}:Service"]="$(join '' "${gotmplService[@]}")"
     ["${SLCB_NAMESPACE}:DaemonSet"]="$(join '' "${gotmplDaemonSet[@]}")"
 )
@@ -866,18 +866,18 @@ function ensureSlcbRoute() {
         then
             reason=annotation
         else 
-            log "Route vsystem is up to date."
+            log "Route sap-slcbridge is up to date."
             return 0
         fi
     fi
 
     local suffix="" msg="" desc=""
     case "$reason" in
-        removed)    msg='Creating vsystem route for vsystem service%s...';              ;;
+        removed)    msg='Creating sap-slcbridge route for slcbridgebase-service service%s...';              ;;
         label)      desc="outdated labels";                                             ;;&
         annotation) desc="missing annotation";                                          ;;&
         hostname)   desc='hostname mismatch';                                           ;;&
-        *)          msg="$(printf 'Replacing vsystem route%%s due to %s...' "$desc")";  ;;
+        *)          msg="$(printf 'Replacing sap-slcbridge route%%s due to %s...' "$desc")";  ;;
     esac
     if [[ -n "${SLCB_ROUTE_HOSTNAME:-}" ]]; then
         suffix="$(printf ' to be exposed at https://%s' "${SLCB_ROUTE_HOSTNAME:-}")"

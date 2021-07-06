@@ -49,7 +49,7 @@ The value is applied only if `MANAGE_VSYSTEM_ROUTE` is enabled. The hostname def
 === Exposes SLC Bridge service
 
 By default, observer also exposes SLC Bridge service as a route using OpenShift Ingress
-controller. The service is in OCP represented as `service/slcbridgebase-service` in resource
+controller. The service is in OCP represented as `service/slcbridgebase-service` resource in the
 `SLCB_NAMESPACE`.
 
 *Influential parameters*:
@@ -388,8 +388,15 @@ For example, on RHEL8:
     oci-archive:/var/run/user/1000/usb-disk/sdi-observer.tar:latest-ocp4.6
 ....
 +
-2. Plug the USB drive to the management host and mirror the image from it to your
-`local.image.registry:5000`:
+2. Still on the host, clone the Observer git repository to the drive:
++
+....
+# cd /var/run/user/1000/usb-disk/
+# git clone https://github.com/redhat-sap/sap-data-intelligence
+....
++
+3. Plug the USB drive to the management host (with no access to internet) and mirror the image
+   from it to your `local.image.registry:5000`:
 +
 ....
 # skopeo copy \
@@ -397,9 +404,45 @@ For example, on RHEL8:
     docker://local.image.registry:5000/sdi-observer:latest-ocp4.6
 ....
 +
-3. Execute the same steps as outlined in xref:tmpl-run[Template instantiation] while making sure
-   that in step 2, `FLAVOUR` is set to the `ocp-prebuilt` and `IMAGE_PULL_SPEC` to your
-   `local.image.registry:5000`
+4. Copy the git repository from the drive to a local directory.
++
+** If there is already a local directory existing, stash the local changes, merge the remote
+   changes and apply the stashed changes again on the latest code:
++
+....
+# cd ~/sap-data-intelligence
+# git stash         # temporarily remove local changes
+# git remote add drive /var/run/user/1000/usb-disk/sap-data-intelligence
+# git fetch drive
+# git merge drive   # apply the latest changes from drive to the local checkout
+# git stash pop     # re-apply the local changes on top of the latest code
+....
++
+** Otherwise, clone the git repository to a local directory:
++
+....
+# git clone /var/run/user/1000/usb-disk/sap-data-intelligence ~/sap-data-intelligence
+....
++
+5. Edit the `observer/run-observer-template.sh` file in your favorite editor. Especially, mind the
+   `FLAVOUR`, `NAMESPACE`, `SDI_NAMESPACE`, `IMAGE_PULL_SPEC` and `SDI_OBSERVER_REPOSITORY`
+   parameters. Based on this example, at least the following shall be set:
++
+....
+FLAVOUR=ubi-prebuilt
+IMAGE_PULL_SPEC=local.image.registry:5000/sdi-observer:latest-ocp%%OCP_MINOR_RELEASE%%
+SDI_OBSERVER_REPOSITORY="$HOME/sap-data-intelligence"
+....
++
+** local changes to `observer/run-observer-template.sh` can always be inspected with `git diff`
++
+6. Run it in bash like this:
++
+....
+# bash ./observer/run-observer-template.sh
+....
++
+7. Keep the local git repository checkout locally for future updates.
 
 == Update instructions
 

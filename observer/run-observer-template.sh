@@ -65,7 +65,7 @@ SDI_OBSERVER_GIT_REVISION=disconnected
 # set to path/to/a/local/checkout to use a local file
 # leave commented to autodecect (prefer local file, fallback to the remote git repository)
 # NOTE: OCP build cannot use local checkout
-SDI_OBSERVER_REPOSITORY=$HOME/wsp/shanghai/sap-data-intelligence
+#SDI_OBSERVER_REPOSITORY=https://github.com/redhat-sap/sap-data-intelligence
 
 #################################################################################################
 # DO NOT EDIT THE LINES BELOW
