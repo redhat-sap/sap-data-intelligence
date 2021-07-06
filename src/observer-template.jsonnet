@@ -80,10 +80,19 @@ base {
     {
       description: |||
         Expose SLC Bridge's service at the provided hostname using a route. If not given, it will
-        be exposed at slcb.apps.<clustername>.<basedomainname>.
+        be exposed at <SLCB_NAMESPACE>.apps.<clustername>.<basedomainname>.
       |||,
       name: 'SLCB_ROUTE_HOSTNAME',
       required: false,
+    },
+    {
+      description: |||
+        Whether to create a route for SLC Bridge service in SLCB_NAMESPACE. The route will be of
+        passthrough type. If set to "remove", the route will be deleted.
+      |||,
+      required: false,
+      name: 'MANAGE_SLCB_ROUTE',
+      value: 'true',
     },
     {
       description: |||
@@ -123,13 +132,13 @@ base {
       |||,
       required: false,
       name: 'MANAGE_VSYSTEM_ROUTE',
-      value: 'false',
+      value: 'true',
     },
     {
       description: |||
         Expose the vsystem service at the provided hostname using a route. The value is applied
         only if MANAGE_VSYSTEM_ROUTE is enabled. The hostname defaults to
-        vsystem-<SDI_NAMESPACE>.<clustername>.<basedomainname>
+        vsystem-<SDI_NAMESPACE>.apps.<clustername>.<basedomainname>
       |||,
       required: false,
       name: 'VSYSTEM_ROUTE_HOSTNAME',

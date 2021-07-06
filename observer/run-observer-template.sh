@@ -17,7 +17,9 @@ DRY_RUN=false
 DEPLOY_SDI_REGISTRY=false
 INJECT_CABUNDLE=true
 MANAGE_VSYSTEM_ROUTE=true
-#VSYSTEM_ROUTE_HOSTNAME=vsystem-<SDI_NAMESPACE>.<clustername>.<base_domain>
+#VSYSTEM_ROUTE_HOSTNAME=vsystem-<SDI_NAMESPACE>.apps.<clustername>.<base_domain>
+MANAGE_SLCB_ROUTE=true
+#SLCB_ROUTE_HOSTNAME=<SLCB_NAMESPACE>.apps.<clustername>.<base_domain>
 SDI_NODE_SELECTOR="node-role.kubernetes.io/sdi="
 
 
@@ -58,7 +60,7 @@ INJECT_CABUNDLE=false
 CABUNDLE_SECRET_NAME=openshift-ingress-operator/router-ca
 
 # build the latest revision; change to a particular tag if needed (e.g. 0.1.13)
-SDI_OBSERVER_GIT_REVISION=master
+SDI_OBSERVER_GIT_REVISION=disconnected
 # uncomment to always use the git repository
 # set to path/to/a/local/checkout to use a local file
 # leave commented to autodecect (prefer local file, fallback to the remote git repository)
@@ -79,6 +81,8 @@ readonly commonEnvVars=(
     OCP_MINOR_RELEASE
     MANAGE_VSYSTEM_ROUTE
     VSYSTEM_ROUTE_HOSTNAME
+    MANAGE_SLCB_ROUTE
+    SLCB_ROUTE_HOSTNAME
     SDI_NODE_SELECTOR
 
     INJECT_CABUNDLE
