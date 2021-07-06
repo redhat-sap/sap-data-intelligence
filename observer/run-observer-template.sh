@@ -27,7 +27,7 @@ SDI_NODE_SELECTOR="node-role.kubernetes.io/sdi="
 # 1. ubi-build      (recommended, connected)
 # 2. ubi-prebuilt   (disconnected/offline/air-gapped) - use pre-built images
 # 3. custom-build   (best-effort-support)
-FLAVOUR=ubi-prebuilt
+FLAVOUR=ubi-build
 
 # Required parameters for each template flavour:
 # 1. ubi-build: set the following variable (use UBI8 for the base image)
@@ -36,7 +36,7 @@ FLAVOUR=ubi-prebuilt
 # The image shall be first mirrored from the quay.io registry to a local container image registry.
 # Then the below variable must be set accordingly. The %%OCP_MINOR_RELEASE%% macro will be
 # replaced with the value of OCP_MINOR_RELEASE variable.
-IMAGE_PULL_SPEC=registry-ext.ocpoff.vslen:5032/sdi-observer:latest-ocp%%OCP_MINOR_RELEASE%%
+#IMAGE_PULL_SPEC=quay.io/miminar/sdi-observer:latest-ocp%%OCP_MINOR_RELEASE%%
 # 3. custom-build
 #SOURCE_IMAGE_PULL_SPEC=registry.centos.org/centos:8
 #SOURCE_IMAGESTREAM_NAME=centos8
@@ -56,8 +56,8 @@ SDI_REGISTRY_AUTHENTICATION=basic       # "none" disables the authentication
 #SDI_REGISTRY_PASSWORD=                 # auto-generated unless set
 #SDI_REGISTRY_HTPASSWD_SECRET_NAME=     # auto-generated unless set
 
-INJECT_CABUNDLE=true
-CABUNDLE_SECRET_NAME=cmcertificates
+INJECT_CABUNDLE=false
+CABUNDLE_SECRET_NAME=openshift-ingress-operator/router-ca
 
 # build the latest revision; change to a particular tag if needed (e.g. 0.1.13)
 SDI_OBSERVER_GIT_REVISION=disconnected
@@ -118,7 +118,6 @@ envVars=( "${commonEnvVars[@]}" )
 
 function join() { local IFS="$1"; shift; echo "$*"; }
 
-set -x
 case "${FLAVOUR:-ubi-build}" in
     ubi-build)
         envVars+=(
