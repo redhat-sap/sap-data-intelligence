@@ -794,8 +794,100 @@ function ensureVsystemRoute() {
 }
 
 
+function ensureSlcbRoute() {
+    local remove
+    remove="$(grep -E -i -q '^\s*(remove|delete)d?\s*$' <<<"${MANAGE_SLCB_ROUTE:-}" && \
+        printf 1 || printf 0)"
+    if [[ "$remove" == 0 ]] && ! evalBool MANAGE_SLCB_ROUTE; then
+        return 0
+    fi
+    local routeSpec svcSpec
+    routeSpec="$(oc get -n "${SLCB_NAMESPACE}" route/sap-slcbridge -o json)" ||:
+    svcSpec="$(oc get -n "${SLCB_NAMESPACE}" svc/slcbridgebase-service -o json)" ||:
+
+    # delete route
+    if [[ -n "${routeSpec:-}" ]]; then
+        local delete=0
+        if [[ -z "${svcSpec:-}" ]]; then
+            log 'Removing slcb route because the slcb service does not exist'
+            delete=1
+        elif [[ "$remove" == 1 ]]; then
+            log 'Removing slcb route because as instructed...'
+            delete=1
+        fi
+        if [[ "${delete:-0}" == 1 ]]; then
+            runOrLog oc delete -n "${SLCB_NAMESPACE}" route/sap-slcbridge
+            return 0
+        fi
+    elif [[ "$remove" == 1 ]]; then
+        return 0
+    elif [[ -z "${svcSpec:-}" ]]; then
+        log 'Not creating slcb route for the missing vsystem service...'
+        return 0
+    fi
+
+    if [[ -z "${SLCB_ROUTE_HOSTNAME:-}" ]]; then
+        local domain
+        domain="$(oc get ingresses.config.openshift.io/cluster -o jsonpath='{.spec.domain}' ||:)"
+        if [[ -z "${domain:-}" ]]; then
+            log -n 'WARNING: Failed to determine cluster apps domain,'
+            log -d ' defaulting to the default route name.'
+        else
+            SLCB_ROUTE_HOSTNAME="${SLCB_NAMESPACE}.$domain"
+            log 'Defaulting slcb route hostname to: %s' "${SLCB_ROUTE_HOSTNAME}"
+        fi
+    fi
+
+    # create or replace route
+    local reason=""
+    if [[ -z "${routeSpec:-}" ]]; then
+        reason=removed
+    else
+        if [[ "$(getResourceSAPLabels <<<"${routeSpec}")" != \
+            "$(getResourceSAPLabels <<<"$svcSpec")" ]]
+        then
+            reason=label
+        elif [[ -n "${SLCB_ROUTE_HOSTNAME:-}" && "${SLCB_ROUTE_HOSTNAME:-}" != \
+            "$(jq -r '.spec.host' <<<"${routeSpec:-}")" ]]
+        then
+            reason=hostname
+        elif ! jq -r '(.metadata.annotations // {}) | keys[]' <<<"$routeSpec" | \
+            grep -F -x -q haproxy.router.openshift.io/timeout;
+        then
+            reason=annotation
+        else 
+            log "Route vsystem is up to date."
+            return 0
+        fi
+    fi
+
+    local suffix="" msg="" desc=""
+    case "$reason" in
+        removed)    msg='Creating vsystem route for vsystem service%s...';              ;;
+        label)      desc="outdated labels";                                             ;;&
+        annotation) desc="missing annotation";                                          ;;&
+        hostname)   desc='hostname mismatch';                                           ;;&
+        *)          msg="$(printf 'Replacing vsystem route%%s due to %s...' "$desc")";  ;;
+    esac
+    if [[ -n "${SLCB_ROUTE_HOSTNAME:-}" ]]; then
+        suffix="$(printf ' to be exposed at https://%s' "${SLCB_ROUTE_HOSTNAME:-}")"
+    fi
+    log "$msg" "${suffix:-}"
+
+    local args=() annotations=()
+    args=( -n "${SLCB_NAMESPACE}" "$DRUNARG" -o json
+            "--service=slcbridgebase-service" "--insecure-policy=Redirect" )
+    if [[ -n "${SLCB_ROUTE_HOSTNAME:-}" ]]; then
+        args+=( "--hostname=${SLCB_ROUTE_HOSTNAME:-}" )
+    fi
+    annotations=( "haproxy.router.openshift.io/timeout=10m")
+    createOrReplace -n "${SLCB_NAMESPACE}" -f <<<"$(oc create route passthrough sap-slcbridge \
+        "${args[@]}" | oc annotate --local -f - "${annotations[@]}" -o json)"
+}
+
 function ensureRoutes() {
     ensureVsystemRoute
+    ensureSlcbRoute
 }
 
 function managePullSecret() {
@@ -1227,7 +1319,7 @@ while IFS=' ' read -u 3 -r namespace name resource; do
         continue
         ;;
 
-    service/vsystem | route/*)
+    service/vsystem | service/slcbridgebase-service | route/*)
         ensureRoutes ||:
         ;;
 

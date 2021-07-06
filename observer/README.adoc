@@ -27,8 +27,8 @@ system. It also modifies it to parse plain text log files instead of preconfigur
 
 === Exposes SDI System Management service
 
-By default, observer also exposes SDI System Management service as a route using OpenShift Ingress
-controller. The service is in OCP represented as `service/vsystem` resource.
+By default, observer also exposes SDI System Management service as a route using OpenShift
+Ingress controller. The service is in OCP represented as `service/vsystem` resource.
 
 *Influential parameters*:
 
@@ -43,7 +43,27 @@ service during SDI updates.
 
 |`VSYSTEM_ROUTE_HOSTNAME` | |Expose the vsystem service at the provided hostname using a route.
 The value is applied only if `MANAGE_VSYSTEM_ROUTE` is enabled. The hostname defaults to
-`vsystem-<SDI_NAMESPACE>.<clustername>.<basedomainname>`
+`vsystem-<SDI_NAMESPACE>.apps.<clustername>.<basedomainname>`
+|===
+
+=== Exposes SLC Bridge service
+
+By default, observer also exposes SLC Bridge service as a route using OpenShift Ingress
+controller. The service is in OCP represented as `service/slcbridgebase-service` in resource
+`SLCB_NAMESPACE`.
+
+*Influential parameters*:
+
+[width="100%",cols="25%,15%,60%",options="header",]
+|===
+|Parameter |Default Value |Description
+|`MANAGE_SLCB_ROUTE` |`true` |Whether to create a route for SLC Bridge service in
+`SLCB_NAMESPACE`. The route will be of passthrough type. If set to `remove`, the route will be
+deleted.
+
+|`SLCB_ROUTE_HOSTNAME` | |Expose the vsystem service at the provided hostname using a route. The
+value is applied only if `MANAGE_SLCB_ROUTE` is enabled. The hostname defaults to
+`<SLCB_NAMESPACE>.apps.<clustername>.<basedomainname>`
 |===
 
 === _(optional)_ Ensures registry CA bundle gets imported
