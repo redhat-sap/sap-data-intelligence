@@ -60,7 +60,7 @@ INJECT_CABUNDLE=false
 CABUNDLE_SECRET_NAME=openshift-ingress-operator/router-ca
 
 # build the latest revision; change to a particular tag if needed (e.g. 0.1.13)
-SDI_OBSERVER_GIT_REVISION=disconnected
+SDI_OBSERVER_GIT_REVISION=master
 # uncomment to always use the git repository
 # set to path/to/a/local/checkout to use a local file
 # leave commented to autodecect (prefer local file, fallback to the remote git repository)
