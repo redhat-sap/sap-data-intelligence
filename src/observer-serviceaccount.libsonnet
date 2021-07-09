@@ -248,6 +248,8 @@
         $.rbac.role.ManageRBAC,
         $.rbac.role.CreateNamespaces,
         $.rbac.role.PatchDaemonSets,
+        $.rbac.role.ManageRoutes,
+        $.rbac.role.ManageServices,
       ],
     },
 

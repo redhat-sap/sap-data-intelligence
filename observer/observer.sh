@@ -265,6 +265,14 @@ gotmplService=(
                 '{{end}}'
             '{{end}}'
         '{{end}}'
+        '{{if eq $s.metadata.name "slcbridgebase-service"}}'
+            '{{with $app := index $s.metadata.labels "app"}}'
+                '{{if (eq $app "slcbridge")}}'
+                    # print (string kind)
+                    $'{{$s.kind}}\n'
+                '{{end}}'
+            '{{end}}'
+        '{{end}}'
     '{{end}}'
 )
 
@@ -319,6 +327,8 @@ declare -A gotmpls=(
     ["${SDI_NAMESPACE}:Service"]="$(join '' "${gotmplService[@]}")"
     ["${SDI_NAMESPACE}:Role"]="$(join '' "${gotmplRole[@]}")"
     ["${SDI_NAMESPACE}:VoraCluster"]="$(join '' "${gotmplVoraCluster[@]}")"
+    ["${SLCB_NAMESPACE}:Route"]="$(join '' "${gotmplService[@]}")"
+    ["${SLCB_NAMESPACE}:Service"]="$(join '' "${gotmplService[@]}")"
     ["${SLCB_NAMESPACE}:DaemonSet"]="$(join '' "${gotmplDaemonSet[@]}")"
 )
 
@@ -822,7 +832,7 @@ function ensureSlcbRoute() {
     elif [[ "$remove" == 1 ]]; then
         return 0
     elif [[ -z "${svcSpec:-}" ]]; then
-        log 'Not creating slcb route for the missing vsystem service...'
+        log 'Not creating slcb route for the missing slcbridgebase-service ...'
         return 0
     fi
 
