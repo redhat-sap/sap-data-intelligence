@@ -647,6 +647,42 @@
                   "update",
                   "delete"
                ]
+            },
+            {
+               "apiGroups": [
+                  "route.openshift.io/v1"
+               ],
+               "resources": [
+                  "routes"
+               ],
+               "verbs": [
+                  "get",
+                  "list",
+                  "watch",
+                  "patch",
+                  "update",
+                  "delete",
+                  "create",
+                  "delete"
+               ]
+            },
+            {
+               "apiGroups": [
+                  ""
+               ],
+               "resources": [
+                  "service"
+               ],
+               "verbs": [
+                  "get",
+                  "list",
+                  "watch",
+                  "patch",
+                  "update",
+                  "delete",
+                  "create",
+                  "delete"
+               ]
             }
          ]
       },
