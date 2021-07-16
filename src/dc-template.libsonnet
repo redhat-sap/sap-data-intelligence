@@ -52,6 +52,7 @@ base {
       spec: {
         replicas: 1,
         selector: {
+          // TODO: replace with app: in a future release
           deploymentconfig: dctmpl.resourceName,
         },
         strategy: {
@@ -60,6 +61,7 @@ base {
         template: {
           metadata: {
             labels: {
+              app: dctmpl.resourceName,
               deploymentconfig: dctmpl.resourceName,
             },
           },
