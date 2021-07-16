@@ -87,6 +87,9 @@ readonly commonEnvVars=(
 
     INJECT_CABUNDLE
     CABUNDLE_SECRET_NAME
+
+    REPLACE_SECRETS
+    FORCE_REDEPLOY
 )
 
 readonly registryEnvVars=(
