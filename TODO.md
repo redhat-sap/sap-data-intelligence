@@ -1,3 +1,4 @@
+- [ ] - install jq from the regular RHEL8 repositories (rhocp-4.6-for-rhel-8-x86_64-rpms)
 - ensure clusterrolebinding to get clusteroperators/openshift-apiserver to get reliably OCP server version
 - [ ] - deploy-registry: do not redeploy if the image cannot be pulled
     - if image cannot be pulled (because e.g. registry lost the blobs), an endless loop begins
