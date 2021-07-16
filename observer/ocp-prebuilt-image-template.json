@@ -871,7 +871,7 @@
          "description": "Pull specification of a prebuilt image of SDI Observer. If the registry requires\nauthentication, a pull secret must be created and linked with the sdi-observer service\naccount.\n",
          "name": "IMAGE_PULL_SPEC",
          "required": true,
-         "value": "quay.io/miminar/sdi-observer:0.1.16-ocp4.6"
+         "value": "quay.io/redhat-sap-cop/sdi-observer:0.1.16-ocp4.6"
       }
    ]
 }

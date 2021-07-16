@@ -366,7 +366,7 @@ cluster.
 ....
 # podman login local.image.registry:5000    # if the local registry requires authentication
 # skopeo copy \
-    docker://quay.io/miminar/sdi-observer:latest-ocp4.6 \
+    docker://quay.io/redhat-sap-cop/sdi-observer:latest-ocp4.6 \
     docker://local.image.registry:5000/sdi-observer:latest-ocp4.6
 ....
 +
@@ -384,7 +384,7 @@ For example, on RHEL8:
 +
 ....
 # skopeo copy \
-    docker://quay.io/miminar/sdi-observer:latest-ocp4.6 \
+    docker://quay.io/redhat-sap-cop/sdi-observer:latest-ocp4.6 \
     oci-archive:/var/run/user/1000/usb-disk/sdi-observer.tar:latest-ocp4.6
 ....
 +

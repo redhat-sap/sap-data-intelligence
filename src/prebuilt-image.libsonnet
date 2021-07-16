@@ -99,7 +99,7 @@ local usePrebuiltImage(tmpl, version) = tmpl {
       },
       name: 'IMAGE_PULL_SPEC',
       required: true,
-      value: 'quay.io/miminar/sdi-observer:%(version)s-ocp%(ocpMinorRelease)s' % {
+      value: 'quay.io/redhat-sap-cop/sdi-observer:%(version)s-ocp%(ocpMinorRelease)s' % {
         version: version,
         ocpMinorRelease: params.OCPMinorReleaseParam.value,
       },
