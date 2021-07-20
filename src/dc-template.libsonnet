@@ -33,6 +33,16 @@ base {
     },
   },
 
+  imagePullSpecParam:: params.Param {
+    description: error 'description must be overriden by a child!',
+    name: 'IMAGE_PULL_SPEC',
+    required: true,
+    value: error 'imagePullSpecParam.value must be overriden by a child!',
+  },
+
+  saName:: local sas = [o.metadata.name for o in dctmpl.objects if o.kind == 'ServiceAccount'];
+          if sas == [] then 'default' else sas[0],
+
   objects+: [
     dctmpl.sa,
 

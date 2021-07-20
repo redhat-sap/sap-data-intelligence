@@ -3,7 +3,7 @@
 set -euo pipefail
 IFS=$'\n\t'
 
-for d in "$(dirname "${BASH_SOURCE[0]}")" . /usr/local/share/sdi; do
+for d in "$(dirname "${BASH_SOURCE[0]}")/.." . .. /usr/local/share/sdi; do
     if [[ -e "$d/lib/common.sh" ]]; then
         eval "source '$d/lib/common.sh'"
     fi
@@ -442,11 +442,13 @@ function checkPermissions() {
 
     local nmprefix=""
     [[ -n "${NAMESPACE:-}" ]] && nmprefix="${NAMESPACE:-}:"
+    local tmplParams=( NAMESPACE="${NAMESPACE:-foo}" )
+    if [[ "${FLAVOUR:-ubi-build}" == ubi-build ]]; then
+        tmplParams+=( REDHAT_REGISTRY_SECRET_NAME=foo )
+    fi
     if evalBool DEPLOY_SDI_REGISTRY; then
         declare -a registryKinds=()
-        readarray -t registryKinds <<<"$(oc process \
-            NAMESPACE="${NAMESPACE:-foo}" \
-            REDHAT_REGISTRY_SECRET_NAME=foo \
+        readarray -t registryKinds <<<"$(oc process "${tmplParams[@]}" \
             -f "$(SOURCE_IMAGE_PULL_SPEC="" getRegistryTemplatePath)" \
                 -o jsonpath=$'{range .items[*]}{.kind}\n{end}')"
         for kind in "${registryKinds[@],,}"; do
@@ -541,10 +543,11 @@ function deployComponent() {
         OCP_MINOR_RELEASE="${OCP_MINOR_RELEASE:-}"
         # passed as an argument instead
         #WAIT_UNTIL_ROLLEDOUT=true
+        SDI_OBSERVER_GIT_REVISION="${SDI_OBSERVER_GIT_REVISION:-master}"
+        SDI_OBSERVER_REPOSITORY="${SDI_OBSERVER_REPOSITORY:-https://github.com/redhat-sap/sap-data-intelligence}"
     )
 
-    if [[ -n "${SOURCE_IMAGESTREAM_NAME:-}" && "${SOURCE_IMAGESTREAM_TAG:-}" && \
-            -n "${SOURCE_IMAGE_PULL_SPEC:-}" ]]; then
+    if [[ "${FLAVOUR:-ubi-build}" == custom-build ]]; then
         fn="$component/deploy-job-custom-source-image-template.json"
         args+=(
             SOURCE_IMAGE_PULL_SPEC="${SOURCE_IMAGE_PULL_SPEC:-}"

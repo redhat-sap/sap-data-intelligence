@@ -28,7 +28,10 @@ function(version) {
     registryTemplate,
     version,
   ),
-
+  'registry/ocp-prebuilt-image-template.json': usePrebuiltImage(
+    registryTemplate,
+    version,
+  ),
 
   local registryJobTemplate = regjobtmpl { version: version },
   'registry/deploy-job-template.json': registryJobTemplate,

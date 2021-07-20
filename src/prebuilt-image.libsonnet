@@ -6,21 +6,33 @@ local usePrebuiltImage(tmpl, version) = tmpl {
     checkVarName, arr, false
   ),
 
-  // TODO: filter out by a hidden field in parameter objects e.g. Online / Offline
-  local onlineParams = std.flattenArrays([
+  local onlineOnlyCommonParams = std.flattenArrays([
     params.ObserverBuildParams,
-
-    params.RegistryParams,
-    [params.RegistryDeployParam],
-    params.RegistryDeployParams,
-    [params.ReplacePersistentVolumeClaimsParam],
-
     params.RedHatRegistrySecretParams,
 
     [params.ExposeWithLetsencryptParam],
     [params.LetsencryptDeployParam],
     params.LetsencryptParams,
+
+    [params.RegistryDeployParam],
+    params.RegistryDeployParams,
   ]),
+
+  // TODO: filter out by a hidden field in parameter objects e.g. Online / Offline
+  local onlineOnlyObserverParams = std.flattenArrays([
+    params.RegistryParams,
+    [params.ReplacePersistentVolumeClaimsParam],
+  ]),
+
+  local onlineOnlyParams = std.flattenArrays(
+    [
+      onlineOnlyCommonParams,
+      if tmpl.metadata.name == 'sdi-observer' then
+        onlineOnlyObserverParams
+      else
+        [],
+    ]
+  ),
 
   tags: {
     online: false,
@@ -47,7 +59,7 @@ local usePrebuiltImage(tmpl, version) = tmpl {
                 importPolicy: {
                   scheduled: true,
                 },
-                name: version + '-ocp${OCP_MINOR_RELEASE}',
+                name: std.split(tmpl.imageStreamTag, ':')[1],
                 referencePolicy: {
                   type: 'Source',
                 },
@@ -67,7 +79,7 @@ local usePrebuiltImage(tmpl, version) = tmpl {
               spec+: {
                 containers: [
                   c {
-                    env: params.FilterOut(onlineParams, c.env) + [
+                    env: params.FilterOut(onlineOnlyParams, c.env) + [
                       {
                         name: 'SOURCE_IMAGE_PULL_SPEC',
                         value: '${IMAGE_PULL_SPEC}',
@@ -88,22 +100,8 @@ local usePrebuiltImage(tmpl, version) = tmpl {
   ],
 
   local tmplParams = super.parameters,
-  parameters: params.FilterOut(onlineParams, tmplParams) + [
-    {
-      description: |||
-        Pull specification of a prebuilt image of SDI Observer. If the registry requires
-        authentication, a pull secret must be created and linked with the %(saName)s service
-        account.
-      ||| % {
-        saName: tmpl.saName,
-      },
-      name: 'IMAGE_PULL_SPEC',
-      required: true,
-      value: 'quay.io/redhat-sap-cop/sdi-observer:%(version)s-ocp%(ocpMinorRelease)s' % {
-        version: version,
-        ocpMinorRelease: params.OCPMinorReleaseParam.value,
-      },
-    },
+  parameters: params.FilterOut(onlineOnlyParams, tmplParams) + [
+    tmpl.imagePullSpecParam,
   ],
 };
 

@@ -23,126 +23,9 @@ base {
   parametersToExport+: [
     params.ForceRedeployParam,
     params.ReplaceSecretsParam,
-  ] + bc.newParameters + [
-    {
-      description: |||
-        The name of the SAP Data Intelligence namespace to manage. Defaults to the current one. It
-        must be set only in case the observer is running in a different namespace (see NAMESPACE).
-      |||,
-      name: 'SDI_NAMESPACE',
-    },
-    {
-      description: |||
-        The name of the namespace where SLC Bridge runs.
-      |||,
-      name: 'SLCB_NAMESPACE',
-      value: 'sap-slcbridge',
-    },
-    {
-      description: |||
-        Set to true if the given or configured VFLOW_REGISTRY shall be marked as insecure in all
-        instances of Pipeline Modeler.
-      |||,
-      name: 'MARK_REGISTRY_INSECURE',
-      required: true,
-      value: 'false',
-    },
-    {
-      description: |||
-        Patch deployments with vsystem-iptables container to make them privileged in order to load
-        kernel modules they need. Unless true, it is assumed that the modules have been pre-loaded
-        on the worker nodes. This will make also vsystem-vrep-* pod privileged.
-      |||,
-      name: 'MAKE_VSYSTEM_IPTABLES_PODS_PRIVILEGED',
-      required: true,
-      value: 'false',
-    },
-    {
-      description: |||
-        Format of the logging files on the nodes. Allowed values are "json" and "text".
-        Initially, SDI fluentd pods are configured to parse "json" while OpenShift 4 uses
-        "text" format by default. If not given, the default is "text".
-      |||,
-      name: 'NODE_LOG_FORMAT',
-      required: false,
-    },
-    {
-      description: |||
-        The registry to mark as insecure. If not given, it will be determined from the
-        installer-config secret in the SDI_NAMESPACE. If DEPLOY_SDI_REGISTRY is set to "true",
-        this variable will be used as the container image registry's hostname when creating the
-        corresponding route.
-      |||,
-      name: 'REGISTRY',
-    },
+  ] + bc.newParameters + params.ObserverParams + [
     params.RegistryDeployParam,
     params.LetsencryptDeployParam,
-    {
-      description: |||
-        Expose SLC Bridge's service at the provided hostname using a route. If not given, it will
-        be exposed at <SLCB_NAMESPACE>.apps.<clustername>.<basedomainname>.
-      |||,
-      name: 'SLCB_ROUTE_HOSTNAME',
-      required: false,
-    },
-    {
-      description: |||
-        Whether to create a route for SLC Bridge service in SLCB_NAMESPACE. The route will be of
-        passthrough type. If set to "remove", the route will be deleted.
-      |||,
-      required: false,
-      name: 'MANAGE_SLCB_ROUTE',
-      value: 'true',
-    },
-    {
-      description: |||
-        Inject CA certificate bundle into SAP Data Intelligence pods. The bundle can
-        be specified with CABUNDLE_SECRET_NAME. It is needed if either registry or s3 endpoint
-        is secured by a self-signed certificate.
-      |||,
-      required: false,
-      name: 'INJECT_CABUNDLE',
-      value: 'false',
-    },
-    {
-      description: |||
-        The name of the secret containing certificate authority bundle that shall be injected
-        into Data Intelligence pods. By default, the secret bundle is obtained from
-        openshift-ingress-operator namespace where the router-ca secret contains the certificate
-        authority used to signed all the edge and reencrypt routes that are inter alia used for
-        SDI_REGISTRY and NooBaa S3 API services. The secret name may be optionally prefixed with
-        $namespace/. For example, in the default value "openshift-ingress-operator/router-ca",
-        the "openshift-ingress-operator" stands for secret's namespace and "router-ca" stands for
-        secret's name. If no $namespace prefix is given, the secret is expected to reside in
-        NAMESPACE where the SDI observer runs. All the entries present in the "data" field having
-        ".crt" or ".pem" suffix will be concatenated to form the resulting "cert" file. This bundle
-        will also be used to create cmcertificates secret in SDI_NAMESPACE according to %s
-      ||| % (urls.sapSdiSettingUpCertificates),
-      required: false,
-      name: 'CABUNDLE_SECRET_NAME',
-      value: 'openshift-ingress-operator/router-ca',
-    },
-    {
-      description: |||
-        Whether to create vsystem route for vsystem service in SDI_NAMESPACE. The route will be
-        of reencrypt type. The destination CA certificate for communication with the vsystem
-        service will be kept up to date by the observer. If set to "remove", the route will be
-        deleted, which is useful to temporarily disable access to vsystem service during SDI
-        updates.
-      |||,
-      required: false,
-      name: 'MANAGE_VSYSTEM_ROUTE',
-      value: 'true',
-    },
-    {
-      description: |||
-        Expose the vsystem service at the provided hostname using a route. The value is applied
-        only if MANAGE_VSYSTEM_ROUTE is enabled. The hostname defaults to
-        vsystem-<SDI_NAMESPACE>.apps.<clustername>.<basedomainname>
-      |||,
-      required: false,
-      name: 'VSYSTEM_ROUTE_HOSTNAME',
-    },
   ] + [
     params.NotRequired(p)
     for p in params.LetsencryptParams
@@ -160,9 +43,6 @@ base {
     }),
   ],
 
-  saName:: local sas = [o.metadata.name for o in obstmpl.objects if o.kind == 'ServiceAccount'];
-          if sas == [] then 'default' else sas[0],
-
 
   local bc = obsbc {
     createdBy:: obstmpl.createdBy,
@@ -176,6 +56,20 @@ base {
     offline:: true,
     // whether the text is suitable for the connecte/online version of the template
     online:: true,
+  },
+
+  imagePullSpecParam+: {
+    description: |||
+      Pull specification of a prebuilt image of SDI Observer. If the registry requires
+      authentication, a pull secret must be created and linked with the %(saName)s service
+      account.
+    ||| % {
+      saName: obstmpl.saName,
+    },
+    value: 'quay.io/redhat-sap-cop/sdi-observer:%(version)s-ocp%(ocpMinorRelease)s' % {
+      version: obstmpl.version,
+      ocpMinorRelease: params.OCPMinorReleaseParam.value,
+    },
   },
 
   descriptionParagraphs:: [

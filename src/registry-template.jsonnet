@@ -70,6 +70,20 @@ base {
     |||,
   },
 
+  imagePullSpecParam+: {
+    description: |||
+      Pull specification of a prebuilt image of container image registry (aka SDI Registry). If
+      this param's registry requires authentication, a pull secret must be created and linked with
+      the %(saName)s service account.
+    ||| % {
+      saName: regtmpl.saName,
+    },
+    value: 'quay.io/redhat-sap-cop/container-image-registry:%(version)s' % {
+      version: regtmpl.version,
+      ocpMinorRelease: params.OCPMinorReleaseParam.value,
+    },
+  },
+
   local addVolumes(object) = if object.kind == 'DeploymentConfig' then
     object {
       spec+: {
@@ -219,6 +233,8 @@ base {
                },
                spec: {
                  accessModes: ['${SDI_REGISTRY_VOLUME_ACCESS_MODE}'],
+                 // the default value "" cannot be used - no PV gets bound
+                 //storageClassName: '${{SDI_REGISTRY_STORAGE_CLASS_NAME}}',
                  resources: {
                    requests: {
                      storage: '${SDI_REGISTRY_VOLUME_CAPACITY}',

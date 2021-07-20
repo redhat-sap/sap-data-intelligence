@@ -188,7 +188,7 @@
          "required": true
       },
       {
-         "description": "If set to true, no action will be performed. The pod will just print what would have been\nexecuted.\n",
+         "description": "If set to true, no action will be performed. The pod will just print what would have been executed.",
          "name": "DRY_RUN",
          "required": false,
          "value": "false"

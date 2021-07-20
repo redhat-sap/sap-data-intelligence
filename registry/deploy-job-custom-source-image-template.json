@@ -63,8 +63,8 @@
                               "value": "${REPLACE_PERSISTENT_VOLUME_CLAIMS}"
                            },
                            {
-                              "name": "SDI_REGISTRY_STORAGE_CLASS_NAME",
-                              "value": "${SDI_REGISTRY_STORAGE_CLASS_NAME}"
+                              "name": "REGISTRY",
+                              "value": "${REGISTRY}"
                            },
                            {
                               "name": "SDI_REGISTRY_USERNAME",
@@ -77,6 +77,10 @@
                            {
                               "name": "SDI_REGISTRY_AUTHENTICATION",
                               "value": "${SDI_REGISTRY_AUTHENTICATION}"
+                           },
+                           {
+                              "name": "SDI_REGISTRY_STORAGE_CLASS_NAME",
+                              "value": "${SDI_REGISTRY_STORAGE_CLASS_NAME}"
                            },
                            {
                               "name": "SDI_REGISTRY_HTPASSWD_SECRET_NAME",
@@ -340,103 +344,109 @@
          "required": true
       },
       {
-         "description": "If set to true, no action will be performed. The pod will just print what would have been\nexecuted.\n",
+         "description": "If set to true, no action will be performed. The pod will just print what would have been executed.",
          "name": "DRY_RUN",
          "required": false,
          "value": "false"
       },
       {
-         "description": "Whether to forcefully replace existing objects and configuration files. To replace\nexising secrets as well, RECREATE_SECRETS needs to be set.\n",
+         "description": "Whether to forcefully replace existing objects and configuration files. To replace exising secrets as well, RECREATE_SECRETS needs to be set.",
          "name": "FORCE_REDEPLOY",
          "required": false,
          "value": "false"
       },
       {
-         "description": "Whether to replace secrets like SDI Registry's htpasswd file if they exist already.\n",
+         "description": "Whether to replace secrets like SDI Registry's htpasswd file if they exist already.",
          "name": "REPLACE_SECRETS",
          "required": false,
          "value": "false"
       },
       {
-         "description": "Whether to replace existing persistent volume claims like the one belonging to SDI\nRegistry.\n",
+         "description": "Whether to replace existing persistent volume claims like the one belonging to SDI Registry.",
          "name": "REPLACE_PERSISTENT_VOLUME_CLAIMS",
          "required": false,
          "value": "false"
       },
       {
-         "description": "Unless given, the default storage class will be used.\n",
-         "name": "SDI_REGISTRY_STORAGE_CLASS_NAME",
+         "description": "(deprecated since 0.1.13) The registry to mark as insecure. If not given, it will be determined from the installer-config secret in the SDI_NAMESPACE. If DEPLOY_SDI_REGISTRY is set to \"true\", this variable will be used as the container image registry's hostname when creating the corresponding route.",
+         "name": "REGISTRY",
          "required": false
       },
       {
-         "description": "Will be used to generate htpasswd file to provide authentication data to the SDI Registry\nservice as long as SDI_REGISTRY_HTPASSWD_SECRET_NAME does not exist or REPLACE_SECRETS is\n\"true\".\n",
+         "description": "Will be used to generate htpasswd file to provide authentication data to the SDI Registry service as long as SDI_REGISTRY_HTPASSWD_SECRET_NAME does not exist or REPLACE_SECRETS is \"true\".",
          "from": "user-[a-z0-9]{6}",
          "generate": "expression",
          "name": "SDI_REGISTRY_USERNAME",
          "required": false
       },
       {
-         "description": "Will be used to generate htpasswd file to provide authentication data to the SDI Registry\nservice as long as SDI_REGISTRY_HTPASSWD_SECRET_NAME does not exist or REPLACE_SECRETS is\n\"true\".\n",
+         "description": "Will be used to generate htpasswd file to provide authentication data to the SDI Registry service as long as SDI_REGISTRY_HTPASSWD_SECRET_NAME does not exist or REPLACE_SECRETS is \"true\".",
          "from": "[a-zA-Z0-9]{32}",
          "generate": "expression",
          "name": "SDI_REGISTRY_PASSWORD",
          "required": false
       },
       {
-         "description": "Choose the authentication method of the SDI Registry. Value \"none\" disables authentication\naltogether. Defaults to \"basic\" where the provided htpasswd file is used to gate\nthe incoming authentication requests.\n",
+         "description": "Choose the authentication method of the SDI Registry. Value \"none\" disables authentication altogether. Defaults to \"basic\" where the provided htpasswd file is used to gate the incoming authentication requests.",
          "name": "SDI_REGISTRY_AUTHENTICATION",
          "required": false,
          "value": "basic"
       },
       {
-         "description": "A secret with htpasswd file with authentication data for the sdi image container If\ngiven and the secret exists, it will be used instead of SDI_REGISTRY_USERNAME and\nSDI_REGISTRY_PASSWORD.\n",
+         "description": "Unless given, the default storage class will be used.",
+         "name": "SDI_REGISTRY_STORAGE_CLASS_NAME",
+         "required": false
+      },
+      {
+         "description": "A secret with htpasswd file with authentication data for the sdi image container If given and the secret exists, it will be used instead of SDI_REGISTRY_USERNAME and SDI_REGISTRY_PASSWORD.",
          "name": "SDI_REGISTRY_HTPASSWD_SECRET_NAME",
          "required": true,
          "value": "container-image-registry-htpasswd"
       },
       {
-         "description": "Desired hostname of the exposed registry service. Defaults to\ncontainer-image-registry-<NAMESPACE>-apps.<cluster_name>.<base_domain>\n",
+         "description": "Desired hostname of the exposed registry service. Defaults to container-image-registry-<NAMESPACE>-apps.<cluster_name>.<base_domain>",
          "name": "SDI_REGISTRY_ROUTE_HOSTNAME",
          "required": false
       },
       {
-         "description": "A random piece of data used to sign state that may be stored with the client to protect\nagainst tampering. If omitted, the registry will automatically generate a secret when it\nstarts. If using multiple replicas of registry, the secret MUST be the same for all of\nthem.\n",
+         "description": "A random piece of data used to sign state that may be stored with the client to protect against tampering. If omitted, the registry will automatically generate a secret when it starts. If using multiple replicas of registry, the secret MUST be the same for all of them.",
          "from": "[a-zA-Z0-9]{32}",
          "generate": "expression",
          "name": "SDI_REGISTRY_HTTP_SECRET",
          "required": false
       },
       {
-         "description": "Volume space available for container images (e.g. 120Gi).\n",
+         "description": "Volume space available for container images (e.g. 120Gi).",
          "name": "SDI_REGISTRY_VOLUME_CAPACITY",
          "required": true,
          "value": "120Gi"
       },
       {
-         "description": "If the given SDI_REGISTRY_STORAGE_CLASS_NAME or the default storate class supports\n\"ReadWriteMany\" (\"RWX\") access mode, please change this to \"ReadWriteMany\".\n",
+         "description": "If the given SDI_REGISTRY_STORAGE_CLASS_NAME or the default storate class supports \"ReadWriteMany\" (\"RWX\") access mode, please change this to \"ReadWriteMany\".",
          "name": "SDI_REGISTRY_VOLUME_ACCESS_MODE",
-         "required": false,
+         "required": true,
          "value": "ReadWriteOnce"
       },
       {
-         "description": "Whether to expose routes annotated for letsencrypt controller. Requires project admin\nrole attached to the sdi-observer service account. Letsencrypt controller must be\ndeployed either via this observer or cluster-wide for this to have an effect.\n",
+         "description": "(deprecated since 0.1.13) Whether to expose routes annotated for letsencrypt controller. Requires project admin role attached to the sdi-observer service account. Letsencrypt controller must be deployed either via this observer or cluster-wide for this to have an effect.",
          "name": "EXPOSE_WITH_LETSENCRYPT",
+         "required": false,
          "value": "false"
       },
       {
-         "description": "Minor release of OpenShift Container Platform (e.g. 4.2). This value must match the OCP\nserver version. The biggest tolerated difference between the versions is 1 in the second\ndigit.\n",
+         "description": "Minor release of OpenShift Container Platform (e.g. 4.2). This value must match the OCP server version. The biggest tolerated difference between the versions is 1 in the second digit.",
          "name": "OCP_MINOR_RELEASE",
          "required": true,
          "value": "4.6"
       },
       {
-         "description": "URL of SDI Observer's git repository to clone into sdi-observer image.\n",
+         "description": "URL of SDI Observer's git repository to clone into sdi-observer image.",
          "name": "SDI_OBSERVER_REPOSITORY",
          "required": true,
          "value": "https://github.com/redhat-sap/sap-data-intelligence"
       },
       {
-         "description": "Revision (e.g. tag, commit or branch) of SDI Observer's git repository to check out.\n",
+         "description": "Revision (e.g. tag, commit or branch) of SDI Observer's git repository to check out.",
          "name": "SDI_OBSERVER_GIT_REVISION",
          "required": true,
          "value": "master"
