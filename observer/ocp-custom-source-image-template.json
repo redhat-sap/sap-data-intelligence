@@ -107,24 +107,12 @@
                               "value": "${MARK_REGISTRY_INSECURE}"
                            },
                            {
-                              "name": "MAKE_VSYSTEM_IPTABLES_PODS_PRIVILEGED",
-                              "value": "${MAKE_VSYSTEM_IPTABLES_PODS_PRIVILEGED}"
-                           },
-                           {
                               "name": "NODE_LOG_FORMAT",
                               "value": "${NODE_LOG_FORMAT}"
                            },
                            {
-                              "name": "REGISTRY",
-                              "value": "${REGISTRY}"
-                           },
-                           {
-                              "name": "DEPLOY_SDI_REGISTRY",
-                              "value": "${DEPLOY_SDI_REGISTRY}"
-                           },
-                           {
-                              "name": "DEPLOY_LETSENCRYPT",
-                              "value": "${DEPLOY_LETSENCRYPT}"
+                              "name": "MAKE_VSYSTEM_IPTABLES_PODS_PRIVILEGED",
+                              "value": "${MAKE_VSYSTEM_IPTABLES_PODS_PRIVILEGED}"
                            },
                            {
                               "name": "SLCB_ROUTE_HOSTNAME",
@@ -151,6 +139,14 @@
                               "value": "${VSYSTEM_ROUTE_HOSTNAME}"
                            },
                            {
+                              "name": "DEPLOY_SDI_REGISTRY",
+                              "value": "${DEPLOY_SDI_REGISTRY}"
+                           },
+                           {
+                              "name": "DEPLOY_LETSENCRYPT",
+                              "value": "${DEPLOY_LETSENCRYPT}"
+                           },
+                           {
                               "name": "LETSENCRYPT_ENVIRONMENT",
                               "value": "${LETSENCRYPT_ENVIRONMENT}"
                            },
@@ -163,8 +159,8 @@
                               "value": "${REPLACE_PERSISTENT_VOLUME_CLAIMS}"
                            },
                            {
-                              "name": "SDI_REGISTRY_STORAGE_CLASS_NAME",
-                              "value": "${SDI_REGISTRY_STORAGE_CLASS_NAME}"
+                              "name": "REGISTRY",
+                              "value": "${REGISTRY}"
                            },
                            {
                               "name": "SDI_REGISTRY_USERNAME",
@@ -177,6 +173,10 @@
                            {
                               "name": "SDI_REGISTRY_AUTHENTICATION",
                               "value": "${SDI_REGISTRY_AUTHENTICATION}"
+                           },
+                           {
+                              "name": "SDI_REGISTRY_STORAGE_CLASS_NAME",
+                              "value": "${SDI_REGISTRY_STORAGE_CLASS_NAME}"
                            },
                            {
                               "name": "SDI_REGISTRY_HTPASSWD_SECRET_NAME",
@@ -920,70 +920,102 @@
          "required": true
       },
       {
-         "description": "If set to true, no action will be performed. The pod will just print what would have been\nexecuted.\n",
+         "description": "If set to true, no action will be performed. The pod will just print what would have been executed.",
          "name": "DRY_RUN",
          "required": false,
          "value": "false"
       },
       {
-         "description": "Whether to forcefully replace existing objects and configuration files. To replace\nexising secrets as well, RECREATE_SECRETS needs to be set.\n",
+         "description": "Whether to forcefully replace existing objects and configuration files. To replace exising secrets as well, RECREATE_SECRETS needs to be set.",
          "name": "FORCE_REDEPLOY",
          "required": false,
          "value": "false"
       },
       {
-         "description": "Whether to replace secrets like SDI Registry's htpasswd file if they exist already.\n",
+         "description": "Whether to replace secrets like SDI Registry's htpasswd file if they exist already.",
          "name": "REPLACE_SECRETS",
          "required": false,
          "value": "false"
       },
       {
-         "description": "Minor release of OpenShift Container Platform (e.g. 4.2). This value must match the OCP\nserver version. The biggest tolerated difference between the versions is 1 in the second\ndigit.\n",
+         "description": "Minor release of OpenShift Container Platform (e.g. 4.2). This value must match the OCP server version. The biggest tolerated difference between the versions is 1 in the second digit.",
          "name": "OCP_MINOR_RELEASE",
          "required": true,
          "value": "4.6"
       },
       {
-         "description": "URL of SDI Observer's git repository to clone into sdi-observer image.\n",
+         "description": "URL of SDI Observer's git repository to clone into sdi-observer image.",
          "name": "SDI_OBSERVER_REPOSITORY",
          "required": true,
          "value": "https://github.com/redhat-sap/sap-data-intelligence"
       },
       {
-         "description": "Revision (e.g. tag, commit or branch) of SDI Observer's git repository to check out.\n",
+         "description": "Revision (e.g. tag, commit or branch) of SDI Observer's git repository to check out.",
          "name": "SDI_OBSERVER_GIT_REVISION",
          "required": true,
          "value": "master"
       },
       {
-         "description": "The name of the SAP Data Intelligence namespace to manage. Defaults to the current one. It\nmust be set only in case the observer is running in a different namespace (see NAMESPACE).\n",
-         "name": "SDI_NAMESPACE"
+         "description": "The name of the SAP Data Intelligence namespace to manage. Should be set to a namespace other than NAMESPACE.",
+         "name": "SDI_NAMESPACE",
+         "required": true
       },
       {
-         "description": "The name of the namespace where SLC Bridge runs.\n",
+         "description": "The name of the namespace where SLC Bridge runs.",
          "name": "SLCB_NAMESPACE",
+         "required": true,
          "value": "sap-slcbridge"
       },
       {
-         "description": "Set to true if the given or configured VFLOW_REGISTRY shall be marked as insecure in all\ninstances of Pipeline Modeler.\n",
+         "description": "(deprecated since 0.1.13) Set to true if the given or configured VFLOW_REGISTRY shall be marked as insecure in all instances of Pipeline Modeler.",
          "name": "MARK_REGISTRY_INSECURE",
-         "required": true,
+         "required": false,
          "value": "false"
       },
       {
-         "description": "Patch deployments with vsystem-iptables container to make them privileged in order to load\nkernel modules they need. Unless true, it is assumed that the modules have been pre-loaded\non the worker nodes. This will make also vsystem-vrep-* pod privileged.\n",
-         "name": "MAKE_VSYSTEM_IPTABLES_PODS_PRIVILEGED",
-         "required": true,
-         "value": "false"
-      },
-      {
-         "description": "Format of the logging files on the nodes. Allowed values are \"json\" and \"text\".\nInitially, SDI fluentd pods are configured to parse \"json\" while OpenShift 4 uses\n\"text\" format by default. If not given, the default is \"text\".\n",
+         "description": "Format of the logging files on the nodes. Allowed values are \"json\" and \"text\". Initially, SDI fluentd pods are configured to parse \"json\" while OpenShift 4 uses \"text\" format by default. If not given, the default is \"text\".",
          "name": "NODE_LOG_FORMAT",
          "required": false
       },
       {
-         "description": "The registry to mark as insecure. If not given, it will be determined from the\ninstaller-config secret in the SDI_NAMESPACE. If DEPLOY_SDI_REGISTRY is set to \"true\",\nthis variable will be used as the container image registry's hostname when creating the\ncorresponding route.\n",
-         "name": "REGISTRY"
+         "description": "(deprecated since 0.1.13) Patch deployments with vsystem-iptables container to make them privileged in order to load kernel modules they need. Unless true, it is assumed that the modules have been pre-loaded on the worker nodes. This will make also vsystem-vrep-* pod privileged.",
+         "name": "MAKE_VSYSTEM_IPTABLES_PODS_PRIVILEGED",
+         "required": false,
+         "value": "false"
+      },
+      {
+         "description": "Expose SLC Bridge's service at the provided hostname using a route. If not given, it will be exposed at <SLCB_NAMESPACE>.apps.<clustername>.<basedomainname>.",
+         "name": "SLCB_ROUTE_HOSTNAME",
+         "required": false
+      },
+      {
+         "description": "Whether to create a route for SLC Bridge service in SLCB_NAMESPACE. The route will be of passthrough type. If set to \"remove\", the route will be deleted.",
+         "name": "MANAGE_SLCB_ROUTE",
+         "required": false,
+         "value": "true"
+      },
+      {
+         "description": "Inject CA certificate bundle into SAP Data Intelligence pods. The bundle can be specified with CABUNDLE_SECRET_NAME. It is needed if either registry or s3 endpoint is secured by a self-signed certificate.",
+         "name": "INJECT_CABUNDLE",
+         "required": false,
+         "value": "false"
+      },
+      {
+         "description": "The name of the secret containing certificate authority bundle that shall be injected into Data Intelligence pods. By default, the secret bundle is obtained from openshift-ingress-operator namespace where the router-ca secret contains the certificate authority used to signed all the edge and reencrypt routes that are inter alia used for SDI_REGISTRY and NooBaa S3 API services. The secret name may be optionally prefixed with $namespace/. For example, in the default value \"openshift-ingress-operator/router-ca\", the \"openshift-ingress-operator\" stands for secret's namespace and \"router-ca\" stands for secret's name. If no $namespace prefix is given, the secret is expected to reside in NAMESPACE where the SDI observer runs. All the entries present in the \"data\" field having \".crt\" or \".pem\" suffix will be concatenated to form the resulting \"cert\" file. This bundle will also be used to create cmcertificates secret in SDI_NAMESPACE according to https://help.sap.com/viewer/a8d90a56d61a49718ebcb5f65014bbe7/3.0.latest/en-US/39e8e391d5984e919725e601f089db74.html",
+         "name": "CABUNDLE_SECRET_NAME",
+         "required": false,
+         "value": "openshift-ingress-operator/router-ca"
+      },
+      {
+         "description": "Whether to create vsystem route for vsystem service in SDI_NAMESPACE. The route will be of reencrypt type. The destination CA certificate for communication with the vsystem service will be kept up to date by the observer. If set to \"remove\", the route will be deleted, which is useful to temporarily disable access to vsystem service during SDI updates.",
+         "name": "MANAGE_VSYSTEM_ROUTE",
+         "required": false,
+         "value": "true"
+      },
+      {
+         "description": "Expose the vsystem service at the provided hostname using a route. The value is applied only if MANAGE_VSYSTEM_ROUTE is enabled. The hostname defaults to\n vsystem-<SDI_NAMESPACE>.apps.<clustername>.<basedomainname>",
+         "name": "VSYSTEM_ROUTE_HOSTNAME",
+         "required": false
       },
       {
          "description": "Whether to deploy container image registry for the purpose of SAP Data Intelligence.\nRequires project admin role attached to the sdi-observer service account.\n",
@@ -992,122 +1024,94 @@
          "value": "false"
       },
       {
-         "description": "Whether to deploy letsencrypt controller. Requires project admin role attached to the\nsdi-observer service account.\n",
+         "description": "(deprecated since 0.1.13) Whether to deploy letsencrypt controller. Requires project admin role attached to the sdi-observer service account.",
          "name": "DEPLOY_LETSENCRYPT",
          "required": false,
          "value": "false"
       },
       {
-         "description": "Expose SLC Bridge's service at the provided hostname using a route. If not given, it will\nbe exposed at <SLCB_NAMESPACE>.apps.<clustername>.<basedomainname>.\n",
-         "name": "SLCB_ROUTE_HOSTNAME",
-         "required": false
-      },
-      {
-         "description": "Whether to create a route for SLC Bridge service in SLCB_NAMESPACE. The route will be of\npassthrough type. If set to \"remove\", the route will be deleted.\n",
-         "name": "MANAGE_SLCB_ROUTE",
-         "required": false,
-         "value": "true"
-      },
-      {
-         "description": "Inject CA certificate bundle into SAP Data Intelligence pods. The bundle can\nbe specified with CABUNDLE_SECRET_NAME. It is needed if either registry or s3 endpoint\nis secured by a self-signed certificate.\n",
-         "name": "INJECT_CABUNDLE",
-         "required": false,
-         "value": "false"
-      },
-      {
-         "description": "The name of the secret containing certificate authority bundle that shall be injected\ninto Data Intelligence pods. By default, the secret bundle is obtained from\nopenshift-ingress-operator namespace where the router-ca secret contains the certificate\nauthority used to signed all the edge and reencrypt routes that are inter alia used for\nSDI_REGISTRY and NooBaa S3 API services. The secret name may be optionally prefixed with\n$namespace/. For example, in the default value \"openshift-ingress-operator/router-ca\",\nthe \"openshift-ingress-operator\" stands for secret's namespace and \"router-ca\" stands for\nsecret's name. If no $namespace prefix is given, the secret is expected to reside in\nNAMESPACE where the SDI observer runs. All the entries present in the \"data\" field having\n\".crt\" or \".pem\" suffix will be concatenated to form the resulting \"cert\" file. This bundle\nwill also be used to create cmcertificates secret in SDI_NAMESPACE according to https://help.sap.com/viewer/a8d90a56d61a49718ebcb5f65014bbe7/3.0.latest/en-US/39e8e391d5984e919725e601f089db74.html\n",
-         "name": "CABUNDLE_SECRET_NAME",
-         "required": false,
-         "value": "openshift-ingress-operator/router-ca"
-      },
-      {
-         "description": "Whether to create vsystem route for vsystem service in SDI_NAMESPACE. The route will be\nof reencrypt type. The destination CA certificate for communication with the vsystem\nservice will be kept up to date by the observer. If set to \"remove\", the route will be\ndeleted, which is useful to temporarily disable access to vsystem service during SDI\nupdates.\n",
-         "name": "MANAGE_VSYSTEM_ROUTE",
-         "required": false,
-         "value": "true"
-      },
-      {
-         "description": "Expose the vsystem service at the provided hostname using a route. The value is applied\nonly if MANAGE_VSYSTEM_ROUTE is enabled. The hostname defaults to\nvsystem-<SDI_NAMESPACE>.apps.<clustername>.<basedomainname>\n",
-         "name": "VSYSTEM_ROUTE_HOSTNAME",
-         "required": false
-      },
-      {
-         "description": "Either \"live\" or \"staging\". Use the latter when debugging SDI Observer's deployment.\n",
+         "description": "(deprecated since 0.1.13) Either \"live\" or \"staging\". Use the latter when debugging SDI Observer's deployment.",
          "name": "LETSENCRYPT_ENVIRONMENT",
          "required": false,
          "value": "live"
       },
       {
-         "description": "Make pods in SDI_NAMESPACE schedule only on nodes matching the given node selector. The\nselector will be applied to the whole namespace and its daemonsets. Selector can contain\nmultiple key=value labels separated with commas.\nExample value: node-role.kubernetes.io/sdi=\n",
+         "description": "Make pods in SDI_NAMESPACE schedule only on nodes matching the given node selector. The selector will be applied to the whole namespace and its daemonsets. Selector can contain multiple key=value labels separated with commas.\nExample value: node-role.kubernetes.io/sdi=",
          "name": "SDI_NODE_SELECTOR",
          "required": false
       },
       {
-         "description": "Whether to replace existing persistent volume claims like the one belonging to SDI\nRegistry.\n",
+         "description": "Whether to replace existing persistent volume claims like the one belonging to SDI Registry.",
          "name": "REPLACE_PERSISTENT_VOLUME_CLAIMS",
          "required": false,
          "value": "false"
       },
       {
-         "description": "Unless given, the default storage class will be used.\n",
-         "name": "SDI_REGISTRY_STORAGE_CLASS_NAME",
+         "description": "(deprecated since 0.1.13) The registry to mark as insecure. If not given, it will be determined from the installer-config secret in the SDI_NAMESPACE. If DEPLOY_SDI_REGISTRY is set to \"true\", this variable will be used as the container image registry's hostname when creating the corresponding route.",
+         "name": "REGISTRY",
          "required": false
       },
       {
-         "description": "Will be used to generate htpasswd file to provide authentication data to the SDI Registry\nservice as long as SDI_REGISTRY_HTPASSWD_SECRET_NAME does not exist or REPLACE_SECRETS is\n\"true\".\n",
+         "description": "Will be used to generate htpasswd file to provide authentication data to the SDI Registry service as long as SDI_REGISTRY_HTPASSWD_SECRET_NAME does not exist or REPLACE_SECRETS is \"true\".",
          "from": "user-[a-z0-9]{6}",
          "generate": "expression",
          "name": "SDI_REGISTRY_USERNAME",
          "required": false
       },
       {
-         "description": "Will be used to generate htpasswd file to provide authentication data to the SDI Registry\nservice as long as SDI_REGISTRY_HTPASSWD_SECRET_NAME does not exist or REPLACE_SECRETS is\n\"true\".\n",
+         "description": "Will be used to generate htpasswd file to provide authentication data to the SDI Registry service as long as SDI_REGISTRY_HTPASSWD_SECRET_NAME does not exist or REPLACE_SECRETS is \"true\".",
          "from": "[a-zA-Z0-9]{32}",
          "generate": "expression",
          "name": "SDI_REGISTRY_PASSWORD",
          "required": false
       },
       {
-         "description": "Choose the authentication method of the SDI Registry. Value \"none\" disables authentication\naltogether. Defaults to \"basic\" where the provided htpasswd file is used to gate\nthe incoming authentication requests.\n",
+         "description": "Choose the authentication method of the SDI Registry. Value \"none\" disables authentication altogether. Defaults to \"basic\" where the provided htpasswd file is used to gate the incoming authentication requests.",
          "name": "SDI_REGISTRY_AUTHENTICATION",
          "required": false,
          "value": "basic"
       },
       {
-         "description": "A secret with htpasswd file with authentication data for the sdi image container If\ngiven and the secret exists, it will be used instead of SDI_REGISTRY_USERNAME and\nSDI_REGISTRY_PASSWORD.\n",
+         "description": "Unless given, the default storage class will be used.",
+         "name": "SDI_REGISTRY_STORAGE_CLASS_NAME",
+         "required": false
+      },
+      {
+         "description": "A secret with htpasswd file with authentication data for the sdi image container If given and the secret exists, it will be used instead of SDI_REGISTRY_USERNAME and SDI_REGISTRY_PASSWORD.",
          "name": "SDI_REGISTRY_HTPASSWD_SECRET_NAME",
          "required": false,
          "value": "container-image-registry-htpasswd"
       },
       {
-         "description": "Desired hostname of the exposed registry service. Defaults to\ncontainer-image-registry-<NAMESPACE>-apps.<cluster_name>.<base_domain>\nOverrides REGISTRY parameter.",
+         "description": "Desired hostname of the exposed registry service. Defaults to container-image-registry-<NAMESPACE>-apps.<cluster_name>.<base_domain>Overrides REGISTRY parameter.",
          "name": "SDI_REGISTRY_ROUTE_HOSTNAME",
          "required": false
       },
       {
-         "description": "Volume space available for container images (e.g. 120Gi).\n",
+         "description": "Volume space available for container images (e.g. 120Gi).",
          "name": "SDI_REGISTRY_VOLUME_CAPACITY",
          "required": false,
          "value": "120Gi"
       },
       {
-         "description": "If the given SDI_REGISTRY_STORAGE_CLASS_NAME or the default storate class supports\n\"ReadWriteMany\" (\"RWX\") access mode, please change this to \"ReadWriteMany\".\n",
+         "description": "If the given SDI_REGISTRY_STORAGE_CLASS_NAME or the default storate class supports \"ReadWriteMany\" (\"RWX\") access mode, please change this to \"ReadWriteMany\".",
          "name": "SDI_REGISTRY_VOLUME_ACCESS_MODE",
          "required": false,
          "value": "ReadWriteOnce"
       },
       {
-         "description": "Whether to expose routes annotated for letsencrypt controller. Requires project admin\nrole attached to the sdi-observer service account. Letsencrypt controller must be\ndeployed either via this observer or cluster-wide for this to have an effect.\nDefaults to the value of DEPLOY_LETSENCRYPT.",
-         "name": "EXPOSE_WITH_LETSENCRYPT"
+         "description": "(deprecated since 0.1.13) Whether to expose routes annotated for letsencrypt controller. Requires project admin role attached to the sdi-observer service account. Letsencrypt controller must be deployed either via this observer or cluster-wide for this to have an effect.Defaults to the value of DEPLOY_LETSENCRYPT.",
+         "name": "EXPOSE_WITH_LETSENCRYPT",
+         "required": false
       },
       {
-         "description": "Unless given, a local copy will be used.\n",
+         "description": "(deprecated since 0.1.13) Unless given, a local copy will be used.",
          "name": "LETSENCRYPT_REPOSITORY",
          "required": false,
          "value": "https://github.com/tnozicka/openshift-acme"
       },
       {
-         "description": "Revision of letsencrypt repository to check out.\n",
+         "description": "(deprecated since 0.1.13) Revision of letsencrypt repository to check out.",
          "name": "LETSENCRYPT_REVISION",
          "required": false,
          "value": "master"

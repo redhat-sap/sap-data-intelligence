@@ -3,7 +3,7 @@
 set -euo pipefail
 IFS=$'\n\t'
 
-for d in "$(dirname "${BASH_SOURCE[0]}")" . /usr/local/share/sdi; do
+for d in "$(dirname "${BASH_SOURCE[0]}")/.." . .. /usr/local/share/sdi; do
     if [[ -e "$d/lib/common.sh" ]]; then
         eval "source '$d/lib/common.sh'"
     fi
@@ -13,64 +13,122 @@ if [[ "${_SDI_LIB_SOURCED:-0}" == 0 ]]; then
     exit 1
 fi
 
+readonly DEFAULT_SC_ANNOTATION="storageclass.kubernetes.io/is-default-class"
+readonly DEFAULT_VOLUME_CAPACITY="120Gi"
+readonly DEFAULT_SOURCE_IMAGE="registry.centos.org/centos:8"
+readonly DEFAULT_IMAGE_PULL_SPEC=quay.io/redhat-sap-cop/container-image-registry:latest
+
 # TODO: specify volume capacity
 readonly USAGE="$(basename "${BASH_SOURCE[0]}") [options]
 
 Deploy container image registry for SAP Data Intelligence.
 
 Options:
-  -h | --help    Show this message and exit.
-  --dry-run      Only log the actions that would have been executed. Do not perform any changes to
-                 the cluster. Overrides DRY_RUN environment variable.
- (-o | --output-dir) OUTDIR 
-                 Output directory where to put htpasswd and .htpasswd.raw files. Defaults to
-                 the working directory.
-  -n | --noout   Cleanup temporary htpasswd files.
+  -h | --help   Show this message and exit.
+  --dry-run     Only log the actions that would have been executed. Do not perform any changes to
+                the cluster. Overrides DRY_RUN environment variable.
+ (-f | --flavour) FLAVOUR
+                Choose one of the flavours:
+                    ubi-build    - (default) Build registry image on OpenShift cluster, store it
+                                   internally in the integrated image registry and deploy it from there.
+                    ubi-prebuilt - (disconnected) Specify a local image location of the prebuilt
+                                   image.
+                    custom-build - specify a custom base image.
+ (-o | --output-dir) OUTDIR
+                Output directory where to put htpasswd and .htpasswd.raw files. Defaults to
+                the working directory.
+  -n | --noout  Cleanup temporary htpasswd files.
   --authentication AUTHENTICATION
-                 Can be one of: none, basic
-                 Defaults to \"basic\" where the credentials are verified against the provided or
-                 generated htpasswd file.
-  --no-auth      Is a shortcut for --authentication=none
+                Can be one of: none, basic
+                Defaults to \"basic\" where the credentials are verified against the provided or
+                generated htpasswd file. For basic auth, SDI_REGISTRY_USERNAME and
+                SDI_REGISTRY_PASSWORD environment variables can be set with the desired login
+                credentials.
+  --no-auth     Is a shortcut for --authentication=none
   --secret-name SECRET_NAME
-                 Name of the SDI Registry htpasswd secret. Overrides
-                 SDI_REGISTRY_HTPASSWD_SECRET_NAME environment variable. Defaults to
-                 $DEFAULT_SDI_REGISTRY_HTPASSWD_SECRET_NAME.
-  -w | --wait    Block until all resources are available.
+                Name of the SDI Registry htpasswd secret. Overrides
+                SDI_REGISTRY_HTPASSWD_SECRET_NAME environment variable. Defaults to
+                $DEFAULT_SDI_REGISTRY_HTPASSWD_SECRET_NAME.
+  -w | --wait   Block until all resources are available.
   --hostname REGISTRY_HOSTNAME
-                 Expose registry's service on the given hostname. Overrides
-                 SDI_REGISTRY_ROUTE_HOSTNAME environment variable. The default is:
+                Expose registry's service on the given hostname. Overrides
+                SDI_REGISTRY_ROUTE_HOSTNAME environment variable. The default is:
                     container-image-registry-\$NAMESPACE.\$clustername.\$basedomain
   --namespace NAMESPACE
-                 Desired k8s NAMESPACE where to deploy the registry.
- (-r | --rht-registry-secret-name) RHT_REGISTRY_SECRET_NAME
-                 A secret for registry.redhat.io - required for the build of registry image.
- --rht-registry-secret-namespace) RHT_REGISTRY_SECRET_NAMESPACE
-                 K8s namespace, where the RHT_REGISTRY_SECRET_NAME secret resides.
-                 Defaults to the target NAMESPACE.
- --custom-source-image SOURCE_IMAGE_PULL_SPEC
-                 Custom source image for container-image-registry build instead of the default
-                 ubi8. Overrides SOURCE_IMAGE_PULL_SPEC environment variable.
-                 For example: registry.centos.org/centos:8
- --custom-source-imagestream-name SOURCE_IMAGESTREAM_NAME
-                 Name of the image stream for the custom source image if SOURCE_IMAGE_PULL_SPEC
-                 is specified. Overrides SOURCE_IMAGESTREAM_NAME environment variable.
-                 Defaults to \"$DEFAULT_SOURCE_IMAGESTREAM_NAME\".
- --custom-source-imagestream-tag SOURCE_IMAGESTREAM_TAG
-                 Tag in the source imagestream referencing the SOURCE_IMAGE_PULL_SPEC. Overrides
-                 SOURCE_IMAGESTREAM_TAG environment variable. Defaults to \"latest\".
- --custom-source-image-registry-secret-name SOURCE_IMAGE_REGISTRY_SECRET_NAME
-                 If the registry of the custom source image requires authentication, a pull secret
-                 must be created in the target NAMESPACE and its name specified here. Overrides
-                 SOURCE_IMAGE_REGISTRY_SECRET_NAME environment variable.
+                Desired k8s NAMESPACE where to deploy the registry. Defaults to the current
+                namespace.
+ (--sc | --storage-class) STORAGE_CLASS
+                Storage Class to use for registry's volume claim. Unless specified, the default
+                storage class will be used. Overrides SDI_REGISTRY_STORAGE_CLASS_NAME environment
+                variable.
+ (--rwx | --read-write-many)
+                Causes ReadWriteMany (RWX) access mode to be requested for the persistent volume.
+                The default access mode to request is ReadWriteOnce. If the target storage class
+                supports RWX, this flag should be specified. Overrides
+                SDI_REGISTRY_VOLUME_ACCESS_MODE environment variable.
+ (-c | --volume-capacity) VOLUME_CAPACITY
+                Capacity of the requested persistent volume. Overrides
+                SDI_REGISTRY_VOLUME_CAPACITY environment variable. Defaults to $DEFAULT_VOLUME_CAPACITY
+  --replace-secrets
+                Whether to replace existing htpasswd secret. Allows to reset credentials. If
+                SDI_REGISTRY_USERNAME and/or SDI_REGISTRY_PASSWORD are not provided, they will be
+                generated.
+
+Flavour specific options:
+- ubi-build flavour
+   (-r | --rht-registry-secret-name) REDHAT_REGISTRY_SECRET_NAME
+                A secret for registry.redhat.io - required for the build of registry image.
+   (--rp | --rht-registry-secret-path) REDHAT_REGISTRY_SECRET_PATH
+                Path to the local k8s secret file with credentials to registry.redhat.io
+    --rht-registry-secret-namespace REDHAT_REGISTRY_SECRET_NAMESPACE
+                K8s namespace, where the REDHAT_REGISTRY_SECRET_NAME secret resides. Defaults to the
+                target NAMESPACE.
+
+- ubi-prebuilt flavour
+    --image-pull-spec IMAGE_PULL_SPEC
+                Location of the locally mirrored registry's container image. Overrides the
+                eponymous environment variable. Defaults to $DEFAULT_IMAGE_PULL_SPEC
+
+- custom-build flavour
+    --custom-source-image SOURCE_IMAGE_PULL_SPEC
+                Custom source image for container-image-registry build instead of the default
+                ubi8. Overrides SOURCE_IMAGE_PULL_SPEC environment variable.
+                Defaults to $DEFAULT_SOURCE_IMAGE
+    --custom-source-imagestream-name SOURCE_IMAGESTREAM_NAME
+                Name of the image stream for the custom source image if SOURCE_IMAGE_PULL_SPEC
+                is specified. Overrides SOURCE_IMAGESTREAM_NAME environment variable.
+                Defaults to \"$DEFAULT_SOURCE_IMAGESTREAM_NAME\".
+    --custom-source-imagestream-tag SOURCE_IMAGESTREAM_TAG
+                Tag in the source imagestream referencing the SOURCE_IMAGE_PULL_SPEC. Overrides
+                SOURCE_IMAGESTREAM_TAG environment variable. Defaults to \"latest\".
+    --custom-source-image-registry-secret-name SOURCE_IMAGE_REGISTRY_SECRET_NAME
+                If the registry of the custom source image requires authentication, a pull secret
+                must be created in the target NAMESPACE and its name specified here. Overrides
+                SOURCE_IMAGE_REGISTRY_SECRET_NAME environment variable.
 "
 
+declare -r -A flavourParams=(
+    [ubi-build]=REDHAT_REGISTRY_SECRET_NAME
+    [ubi-prebuilt]=IMAGE_PULL_SPEC
+    [custom-build]="$(join , \
+        SOURCE_IMAGE_PULL_SPEC \
+        SOURCE_IMAGESTREAM_NAME \
+        SOURCE_IMAGESTREAM_TAG \
+        SOURCE_IMAGE_REGISTRY_SECRET_NAME)"
+)
+
 readonly longOptions=(
-    help output-dir: noout secret-name: hostname: wait namespace: rht-registry-secret-name:
-    authentication:
+    help output-dir: noout secret-name: hostname: wait namespace:
+    authentication: replace-secrets
     no-auth
-    rht-registry-secret-namespace: dry-run
+    rht-registry-secret-name: rht-registry-secret-namespace: rp: rht-registry-secret-path:
+    dry-run
     custom-source-image custom-source-imagestream-name custom-source-imagestream-tag
     custom-source-image-registry-secret-name
+    image-pull-spec:
+    sc: storage-class: rwx read-write-many
+    volume-capacity:
+    flavour:
 )
 
 function cleanup() {
@@ -116,41 +174,170 @@ function createHtpasswdSecret() {
         --from-file=htpasswd="$OUTPUT_DIR/htpasswd" \
         --from-file=.htpasswd.raw="$OUTPUT_DIR/.htpasswd.raw"  | \
             createOrReplace
+    printf 'Credentials: '
     cat "$OUTPUT_DIR/.htpasswd.raw"
 }
 
 function getOrCreateHtpasswdSecret() {
     # returns $username:$password
     if doesResourceExist "secret/$SECRET_NAME" && ! evalBool REPLACE_SECRETS; then
-        oc get -o json "secret/$SECRET_NAME" | jq -r '.data[".htpasswd.raw"]' | base64 -d
+        printf 'Credentials: '
+        # in the past, the raw secret used to be erroneously generated with "Credentials: " prefix
+        oc get -o json "secret/$SECRET_NAME" | jq -r '.data[".htpasswd.raw"]' | base64 -d | \
+            sed 's/^Credentials: //'
     else
         createHtpasswdSecret
     fi
 }
 
-function mkRegistryTemplateParams() {
-    local params=(
-        "SDI_REGISTRY_ROUTE_HOSTNAME=${REGISTRY_HOSTNAME:-}" 
-        "SDI_REGISTRY_HTPASSWD_SECRET_NAME=$SECRET_NAME" 
-        "NAMESPACE=$NAMESPACE" 
-        "SDI_REGISTRY_VOLUME_CAPACITY=${SDI_REGISTRY_VOLUME_CAPACITY:-}" 
-        "SDI_REGISTRY_VOLUME_ACCESS_MODE=${SDI_REGISTRY_VOLUME_ACCESS_MODE:-}" 
-        "SDI_REGISTRY_HTTP_SECRET=${SDI_REGISTRY_HTTP_SECRET:-}"
-    )
-    if [[ -n "${SOURCE_IMAGESTREAM_NAME:-}" && "${SOURCE_IMAGESTREAM_TAG:-}" && \
-            -n "${SOURCE_IMAGE_PULL_SPEC:-}" ]]
-    then
-        params+=(
-            SOURCE_IMAGE_PULL_SPEC="${SOURCE_IMAGE_PULL_SPEC:-}"
-            SOURCE_IMAGESTREAM_NAME="${SOURCE_IMAGESTREAM_NAME:-}"
-            SOURCE_IMAGESTREAM_TAG="${SOURCE_IMAGESTREAM_TAG:-}"
-            SOURCE_IMAGE_REGISTRY_SECRET_NAME="${SOURCE_IMAGE_REGISTRY_SECRET_NAME:-}"
-        )
+readonly rwxStorageClasses=(
+    ocs-storagecluster-cephfs
+)
+export rwxStorageClasses
+
+function parseFlavour() {
+    local flavour="${1:-}"
+    if [[ -n "${flavour:-}" ]]; then
+        if [[ ! "${flavour,,}" =~ ^(ubi-build|ubi-prebuilt|custom-build)$ ]]; then
+            printf 'Unknown flavour "%s"!\n' >&2 "$FLAVOUR"
+            exit 1
+        fi
+        flavour="${flavour,,}"
     else
-        params+=(
-            "REDHAT_REGISTRY_SECRET_NAME=$REDHAT_REGISTRY_SECRET_NAME" 
-        )
+        flavour=ubi-build
     fi
+    FLAVOUR="$flavour"
+    export FLAVOUR
+
+    readarray -t -d , params <<<"${flavourParams[$flavour]}"
+    local param value
+    local failed=0
+    for param in "${params[@]}"; do
+        eval 'value="\${'"$param:-}"'"'
+        if [[ -z "${value:-}" ]]; then
+            failed=1
+            printf 'Missing a mandatory parameter "%s" for flavour=%s!\n' >&2 \
+                "$param" "$flavour"
+        fi
+    done
+    if [[ "$failed" == 1 ]]; then
+        exit 1
+    fi
+}
+
+function getStorageClass() {
+    if [[ -n "${SDI_REGISTRY_STORAGE_CLASS_NAME:-}" ]]; then
+        printf '%s' "${SDI_REGISTRY_STORAGE_CLASS_NAME}"
+        return 0
+    fi
+    local defaultSCs
+    defaultSCs="$(oc get sc --no-headers | awk '$2 == "(default)" {print $1}')"
+    if [[ "$(wc -l <<<"${defaultSCs:-}")" == 1 ]]; then
+        SDI_REGISTRY_STORAGE_CLASS_NAME="$(tr -d '\n' <<<"${defaultSCs:-}")"
+        printf '%s' "$SDI_REGISTRY_STORAGE_CLASS_NAME"
+        export SDI_REGISTRY_STORAGE_CLASS_NAME
+        return 0
+    fi
+    if [[ "$(wc -l <<<"${defaultSCs:-}")" -gt 1 ]]; then
+        local rwxDefaults
+        rwxDefaults="$(grep -F -x -f <(printf '%s\n' "${rwxStorageClasses[@]}") \
+            <<<"${defaultSCs}")"
+        if [[ "$(wc -l <<<"${rwxDefaults:-}")" == 1 ]]; then
+            SDI_REGISTRY_STORAGE_CLASS_NAME="$(tr -d '\n' <<<"$rwxDefaults")"
+            printf '%s' "$SDI_REGISTRY_STORAGE_CLASS_NAME"
+            export SDI_REGISTRY_STORAGE_CLASS_NAME
+            return 0
+        fi
+        # more than one default storage class - let the cluster decide which one to use
+        return 0
+    fi
+
+    local rwxSCs
+    rwxSCs="$(grep -F -x -f <(printf '%s\n' "${rwxStorageClasses[@]}") \
+        <<<"$(oc get -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' sc)")"
+    if [[ "$(wc -l <<<"${rwxSCs:-}")" == 1 ]]; then
+        SDI_REGISTRY_STORAGE_CLASS_NAME="$(tr -d '\n' <<<"${rwxSCs:-}")"
+        export SDI_REGISTRY_STORAGE_CLASS_NAME
+        return 0
+    fi
+    if [[ "$(wc -l <<<"${rwxSCs:-}")" == 0 ]]; then
+        printf 'No storage class found!\n' >&2
+        exit 1
+    fi
+    printf 'No default storage class defined and no storage class selected!' >&2
+    printf 'Either annotate a storage class with "%s" or pass one with --sc parameter.\n' >&2 \
+        "$DEFAULT_SC_ANNOTATION"
+    exit 1
+}
+export -f getStorageClass
+
+function getVolumeAccessMode() {
+    if [[ -n "${SDI_REGISTRY_VOLUME_ACCESS_MODE:-}" ]]; then
+        printf '%s' "$SDI_REGISTRY_VOLUME_ACCESS_MODE"
+        return 0
+    fi
+    local sc
+    sc="$(getStorageClass)"
+    if grep -F -x -q -f <(printf '%s\n' "${rwxStorageClasses[@]}") <<<"${sc:-}";
+    then
+        SDI_REGISTRY_VOLUME_ACCESS_MODE=ReadWriteMany
+    elif grep -F -x -q -f <(printf '%s\n' "${rwxStorageClasses[@]}") \
+        < <(oc get sc --no-headers | awk '$2 == "(default)" {print $1}');
+    then
+        SDI_REGISTRY_VOLUME_ACCESS_MODE=ReadWriteMany
+    else
+        SDI_REGISTRY_VOLUME_ACCESS_MODE=ReadWriteOnce
+    fi
+
+    printf '%s' "$SDI_REGISTRY_VOLUME_ACCESS_MODE"
+    export SDI_REGISTRY_VOLUME_ACCESS_MODE
+    return 0
+}
+export -f getVolumeAccessMode
+
+function mkRegistryTemplateParams() {
+    if [[ -z "${SDI_REGISTRY_VOLUME_CAPACITY:-}" ]]; then
+        SDI_REGISTRY_VOLUME_CAPACITY="$DEFAULT_VOLUME_CAPACITY"
+    fi
+    local params=(
+        "SDI_REGISTRY_ROUTE_HOSTNAME=${REGISTRY_HOSTNAME:-}"
+        "SDI_REGISTRY_HTPASSWD_SECRET_NAME=$SECRET_NAME"
+        "NAMESPACE=$NAMESPACE"
+        "SDI_REGISTRY_VOLUME_CAPACITY=${SDI_REGISTRY_VOLUME_CAPACITY:-}"
+        "SDI_REGISTRY_VOLUME_ACCESS_MODE=$(getVolumeAccessMode)"
+        "SDI_REGISTRY_HTTP_SECRET=${SDI_REGISTRY_HTTP_SECRET:-}"
+
+        # removed from template's parameters because the default value "" causes no PV to get
+        # bound
+        #"SDI_REGISTRY_STORAGE_CLASS_NAME=${SDI_REGISTRY_STORAGE_CLASS_NAME:-}"
+    )
+    case "$FLAVOUR" in
+        ubi-build)
+            params+=(
+                "REDHAT_REGISTRY_SECRET_NAME=$REDHAT_REGISTRY_SECRET_NAME"
+            )
+            ;;
+        ubi-prebuilt)
+            if [[ -z "${IMAGE_PULL_SPEC:-}" ]]; then
+                IMAGE_PULL_SPEC="$DEFAULT_IMAGE_PULL_SPEC"
+            fi
+            params+=(
+                IMAGE_PULL_SPEC="$IMAGE_PULL_SPEC"
+            )
+            ;;
+
+        custom-build)
+            if [[ -z "${SOURCE_IMAGE_PULL_SPEC:-}" ]]; then
+                SOURCE_IMAGE_PULL_SPEC="$DEFAULT_SOURCE_IMAGE"
+            fi
+            params+=(
+                SOURCE_IMAGE_PULL_SPEC="${SOURCE_IMAGE_PULL_SPEC:-}"
+                SOURCE_IMAGESTREAM_NAME="${SOURCE_IMAGESTREAM_NAME:-}"
+                SOURCE_IMAGESTREAM_TAG="${SOURCE_IMAGESTREAM_TAG:-}"
+                SOURCE_IMAGE_REGISTRY_SECRET_NAME="${SOURCE_IMAGE_REGISTRY_SECRET_NAME:-}"
+            )
+            ;;
+    esac
 
     while IFS="=" read -r key value; do
         # do not override template's defaults
@@ -166,36 +353,36 @@ function getRegistryTemplateAs() {
     readarray -t params <<<"$(mkRegistryTemplateParams)"
     local tmplPath
     tmplPath="$(getRegistryTemplatePath)"
-    oc process --local "${params[@]}" -f "$tmplPath" -o "$output" 
+    oc process --local "${params[@]}" -f "$tmplPath" -o "$output"
 }
 export -f getRegistryTemplateAs
 
 function createOrReplaceObjectFromTemplate() {
-    local resource="$1" kind name
+    local resource="$1" kind name sc
     IFS='/' read -r kind name <<<"${resource}"
-    local spec
-    spec="$(getRegistryTemplateAs json | \
+    local def
+    def="$(getRegistryTemplateAs json | \
         jq '.items[] | select(.kind == "'"$kind"'" and .metadata.name == "'"$name"'")')"
     case "${kind,,}" in
     persistentvolumeclaim)
-        if [[ -n "${SDI_REGISTRY_STORAGE_CLASS_NAME:-}" ]]; then
-            spec="$(jq '.spec.storageClassName |= "'"$SDI_REGISTRY_STORAGE_CLASS_NAME"'"' \
-                <<<"$spec")"
+        sc="$(getStorageClass)"
+        if [[ -n "${sc:-}" ]]; then
+            def="$(jq '.spec.storageClassName |= "'"$sc"'"' <<<"$def")"
         fi
         ;;
     route)
         if evalBool EXPOSE_WITH_LETSENCRYPT; then
-            spec="$(jq '.metadata.annotations["kubernetes.io/tls-acme"] |= "true"' <<<"$spec")"
+            def="$(jq '.metadata.annotations["kubernetes.io/tls-acme"] |= "true"' <<<"$def")"
         fi
         ;;
     deploymentconfig)
         if [[ "${AUTHENTICATION:-basic}" == none ]]; then
-            spec="$(oc set env --local -o json -f - \
+            def="$(oc set env --local -o json -f - \
                 REGISTRY_AUTH_HTPASSWD_REALM- \
-                REGISTRY_AUTH_HTPASSWD_PATH- <<<"$spec")"
+                REGISTRY_AUTH_HTPASSWD_PATH- <<<"$def")"
         fi
     esac
-    createOrReplace <<<"$spec"
+    ocApply -n "$NAMESPACE" <<<"$def"
 }
 export -f createOrReplaceObjectFromTemplate
 
@@ -204,14 +391,13 @@ function deployRegistry() {
     if [[ "${AUTHENTICATION:-basic}" == basic ]]; then
         getOrCreateHtpasswdSecret
     fi
-    # needed for parallel
-    export NAMESPACE SECRET_NAME REGISTRY_HOSTNAME REDHAT_REGISTRY_SECRET_NAME  \
-        SDI_REGISTRY_TEMPLATE_FILE_NAME SOURCE_IMAGE_PULL_SPEC \
-        SOURCE_IMAGESTREAM_NAME SOURCE_IMAGESTREAM_TAG SOURCE_IMAGE_REGISTRY_SECRET_NAME \
-        AUTHENTICATION
+
     # decide for each resource independently whether it needs to be replaced or not
-    getRegistryTemplateAs jsonpath=$'{range .items[*]}{.kind}/{.metadata.name}\n{end}' | \
-        parallel createOrReplaceObjectFromTemplate
+    readarray -t resources < <(getRegistryTemplateAs \
+        jsonpath='{range .items[*]}{.kind}/{.metadata.name}{"\n"}{end}')
+    for resource in "${resources[@]}"; do
+        createOrReplaceObjectFromTemplate "$resource"
+    done
 }
 
 function waitForRegistryBuild() {
@@ -288,8 +474,10 @@ function waitForRegistry() {
     return "$buildRC"
 }
 
-TMPARGS="$(getopt -o ho:nwr: -l "$(join , "${longOptions[@]}")" -n "${BASH_SOURCE[0]}" -- "$@")"
+TMPARGS="$(getopt -o ho:nwr:f:c: -l "$(join , "${longOptions[@]}")" -n "${BASH_SOURCE[0]}" -- "$@")"
 eval set -- "$TMPARGS"
+
+NOOUT=0
 
 while true; do
     case "$1" in
@@ -301,6 +489,10 @@ while true; do
             DRY_RUN=true
             export DRY_RUN
             shift
+            ;;
+        -f | --flavour)
+            FLAVOUR="$2"
+            shift 2
             ;;
         -o | --output-dir)
             OUTPUT_DIR="$1"
@@ -336,6 +528,23 @@ while true; do
             AUTHENTICATION=none
             shift
             ;;
+        --sc | --storage-class)
+            SDI_REGISTRY_STORAGE_CLASS_NAME="$2"
+            shift 2
+            ;;
+        --rwx | --read-write-many)
+            SDI_REGISTRY_VOLUME_ACCESS_MODE=ReadWriteMany
+            shift
+            ;;
+        -c | --volume-capacity)
+            SDI_REGISTRY_VOLUME_CAPACITY="$2"
+            shift 2
+            ;;
+        --replace-secrets)
+            # shellcheck disable=SC2034
+            REPLACE_SECRETS=true
+            shift
+            ;;
         -r | --rht-registry-secret-name)
             REDHAT_REGISTRY_SECRET_NAME="$2"
             shift 2
@@ -343,6 +552,14 @@ while true; do
         --rht-registry-secret-namespace)
             # shellcheck disable=SC2034
             REDHAT_REGISTRY_SECRET_NAMESPACE="$2"
+            shift 2
+            ;;
+        --rp | --rht-registry-secret-path)
+            REDHAT_REGISTRY_SECRET_PATH="$2"
+            shift 2
+            ;;
+        --image-pull-spec)
+            IMAGE_PULL_SPEC="$2"
             shift 2
             ;;
         --custom-source-image)
@@ -382,7 +599,6 @@ elif [[ -z "${NAMESPACE:-}" ]]; then
     fi
 fi
 
-NOOUT=0
 if [[ -z "${REGISTRY_HOSTNAME:-}" && -n "${SDI_REGISTRY_ROUTE_HOSTNAME:-}" ]]; then
     REGISTRY_HOSTNAME="${SDI_REGISTRY_ROUTE_HOSTNAME:-}"
 fi
@@ -397,7 +613,12 @@ if ! [[ "${AUTHENTICATION:-}" =~ ^(basic|none)$ ]]; then
     exit 1
 fi
 
-if [[ -n "${NOOUT:-}" && -n "${OUTPUT_DIR:-}" ]]; then
+if [[ "$AUTHENTICATION" == none && -n "${SECRET_NAME:-}" ]]; then
+    printf 'SECRET_NAME cannot be set while AUTHENTICATION is none!\n'
+    exit 1
+fi
+
+if evalBool NOOUT && [[ -n "${OUTPUT_DIR:-}" ]]; then
     log 'FATAL: --noout and --output-dir are mutually exclusive options!'
     exit 1
 fi
@@ -408,9 +629,18 @@ else
     OUTPUT_DIR="$(mktemp -d)"
 fi
 
+if [[ -n "${REDHAT_REGISTRY_SECRET_NAME:-}" && -n "${REDHAT_REGISTRY_SECRET_PATH:-}" ]]; then
+    printf 'REDHAT_REGISTRY_SECRET_NAME and REDHAT_REGISTRY_SECRET_PATH are mutually' >&2
+    printf ' exclusive!\nPlease set just one of them!\n' >&2
+    exit 1
+fi
+
+
 if evalBool DEPLOY_SDI_REGISTRY true && [[ -z "${DEPLOY_SDI_REGISTRY:-}" ]]; then
     DEPLOY_SDI_REGISTRY=true
 fi
+
+parseFlavour "${FLAVOUR:-}"
 
 if [[ -n "${NAMESPACE:-}" ]]; then
     if evalBool DEPLOY_SDI_REGISTRY; then
@@ -424,11 +654,60 @@ if [[ -n "${NAMESPACE:-}" ]]; then
     fi
 fi
 
+if [[ "$FLAVOUR" == ubi-build ]]; then
+    if [[ -n "${REDHAT_REGISTRY_SECRET_PATH:-}" ]]; then
+        oc patch --local --dry-run=client -f "${REDHAT_REGISTRY_SECRET_PATH:-}" \
+            -p '{"metadata":{"namespace": "'"$NAMESPACE"'"}}' -o json | \
+            ocApply -n "$NAMESPACE"
+        REDHAT_REGISTRY_SECRET_NAME="$(oc patch --local --dry-run=client \
+            -f "$REDHAT_REGISTRY_SECRET_PATH" -p '{"foo": "bar"}}' \
+            -o jsonpath='{.metadata.name}')"
+    elif [[ -n "${REDHAT_REGISTRY_SECRET_NAME:-}" ]]; then
+        if ! oc get -n "${NAMESPACE:-}" secret/"${REDHAT_REGISTRY_SECRET_NAME:-}"; then
+            printf 'Please create the secret REDHAT_REGISTRY_SECRET_NAME (%s)' \
+                "${REDHAT_REGISTRY_SECRET_NAME:-}" >&2
+            printf ' in namespace %s first!\n' "${NAMESPACE:-}" >&2
+            exit 1
+        fi
+    else
+        printf 'Please set either the REDHAT_REGISTRY_SECRET_NAME '
+        printf ' or REDHAT_REGISTRY_SECRET_PATH for ubi-build flavour!\n' >&2
+        exit 1
+    fi
+fi
+
 if [[ -z "${SECRET_NAME:-}" ]]; then
     SECRET_NAME="${SDI_REGISTRY_HTPASSWD_SECRET_NAME:-$DEFAULT_SDI_REGISTRY_HTPASSWD_SECRET_NAME}"
 fi
-if evalBool DEPLOY_SDI_REGISTRY; then
+
+# maps bcName to .status.lastVersion
+declare -A lastVersions
+if evalBool DEPLOY_SDI_REGISTRY true; then
+    if [[ "${FLAVOUR:-}" =~ build ]]; then
+        builds=( container-image-registry )
+        for b in "${builds[@]}"; do
+            lastVersions["$b"]="$(oc get -n "$NAMESPACE" "bc/${b}" -o \
+                jsonpath='{.status.lastVersion}' --ignore-not-found 2>/dev/null)"
+        done
+    fi
+
     deployRegistry
+
+    # start new image builds if not started automatically
+    for b in "${builds[@]}"; do
+        lv="$(oc get "bc/$b" -n "$NAMESPACE" -o jsonpath='{.status.lastVersion}')"
+        if [[ "${lv:-0}" -gt "${lastVersions["$b"]:-0}" ]]; then
+            printf 'Build "%s" has been started automatically.\n' "$b"
+            printf '  You can follow its progress with: oc logs -n %s -f bc/%s\n' \
+                "$NAMESPACE" "$b"
+            continue
+        fi
+        buildArgs=( -n "$NAMESPACE" )
+        if evalBool WAIT_UNTIL_ROLLEDOUT; then
+            buildArgs+=( -F )
+        fi
+        runOrLog oc start-build "${buildArgs[@]}" "bc/$b"
+    done
 fi
 
 if evalBool WAIT_UNTIL_ROLLEDOUT && ! evalBool DRY_RUN; then

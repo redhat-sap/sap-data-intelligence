@@ -293,6 +293,8 @@ function common_init() {
     export SOURCE_IMAGE_PULL_SPEC SOURCE_IMAGESTREAM_NAME SOURCE_IMAGESTREAM_TAG \
            SOURCE_IMAGE_REGISTRY_SECRET_NAME
 
+    getFlavour >/dev/null
+
     _common_init_performed=1
     export _common_init_performed
 }
@@ -450,6 +452,59 @@ function createOrReplace() {
 }
 export -f createOrReplace
 
+function ocApply() {
+    local object
+    local rc=0
+    local namespace applyArgs=()
+    local input=/dev/fd/0
+    local overrideNamespace=0
+    while [[ $# -gt 0 ]]; do
+        case "${1:-}" in
+        -n)
+            namespace="$2"
+            overrideNamespace=1
+            shift 2
+            ;;
+        -i)
+            input="$2"
+            shift 2
+            ;;
+        *)
+            break
+            ;;
+        esac
+    done
+
+    object="$(convertObjectToJSON -i "$input")"
+    if [[ "$(jq 'has("items")' <<<"$object")" == "true" ]]; then
+        local resources=() res kind name
+        readarray -t resources <<<"$(jq -r '.items[] | "\(.kind)/\(.metadata.name)\n"' \
+                <<<"$object")"
+        local rc=0
+        local childArgs=()
+        [[ "$overrideNamespace" == 1 ]] && childArgs+=( -n "$namespace" )
+        for res in "${resources[@]}"; do
+            [[ -z "${res:-}" ]] && continue
+            IFS=/ read -r kind name <<<"$res"
+            jq '.items[] | select(.kind == "'"$kind"'" and .metadata.name == "'"$name"'")' \
+                <<<"$object" | createOrReplace "${childArgs[@]}" || rc=$?
+        done
+        return $rc
+    fi
+
+    if [[ -n "${namespace:-}" ]]; then
+        object="$(jq '.metadata.namespace |= "'"$namespace"'"' <<<"$object")"
+    fi
+    
+    applyArgs=( -f - )
+    if evalBool DRY_RUN; then
+        applyArgs+=( "$DRUNARG" )
+    fi
+    oc apply "${applyArgs[@]}" <<<"$object" |& \
+        grep -vF 'The missing annotation will be patched automatically.'
+}
+export -f ocApply
+
 function trustfullyExposeService() {
     local serviceName="${1##*/}"; shift
     local routeType
@@ -474,19 +529,41 @@ function common_cleanup() {
     rm -rf "$TMP"
 }
 
+function getFlavour() {
+    if [[ -z "${FLAVOUR:-}" ]]; then
+        if [[ -n "${SOURCE_IMAGESTREAM_NAME:-}" && \
+            "${SOURCE_IMAGESTREAM_TAG:-}" && -n "${SOURCE_IMAGE_PULL_SPEC:-}" ]];
+        then
+            FLAVOUR="custom-build"
+        elif [[ -n "${IMAGE_PULL_SPEC:-}" ]]; then
+            FLAVOUR="ubi-prebuilt"
+        else
+            FLAVOUR="ubi-build"
+        fi
+        export FLAVOUR
+    fi
+    printf '%s' "$FLAVOUR"
+}
+
 function getRegistryTemplatePath() {
     local dirs=(
-        .
+        "$(dirname "${BASH_SOURCE[0]}")/../registry"
         ./registry
+        ../registry
         /usr/local/share/sdi/registry
         /usr/local/share/sap-data-intelligence/registry
     )
     local tmplfn="$SDI_REGISTRY_TEMPLATE_FILE_NAME"
-    if [[ -n "${SOURCE_IMAGESTREAM_NAME:-}" && "${SOURCE_IMAGESTREAM_TAG:-}" && \
-            -n "${SOURCE_IMAGE_PULL_SPEC:-}" ]]
-    then
-        tmplfn="ocp-custom-source-image-template.json"
-    fi
+    case "$(getFlavour)" in
+        ubi-build)
+            ;;
+        ubi-prebuilt)
+            tmplfn="ocp-prebuilt-image-template.json"
+            ;;
+        custom-build)
+            tmplfn="ocp-custom-source-image-template.json"
+            ;;
+    esac
 
     for d in "${dirs[@]}"; do
         local pth="${d}/$tmplfn"
@@ -546,12 +623,13 @@ function ensurePullsFromNamespace() {
 function ensureRedHatRegistrySecret() {
     local namespace="${1:-}"
     if [[ -z "${REDHAT_REGISTRY_SECRET_NAME:-}" ]]; then
-        if [[ -z "${SOURCE_IMAGE_PULL_SPEC:-}" ]]; then
-            log 'FATAL: REDHAT_REGISTRY_SECRET_NAME must be provided!'
-            exit 1
-        else
+        if [[ ( -n "${FLAVOUR:-}" && "${FLAVOUR}" != ubi-build ) ||
+                -n "${SOURCE_IMAGE_PULL_SPEC:-}" ]];
+        then
             return 0
         fi
+        log 'FATAL: REDHAT_REGISTRY_SECRET_NAME must be provided!'
+        exit 1
     fi
 
     if [[ -n "${REDHAT_REGISTRY_SECRET_NAMESPACE:-}" ]]; then

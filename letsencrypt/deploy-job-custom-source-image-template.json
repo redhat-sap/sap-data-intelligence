@@ -288,39 +288,39 @@
          "required": true
       },
       {
-         "description": "If set to true, no action will be performed. The pod will just print what would have been\nexecuted.\n",
+         "description": "If set to true, no action will be performed. The pod will just print what would have been executed.",
          "name": "DRY_RUN",
          "required": false,
          "value": "false"
       },
       {
-         "description": "Whether to forcefully replace existing objects and configuration files. To replace\nexising secrets as well, RECREATE_SECRETS needs to be set.\n",
+         "description": "Whether to forcefully replace existing objects and configuration files. To replace exising secrets as well, RECREATE_SECRETS needs to be set.",
          "name": "FORCE_REDEPLOY",
          "required": false,
          "value": "false"
       },
       {
-         "description": "Whether to replace secrets like SDI Registry's htpasswd file if they exist already.\n",
+         "description": "Whether to replace secrets like SDI Registry's htpasswd file if they exist already.",
          "name": "REPLACE_SECRETS",
          "required": false,
          "value": "false"
       },
       {
-         "description": "Unless given, a local copy will be used.\nDefaults to a local check out. Example value: https://github.com/tnozicka/openshift-acme\n",
+         "description": "(deprecated since 0.1.13) Unless given, a local copy will be used.Defaults to a local check out. Example value: https://github.com/tnozicka/openshift-acme\n",
          "name": "LETSENCRYPT_REPOSITORY",
          "required": false,
          "value": null
       },
       {
-         "description": "Revision of letsencrypt repository to check out.\n",
+         "description": "(deprecated since 0.1.13) Revision of letsencrypt repository to check out.",
          "name": "LETSENCRYPT_REVISION",
          "required": false,
          "value": "master"
       },
       {
-         "description": "Either \"live\" or \"staging\". Use the latter when debugging SDI Observer's deployment.\n",
+         "description": "(deprecated since 0.1.13) Either \"live\" or \"staging\". Use the latter when debugging SDI Observer's deployment.",
          "name": "LETSENCRYPT_ENVIRONMENT",
-         "required": true,
+         "required": false,
          "value": "live"
       },
       {
@@ -341,19 +341,19 @@
          "value": "[\"--wait\"]"
       },
       {
-         "description": "Minor release of OpenShift Container Platform (e.g. 4.2). This value must match the OCP\nserver version. The biggest tolerated difference between the versions is 1 in the second\ndigit.\n",
+         "description": "Minor release of OpenShift Container Platform (e.g. 4.2). This value must match the OCP server version. The biggest tolerated difference between the versions is 1 in the second digit.",
          "name": "OCP_MINOR_RELEASE",
          "required": true,
          "value": "4.6"
       },
       {
-         "description": "URL of SDI Observer's git repository to clone into sdi-observer image.\n",
+         "description": "URL of SDI Observer's git repository to clone into sdi-observer image.",
          "name": "SDI_OBSERVER_REPOSITORY",
          "required": true,
          "value": "https://github.com/redhat-sap/sap-data-intelligence"
       },
       {
-         "description": "Revision (e.g. tag, commit or branch) of SDI Observer's git repository to check out.\n",
+         "description": "Revision (e.g. tag, commit or branch) of SDI Observer's git repository to check out.",
          "name": "SDI_OBSERVER_GIT_REVISION",
          "required": true,
          "value": "master"

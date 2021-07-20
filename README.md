@@ -6,7 +6,7 @@ Please visit the [SDI on OCP installation guide](https://access.redhat.com/artic
 
 Components:
 
-- [SDI Observer](./sdi-observer)
+- [SDI Observer](./observer)
 - [Node Configurator](./node-configurator)
 - [Utilities](./utilities)
 

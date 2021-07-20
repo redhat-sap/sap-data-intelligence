@@ -186,6 +186,7 @@ access mode, please change this to `ReadWriteMany`.
 
 For more information, please see link:../registry/[registry] directory.
 
+[[make_vsystem_iptables_pods_privileged]]
 === _(deprecated)_ Enable iptables manipulation for pods
 
 *NOTE*: this functionality is disabled by default as there are far better alternatives.
@@ -448,6 +449,9 @@ SDI_OBSERVER_REPOSITORY="$HOME/sap-data-intelligence"
 
 So far, updates need to be performed manually.
 
+**NOTE**: Re-deployment preserves generated secrets and persistent volumes unless
+`REPLACE_SECRETS` or `REPLACE_PERSISTENT_VOLUMES` are set to `true`.
+
 1. Backup the previous `run-observer-template.sh` script and open it as long as available. If not
    available, run the following to see the previous environment variables:
 +
@@ -501,4 +505,9 @@ for letsencrypt controller. Requires project admin role attached to the
 sdi-observer service account. Letsencrypt controller must be deployed
 either via this observer or cluster-wide for this to have an effect.
 Defaults to the value of `DEPLOY_LETSENCRYPT`
+
+|`MAKE_VSYSTEM_IPTABLES_PODS_PRIVILEGED` | 0.1.13 | | Please see
+xref:#make_vsystem_iptables_pods_privileged[above] for an alternative.
+
+|
 |===
