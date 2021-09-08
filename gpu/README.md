@@ -1,0 +1,144 @@
+# GPU enablement for SDI on OCP
+
+**Work in progress!!**
+
+## Prerequisites
+
+- OCP 4.6
+- SAP Data Intelligence 3.1 or 3.2
+- GPU equipped node(s)
+    - make sure to use on of the support GPU model listed in the [SAP Note #2900587](https://launchpad.support.sap.com/#/notes/2900587)
+
+## Node configuration
+
+TODO
+
+### Verification
+
+- nodes are labeled by discovery pods with `nvidia.com/gpu.present=true`:
+
+        # oc get nodes -l nvidia.com/gpu.present=true
+        NAME       STATUS   ROLES        AGE    VERSION
+        compute1   Ready    sdi,worker   364d   v1.19.0+b00ba52
+        compute4   Ready    sdi,worker   342d   v1.19.0+b00ba52
+
+- GPU operator installed and running on GPU enabled nodes, e.g.:
+
+        # oc get pods -o wide -n gpu-operator-resources
+        NAME                                       READY   STATUS      RESTARTS   AGE    IP            NODE       NOMINATED NODE   READINESS GATES
+        gpu-feature-discovery-b45l7                1/1     Running     7          126d   10.129.4.21   compute4   <none>           <none>
+        gpu-feature-discovery-xlcx9                1/1     Running     7          127d   10.130.2.9    compute1   <none>           <none>
+        nvidia-container-toolkit-daemonset-8l29r   1/1     Running     0          126d   10.129.4.22   compute4   <none>           <none>
+        nvidia-container-toolkit-daemonset-znhjv   1/1     Running     0          127d   10.130.2.3    compute1   <none>           <none>
+        nvidia-dcgm-exporter-hwj7n                 1/1     Running     0          127d   10.130.2.11   compute1   <none>           <none>
+        nvidia-dcgm-exporter-rltqr                 1/1     Running     0          126d   10.129.4.10   compute4   <none>           <none>
+        nvidia-device-plugin-daemonset-ckbfb       1/1     Running     0          126d   10.129.4.20   compute4   <none>           <none>
+        nvidia-device-plugin-daemonset-jdmb2       1/1     Running     0          127d   10.130.2.4    compute1   <none>           <none>
+        nvidia-device-plugin-validation            0/1     Completed   0          72d    10.130.2.32   compute1   <none>           <none>
+        nvidia-driver-daemonset-d4rzm              1/1     Running     0          26d    10.130.2.19   compute1   <none>           <none>
+        nvidia-driver-daemonset-h88hn              1/1     Running     0          126d   10.129.4.8    compute4   <none>           <none>
+
+## Configure a resource plan for GPU
+
+### Get vctl binary
+
+Follow [Download the SAP Data Intelligence System Management Command-Line Client Tool](https://help.sap.com/viewer/0b99871a1d994d2ea89598fe59d16cf9/3.1.latest/en-US/3de99bbe0c27487fb67f50dade7758c1.html).
+
+### Configure resource plan
+
+This examples assumes the commands are executed on a Linux managegement host where `jq` binary is installed.
+
+1. Login to the Data Intelligence management service. In this example, for the API URL, we are using the URL of OpenShift's route:
+
+        # # vctl login parameters: <vsystem-api-url> <tenant> <tenant-username>
+        # ./vctl login https://vsystem-sdi.apps.<clustername>.<domainname>/ gpu-test miminar 
+        Enter password: 
+        Successfully logged in as "gpu-test/miminar"
+
+2. List resource plans and store them in a json file:
+
+        # ./vctl parameters get resourceplan.service.catalog | base64 -d | jq | tee resource-plans.orig.json
+    
+3. Choose one resource plan and extend it for GPU resource. In this example, we choose to modify the `advanced` resource plan.
+
+    1. First set the desired arguments:
+
+            # resourcePlanId=advanced
+            # requestGPU=1    # number of GPU units to request
+            # nodeSelector=nvidia.com/gpu.present=true
+            # # or alternatively to choose a specific GPU model:
+            # nodeSelector=nvidia.com/gpu.present=true,nvidia.com/gpu.product=Tesla-V100-PCIE-32GB
+
+    2. Then execute the following:
+
+            # jq --arg resourcePlanId "$resourcePlanId" \
+                 --arg nodeSelector "$nodeSelector" \
+                 --arg requestGPU "$requestGPU" \
+                '.resourcePlans |= [.[] |
+                    if .resourcePlanId == $resourcePlanId then
+                        . as $rp | [ $nodeSelector | split(",")[] |
+                                     split("=") | {"key": .[0], "value": (.[1] // "")}
+                                   ] | from_entries | . as $sel |
+                        $rp | .nodeSelectors   |= $sel |
+                              .requestSpec.gpu |= $requestGPU |
+                              .limitSpec.gpu   |= $requestGPU
+                    else
+                        .
+                    end
+                ]' resource-plans.orig.json > resource-plans.new.json
+
+    3. Please inspect the `resource-plans.new.json` and verify that it contains the desired nodeSelectors in the target resource plan, e.g.:
+
+            # cat resource-plans.new.json
+            ...
+                {
+                  "resourcePlanId": "advanced",
+                  "resourcePlanDescription": "standard",
+                  "requestSpec": {
+                    ...
+                  },
+                  "limitSpec": {
+                    ...
+                  },
+                  "nodeSelectors": {
+                      "nvidia.com/gpu.present": "true"
+                  }
+                }
+            ...
+
+    4. Optionally, modify the `requestSpec` and `limitSpec` `cpu` and `memory` attributes and save the file again.
+
+    5. Update the resource plan in the SDI tenant:
+
+              # ./vctl parameters set resourceplan.service.catalog "$(jq -c . resource-plans.new.json | base64 -w0)"
+
+          Example output:
+
+              Successfully set parameter "resourceplan.service.catalog" to "eyJyZXNvdXJj9...Cg=="
+
+4. Start or re-start the Resource Plan Service.
+
+    1. Go to the System Management, Applications tab.
+    2. Find the "Resource Plan Service".
+    3. If it is running, re-start it, otherwise start it.
+    4. Ensure that the "started" notification appear or its status becomes "ready".
+
+### Verify the GPU unit
+
+1. Please download the [./graph.json](./graph.json) file.
+
+2. Open Data Intelligence Modeler and click on the Import Graph icon ![import icon](./images/import-icon.png). A new tab called "GPU usage test" will open.
+
+3. Click on the "Training" operator and choose "Open Configuration".
+
+    ![training operator](./images/training-operator.png "Training operator")
+
+    The "Open Configuration" icon: ![configuration](images/operator-configuration-icon.png "Open Configuration")
+
+4. Choose your configured resource plan in the "Resource Plan" combobox.
+
+    ![resource plan combobox](./images/resource-plan-box.png "Resource Plan combobox")
+
+5. Click "Save".
+
+6. Run the graph.
