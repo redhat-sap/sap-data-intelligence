@@ -79,9 +79,9 @@ This examples assumes the commands are executed on a Linux managegement host whe
                         . as $rp | [ $nodeSelector | split(",")[] |
                                      split("=") | {"key": .[0], "value": (.[1] // "")}
                                    ] | from_entries | . as $sel |
-                        $rp | .nodeSelectors   |= $sel |
-                              .requestSpec.gpu |= $requestGPU |
-                              .limitSpec.gpu   |= $requestGPU
+                        $rp | .requestSpec.gpu           |= $requestGPU |
+                              .requestSpec.nodeSelectors |= $sel |
+                              .limitSpec.gpu             |= $requestGPU
                     else
                         .
                     end
@@ -93,15 +93,17 @@ This examples assumes the commands are executed on a Linux managegement host whe
             ...
                 {
                   "resourcePlanId": "advanced",
-                  "resourcePlanDescription": "standard",
+                  "resourcePlanDescription": "advanced",
                   "requestSpec": {
                     ...
+                    "gpu": 1,
+                    "nodeSelectors": {
+                        "nvidia.com/gpu.present": "true"
+                    }
                   },
                   "limitSpec": {
                     ...
-                  },
-                  "nodeSelectors": {
-                      "nvidia.com/gpu.present": "true"
+                    "gpu": 1
                   }
                 }
             ...
@@ -126,9 +128,7 @@ This examples assumes the commands are executed on a Linux managegement host whe
 ### Verify the GPU unit
 
 1. Please download the [./graph.json](./graph.json) file.
-
 2. Open Data Intelligence Modeler and click on the Import Graph icon ![import icon](./images/import-icon.png). A new tab called "GPU usage test" will open.
-
 3. Click on the "Training" operator and choose "Open Configuration".
 
     ![training operator](./images/training-operator.png "Training operator")
@@ -139,6 +139,47 @@ This examples assumes the commands are executed on a Linux managegement host whe
 
     ![resource plan combobox](./images/resource-plan-box.png "Resource Plan combobox")
 
-5. Click "Save".
+5. Click "Save". In this example it is assumed the graph is named "GPU usage".
+6. Open ML Scenario Manager, create or open a scenario.
+7. In there, create a new pipeline from the "Blank" Template.
 
-6. Run the graph.
+    ![Open Pipeline](./images/open-gpu-pipeline.png "Open Pipeline")
+
+8. Back in the modeler, open the "GPU usage" graph and switch to JSON view.
+
+    ![JSON view](./images/json-view.png "JSON view")
+
+9. Select the whole JSON content and copy it.
+
+10. Return to the blank template tab opened from the Scenario Manager, switch to JSON view and paste the JSON content.
+11. Save the graph and Run it.
+
+## Troubleshooting
+
+There are multiple pods generated for the pipeline. All but one have the nodeSelector unset, therefor running on any node. Only one of them - named by the hash, has the node selector set:
+
+    # oc get pods -o wide | grep '098c58ec233d4c15bab2ac4508122b5f\|cbd6fc10-fb9a-4895-a897-b5115fa36c7e-s2qph'
+    cbd6fc10-fb9a-4895-a897-b5115fa36c7e-s2qph                        0/2     Pending            0          23h     <none>         <none>     <none>           <none>
+    vflow-bus-098c58ec233d4c15bab2ac4508122b5f-ssb4d                  2/2     Running            0          23h     10.129.4.225   compute4   <none>           <none>
+    vflow-graph-098c58ec233d4c15bab2ac4508122b5f-c-lpxsnwmnmm9nbslt   2/2     Running            0          23h     10.131.1.214   compute3   <none>           <none>
+    vflow-graph-098c58ec233d4c15bab2ac4508122b5f-c-wptnnxl68ncfv288   2/2     Running            0          23h     10.129.4.226   compute4   <none>           <none>
+
+The pod remains pending because it is waiting for pvc to be available on the only node, where it is supposed to be scheduled (`compute1`) - the one matching the nodeSelector in the advanced plan.
+
+    # oc describe pod cbd6fc10-fb9a-4895-a897-b5115fa36c7e-s2qph | tail -n 4
+    Events:                                                                                                                                 
+      Type     Reason            Age   From               Message                                                                           
+      ----     ------            ----  ----               -------                                                                           
+      Warning  FailedScheduling  23h   default-scheduler  0/10 nodes are available: 10 pod has unbound immediate PersistentVolumeClaims.  
+
+    # oc set volume pod/cbd6fc10-fb9a-4895-a897-b5115fa36c7e-s2qph
+    cbd6fc10-fb9a-4895-a897-b5115fa36c7e-s2qph
+     pvc/job-pvc-cbd6fc10-fb9a-4895-a897-b5115fa36c7e (allocated 100GiB) as storage
+       mounted at /storage in container cbd6fc10-fb9a-4895-a897-b5115fa36c7e
+       mounted at /artifact in container cbd6fc10-fb9a-4895-a897-b5115fa36c7e
+       mounted at /artifact in container artifact-uploader
+     empty directory as shared
+       mounted at /shared in container cbd6fc10-fb9a-4895-a897-b5115fa36c7e
+       mounted at /shared in container artifact-uploader
+     configMap/job-cbd6fc10-fb9a-4895-a897-b5115fa36c7e-artifact-tokens as artifact-secret
+       mounted at /etc/tokens in container artifact-uploader
