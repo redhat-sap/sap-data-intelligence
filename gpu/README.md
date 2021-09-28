@@ -169,6 +169,7 @@ This examples assumes the commands are executed on a Linux managegement host whe
     3. If a JSON is displayed, everything is alright and you can proceed with step 15.
 
     4. Otherwise, determine the latest tag of the "com.sap.mlf/tyom-suse-tf-1.15-py36-gpu" image in your registry. If your registry supports `tags/list` endpoint, you can determine it like this:
+
             # # URL is of format: https://<registry-url>/v2/<image-name>/tags/list
             # curl --silent \
                 https://local-registry.apps.example.local/v2/com.sap.mlf/tyom-suse-tf-1.15-py36-gpu/tags/list | \
