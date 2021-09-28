@@ -187,3 +187,22 @@ This examples assumes the commands are executed on a Linux managegement host whe
 14. Save the graph.
 
 15. Run it.
+
+16. Wait until graph becomes Running and Click on it.
+
+    ![Graph Running](./images/graph-running.png "Graph Running")
+
+17. Open the wiretap of the running graph.
+
+    ![Open Wiretap](./images/wiretap-open.png "Open Wiretap")
+
+18. Verify that the pipeline succeeds, in the Wiretap, you should be able to see output like this:
+
+        [2021-09-28 14:27:38,000] Job submitted successfully with UUID 5838f7be-7726-4e32-8286-c79a64e77a15
+        [2021-09-28 14:27:59,000] 2021-09-28 14:27:55 "Testing gpu"
+        [2021-09-28 14:27:59,000] 2021-09-28 14:27:55 "Calculation COmplete"
+        [2021-09-28 14:27:59,000] 2021-09-28 14:27:55 "Tensor("MatMul:0", shape=(2, 2), dtype=float32, device=/device:GPU:0)"
+        [2021-09-28 14:27:59,000] 2021-09-28 14:27:55 "Is TF built with CUDA?"
+        [2021-09-28 14:27:59,000] 2021-09-28 14:27:55 "True"
+        [2021-09-28 14:27:59,000] 2021-09-28 14:27:55 "Testing complete"
+        [2021-09-28 14:27:59,000] 2021-09-28 14:27:55 "Training completed with exit code 0"
