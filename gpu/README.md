@@ -64,7 +64,7 @@ This examples assumes the commands are executed on a Linux managegement host whe
     1. First set the desired arguments:
 
             # resourcePlanId=advanced
-            # requestGPU=1    # number of GPU units to request
+            # gpuLimit=1    # number of GPU units to request
             # nodeSelector=nvidia.com/gpu.present=true
             # # or alternatively to choose a specific GPU model:
             # nodeSelector=nvidia.com/gpu.present=true,nvidia.com/gpu.product=Tesla-V100-PCIE-32GB
@@ -73,15 +73,16 @@ This examples assumes the commands are executed on a Linux managegement host whe
 
             # jq --arg resourcePlanId "$resourcePlanId" \
                  --arg nodeSelector "$nodeSelector" \
-                 --arg requestGPU "$requestGPU" \
+                 --arg gpuLimit "$gpuLimit" \
                 '.resourcePlans |= [.[] |
                     if .resourcePlanId == $resourcePlanId then
                         . as $rp | [ $nodeSelector | split(",")[] |
-                                     split("=") | {"key": .[0], "value": (.[1] // "")}
+                                     split("=") | {"key": .[0], "value": ((.[1] // "") | tostring)}
                                    ] | from_entries | . as $sel |
-                        $rp | .requestSpec.gpu           |= $requestGPU |
+                        $rp | del(.nodeSelectors) |
                               .requestSpec.nodeSelectors |= $sel |
-                              .limitSpec.gpu             |= $requestGPU
+                              .requestSpec.gpu |= "" |
+                              .limitSpec.gpu |= $gpuLimit
                     else
                         .
                     end
@@ -96,14 +97,12 @@ This examples assumes the commands are executed on a Linux managegement host whe
                   "resourcePlanDescription": "advanced",
                   "requestSpec": {
                     ...
-                    "gpu": 1,
                     "nodeSelectors": {
                         "nvidia.com/gpu.present": "true"
                     }
                   },
                   "limitSpec": {
                     ...
-                    "gpu": 1
                   }
                 }
             ...
