@@ -151,34 +151,38 @@ This examples assumes the commands are executed on a Linux managegement host whe
 9. Select the whole JSON content and copy it.
 
 10. Return to the blank template tab opened from the Scenario Manager, switch to JSON view and paste the JSON content.
-11. Save the graph and Run it.
+11. Save the graph.
+12. Click on the Training operator and open its configuration.
 
-## Troubleshooting
+    ![Training Operator Configuration](./images/training-open-config.png "Training Operator Configuration")
 
-There are multiple pods generated for the pipeline. All but one have the nodeSelector unset, therefor running on any node. Only one of them - named by the hash, has the node selector set:
+13. Copy the "Training Image" URL and verify it can be pulled from the local registry.
 
-    # oc get pods -o wide | grep '098c58ec233d4c15bab2ac4508122b5f\|cbd6fc10-fb9a-4895-a897-b5115fa36c7e-s2qph'
-    cbd6fc10-fb9a-4895-a897-b5115fa36c7e-s2qph                        0/2     Pending            0          23h     <none>         <none>     <none>           <none>
-    vflow-bus-098c58ec233d4c15bab2ac4508122b5f-ssb4d                  2/2     Running            0          23h     10.129.4.225   compute4   <none>           <none>
-    vflow-graph-098c58ec233d4c15bab2ac4508122b5f-c-lpxsnwmnmm9nbslt   2/2     Running            0          23h     10.131.1.214   compute3   <none>           <none>
-    vflow-graph-098c58ec233d4c15bab2ac4508122b5f-c-wptnnxl68ncfv288   2/2     Running            0          23h     10.129.4.226   compute4   <none>           <none>
+    1. If you don't know the image registry URL, locate it in the Application Configuration in the System Management:
 
-The pod remains pending because it is waiting for pvc to be available on the only node, where it is supposed to be scheduled (`compute1`) - the one matching the nodeSelector in the advanced plan.
+        ![Registry URL](./images/registry-url.png "Registry URL")
 
-    # oc describe pod cbd6fc10-fb9a-4895-a897-b5115fa36c7e-s2qph | tail -n 4
-    Events:                                                                                                                                 
-      Type     Reason            Age   From               Message                                                                           
-      ----     ------            ----  ----               -------                                                                           
-      Warning  FailedScheduling  23h   default-scheduler  0/10 nodes are available: 10 pod has unbound immediate PersistentVolumeClaims.  
+    2. Inspect the pull spec:
 
-    # oc set volume pod/cbd6fc10-fb9a-4895-a897-b5115fa36c7e-s2qph
-    cbd6fc10-fb9a-4895-a897-b5115fa36c7e-s2qph
-     pvc/job-pvc-cbd6fc10-fb9a-4895-a897-b5115fa36c7e (allocated 100GiB) as storage
-       mounted at /storage in container cbd6fc10-fb9a-4895-a897-b5115fa36c7e
-       mounted at /artifact in container cbd6fc10-fb9a-4895-a897-b5115fa36c7e
-       mounted at /artifact in container artifact-uploader
-     empty directory as shared
-       mounted at /shared in container cbd6fc10-fb9a-4895-a897-b5115fa36c7e
-       mounted at /shared in container artifact-uploader
-     configMap/job-cbd6fc10-fb9a-4895-a897-b5115fa36c7e-artifact-tokens as artifact-secret
-       mounted at /etc/tokens in container artifact-uploader
+            # skopeo inspect docker://local-registry.apps.example.local/com.sap.mlf/tyom-suse-tf-1.15-py36-gpu:1.1.52
+
+    3. If a JSON is displayed, everything is alright and you can proceed with step 15.
+
+    4. Otherwise, determine the latest tag of the "com.sap.mlf/tyom-suse-tf-1.15-py36-gpu" image in your registry. If your registry supports `tags/list` endpoint, you can determine it like this:
+            # # URL is of format: https://<registry-url>/v2/<image-name>/tags/list
+            # curl --silent \
+                https://local-registry.apps.example.local/v2/com.sap.mlf/tyom-suse-tf-1.15-py36-gpu/tags/list | \
+                jq -r  '.tags[]' | sort -V
+
+        Example output:
+
+            1.1.39
+            1.1.46
+
+    5. Take the latest tag available and update the Trainig Image field with it.
+
+        ![Training Image Pull Spec](./images/training-image-pullspec.png "Training Image Pull Spec")
+        
+14. Save the graph.
+
+15. Run it.
