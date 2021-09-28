@@ -124,7 +124,7 @@ This examples assumes the commands are executed on a Linux managegement host whe
     3. If it is running, re-start it, otherwise start it.
     4. Ensure that the "started" notification appear or its status becomes "ready".
 
-### Verify the GPU unit
+## Verify the GPU unit with an example pipeline
 
 1. Please download the [./graph.json](./graph.json) file.
 2. Open Data Intelligence Modeler and click on the Import Graph icon ![import icon](./images/import-icon.png). A new tab called "GPU usage test" will open.
@@ -140,37 +140,41 @@ This examples assumes the commands are executed on a Linux managegement host whe
 
 5. Click "Save". In this example it is assumed the graph is named "GPU usage".
 6. Open ML Scenario Manager, create or open a scenario.
-7. In there, create a new pipeline from the "Blank" Template.
+7. In there, create a new pipeline from the "Blank" Template. And click on the created pipeline. It will open in the Modeler.
 
     ![Open Pipeline](./images/open-gpu-pipeline.png "Open Pipeline")
 
-8. Back in the modeler, open the "GPU usage" graph and switch to JSON view.
+8. Back in the modeler, open the imported "GPU usage" graph in another tab and switch to JSON view.
 
     ![JSON view](./images/json-view.png "JSON view")
 
 9. Select the whole JSON content and copy it.
-
-10. Return to the blank template tab opened from the Scenario Manager, switch to JSON view and paste the JSON content.
+10. Still in the modeler, return to the blank template tab opened from the Scenario Manager, switch to JSON view and paste the JSON content.
 11. Save the graph.
-12. Click on the Training operator and open its configuration.
+12. You can close the imported "GPU usage" tab in the Modeler now.
+
+### Update the example GPU pipeline
+
+1. Click on the Training operator and open its configuration.
 
     ![Training Operator Configuration](./images/training-open-config.png "Training Operator Configuration")
 
-13. Copy the "Training Image" URL and verify it can be pulled from the local registry.
+2. Copy the "Training Image" name and verify it can be pulled from the local registry.
 
-    1. If you don't know the image registry URL, locate it in the Application Configuration in the System Management:
+    1. If you don't know the image registry name, locate it in the Application Configuration in the System Management:
 
-        ![Registry URL](./images/registry-url.png "Registry URL")
+        ![Registry Name](./images/registry-url.png "Registry Name")
 
     2. Inspect the pull spec:
 
+            # # the URL is of format: docker://<registry-name>/<image-name>:<image-tag>
             # skopeo inspect docker://local-registry.apps.example.local/com.sap.mlf/tyom-suse-tf-1.15-py36-gpu:1.1.52
 
-    3. If a JSON is displayed, everything is alright and you can proceed with step 15.
+    3. If a JSON is displayed, everything is alright. You can skip the rest of this section.
 
     4. Otherwise, determine the latest tag of the "com.sap.mlf/tyom-suse-tf-1.15-py36-gpu" image in your registry. If your registry supports `tags/list` endpoint, you can determine it like this:
 
-            # # URL is of format: https://<registry-url>/v2/<image-name>/tags/list
+            # # URL is of format: https://<registry-name>/v2/<image-name>/tags/list
             # curl --silent \
                 https://local-registry.apps.example.local/v2/com.sap.mlf/tyom-suse-tf-1.15-py36-gpu/tags/list | \
                 jq -r  '.tags[]' | sort -V
@@ -184,19 +188,21 @@ This examples assumes the commands are executed on a Linux managegement host whe
 
         ![Training Image Pull Spec](./images/training-image-pullspec.png "Training Image Pull Spec")
         
-14. Save the graph.
+3. Save the graph.
 
-15. Run it.
+### Run the pipelient and verify it
 
-16. Wait until graph becomes Running and Click on it.
+1. Run the example pipeline either from the Modeler or from the ML Scenario Manager.
+
+2. Wait until graph becomes Running and Click on it.
 
     ![Graph Running](./images/graph-running.png "Graph Running")
 
-17. Open the wiretap of the running graph.
+3. Open the wiretap of the running graph.
 
     ![Open Wiretap](./images/wiretap-open.png "Open Wiretap")
 
-18. Verify that the pipeline succeeds, in the Wiretap, you should be able to see output like this:
+4. Verify that the pipeline succeeds, in the Wiretap, you should be able to see output like this:
 
         [2021-09-28 14:27:38,000] Job submitted successfully with UUID 5838f7be-7726-4e32-8286-c79a64e77a15
         [2021-09-28 14:27:59,000] 2021-09-28 14:27:55 "Testing gpu"
