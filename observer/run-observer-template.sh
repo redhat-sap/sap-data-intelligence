@@ -14,7 +14,6 @@ SLCB_NAMESPACE=sap-slcbridge
 DRY_RUN=false
 # if left unset, it will be determined from OCP server API
 #OCP_MINOR_RELEASE=4.6
-INJECT_CABUNDLE=true
 MANAGE_VSYSTEM_ROUTE=true
 #VSYSTEM_ROUTE_HOSTNAME=vsystem-<SDI_NAMESPACE>.apps.<clustername>.<base_domain>
 MANAGE_SLCB_ROUTE=true
