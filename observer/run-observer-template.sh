@@ -14,7 +14,6 @@ SLCB_NAMESPACE=sap-slcbridge
 DRY_RUN=false
 # if left unset, it will be determined from OCP server API
 #OCP_MINOR_RELEASE=4.6
-DEPLOY_SDI_REGISTRY=false
 INJECT_CABUNDLE=true
 MANAGE_VSYSTEM_ROUTE=true
 #VSYSTEM_ROUTE_HOSTNAME=vsystem-<SDI_NAMESPACE>.apps.<clustername>.<base_domain>
@@ -31,7 +30,11 @@ FLAVOUR=ubi-build
 
 # Required parameters for each template flavour:
 # 1. ubi-build: set the following variable (use UBI8 for the base image)
-#REDHAT_REGISTRY_SECRET_NAME=""
+#    Set either *_SECRET_PATH or *_SECRET_NAME
+#    - Path to the local secret file with credentials to registry.redhat.io
+#  REDHAT_REGISTRY_SECRET_PATH="$HOME/rht-registry-miminar-secret.yaml"
+#    - Alternatively, uncomment the following with the name of the secret present in the $NAMESPACE
+#  REDHAT_REGISTRY_SECRET_NAME=1979710-user-pull-secret
 # 2. ubi-prebuilt
 # The image shall be first mirrored from the quay.io registry to a local container image registry.
 # Then the below variable must be set accordingly. The %%OCP_MINOR_RELEASE%% macro will be
@@ -56,8 +59,11 @@ SDI_REGISTRY_AUTHENTICATION=basic       # "none" disables the authentication
 #SDI_REGISTRY_PASSWORD=                 # auto-generated unless set
 #SDI_REGISTRY_HTPASSWD_SECRET_NAME=     # auto-generated unless set
 
-INJECT_CABUNDLE=false
+INJECT_CABUNDLE=true
+# By default, cabundle is taken from the OCP's Ingress Operator.
 CABUNDLE_SECRET_NAME=openshift-ingress-operator/router-ca
+# Alternatively, set a path to a local cabundle file
+#CABUNDLE_PATH=./cabundle.pem
 
 # build the latest revision; change to a particular tag if needed (e.g. 0.1.13)
 SDI_OBSERVER_GIT_REVISION=master
@@ -202,6 +208,18 @@ case "$minorMismatch" in
         ;;
 esac
 
+if [[ -n "${REDHAT_REGISTRY_SECRET_NAME:-}" && -n "${REDHAT_REGISTRY_SECRET_PATH:-}" ]]; then
+    printf 'REDHAT_REGISTRY_SECRET_NAME and REDHAT_REGISTRY_SECRET_PATH are mutually' >&2
+    printf ' exclusive!\nPlease set just one of them!\n' >&2
+    exit 1
+fi
+
+if [[ -n "${CABUNDLE_SECRET_NAME:-}" && -n "${CABUNDLE_PATH:-}" ]]; then
+    printf 'CABUNDLE_SECRET_NAME and CABUNDLE_PATH are mutually' >&2
+    printf ' exclusive!\nPlease set just one of them!\n' >&2
+    exit 1
+fi
+
 sourceLocation="$gitRepo"
 root="$(dirname "$(dirname "${BASH_SOURCE[0]}")")"
 if [[ -n "${SDI_OBSERVER_REPOSITORY:-}" ]]; then
@@ -212,8 +230,9 @@ fi
 
 args=( -f )
 if [[ "${sourceLocation:-}" =~ ^https:// ]]; then
+    # shellcheck disable=SC2001
     args+=(
-        "$(join / "$(sed 's,/github.com/,/raw.githubusercontent.com/,' <<<"$sourceLocation")" \
+        "$(join / "$(sed 's,/github\.com/,/raw.githubusercontent.com/,' <<<"$sourceLocation")" \
             "${SDI_OBSERVER_GIT_REVISION:-master}" \
             "observer/${template}.json")"
     )
@@ -238,6 +257,43 @@ if [[ -z "${SDI_REGISTRY_VOLUME_ACCESS_MODE:-}" ]]; then
     fi
 fi
 
+# create namespaces if they do not exist yet
+projects="$(printf 'project/%s\n' "$NAMESPACE" "$SDI_NAMESPACE" "$SLCB_NAMESPACE" | sort -u)"
+grep -v -x -f <(xargs -r oc get -o jsonpath='{range .items[*]}project/{.metadata.name}{"\n"}{end}' \
+            2>/dev/null <<<"$projects") <<<"$projects" | sed 's,^project.*/,,' | \
+    xargs -n 1 -r oc create namespace ||:
+
+if [[ "$FLAVOUR" == ubi-build ]]; then
+    if [[ -n "${REDHAT_REGISTRY_SECRET_PATH:-}" ]]; then
+        oc patch --local --dry-run=client -f "${REDHAT_REGISTRY_SECRET_PATH:-}" \
+            -p '{"metadata":{"namespace": "'"$NAMESPACE"'"}}' -o json | \
+            oc apply -n "$NAMESPACE" -f "$REDHAT_REGISTRY_SECRET_PATH"
+        REDHAT_REGISTRY_SECRET_NAME="$(oc patch --local --dry-run=client \
+            -f "$REDHAT_REGISTRY_SECRET_PATH" -p '{"foo": "bar"}}' \
+            -o jsonpath='{.metadata.name}')"
+    elif [[ -n "${REDHAT_REGISTRY_SECRET_NAME:-}" ]]; then
+        if ! oc -n "${NAMESPACE:-}" secret/"${REDHAT_REGISTRY_SECRET_NAME:-}"; then
+            printf 'Please create the secret REDHAT_REGISTRY_SECRET_NAME (%s)' \
+                "${REDHAT_REGISTRY_SECRET_NAME:-}" >&2
+            printf ' in namespace %s first!\n' "${NAMESPACE:-}" >&2
+            exit 1
+        fi
+    else
+        printf 'Please set either the REDHAT_REGISTRY_SECRET_NAME '
+        printf ' or REDHAT_REGISTRY_SECRET_PATH for ubi-build flavour!\n' >&2
+        exit 1
+    fi
+fi
+
+if grep -q -i '^\(true\|y\|yes\|1\)$' <<<"$INJECT_CABUNDLE"; then
+    if [[ -n "${CABUNDLE_PATH:-}" ]]; then
+        CABUNDLE_SECRET_NAME=cabundle
+        oc create secret generic "$CABUNDLE_SECRET_NAME" -n "$NAMESPACE" \
+            --from-file=ca-bundle.pem="${CABUNDLE_PATH:-}" --dry-run=client | oc apply -f -
+    fi
+fi
+
+
 for var in "${envVars[@]}"; do
     eval 'value="${'"$var"':-}"'
     if [[ -z "${value:-}" ]]; then
@@ -260,12 +316,6 @@ for var in "${envVars[@]}"; do
     printf '%s="%s"\n' "$var" "$value"
 done
 printf '\n'
-
-# create namespaces if they do not exist yet
-projects="$(printf 'project/%s\n' "$NAMESPACE" "$SDI_NAMESPACE" "$SLCB_NAMESPACE" | sort -u)"
-grep -v -x -f <(xargs -r oc get -o jsonpath='{range .items[*]}project/{.metadata.name}{"\n"}{end}' \
-            2>/dev/null <<<"$projects") <<<"$projects" | sed 's,^project.*/,,' | \
-    xargs -n 1 -r oc create namespace ||:
 
 oc process "${args[@]}" "$@" | oc apply -f - | grep -v -F \
     'Warning: oc apply should be used on resource created by'
