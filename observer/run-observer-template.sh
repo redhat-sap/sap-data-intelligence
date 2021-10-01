@@ -231,19 +231,8 @@ if [[ -z "${SDI_REGISTRY_VOLUME_ACCESS_MODE:-}" ]]; then
         SDI_REGISTRY_VOLUME_ACCESS_MODE=ReadWriteMany
     fi
 
-    tmpl="$(printf '%s' \
-        '{{range $i, $sc := .items}}' \
-            '{{with $mt := $sc.metadata}}' \
-                '{{if $mt.annotations}}' \
-                    '{{if eq "true" (index $mt.annotations' \
-                        ' "storageclass.kubernetes.io/is-default-class")}}' \
-                        '{{$mt.name}}{{"\n"}}' \
-                    '{{end}}' \
-                '{{end}}' \
-            '{{end}}' \
-        '{{end}}')"
     if grep -F -x -q -f <(printf '%s\n' "${rwxStorageClasses[@]}") \
-        < <(oc get sc -o go-template="$tmpl");
+        < <(oc get sc --no-headers | awk '$2 == "(default)" {print $1}');
     then
         SDI_REGISTRY_VOLUME_ACCESS_MODE=ReadWriteMany
     fi
