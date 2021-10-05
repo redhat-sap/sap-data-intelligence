@@ -195,6 +195,14 @@
             'customresourcedefinitions',
           ],
         },
+        $.rbac.role.patch {
+          apiGroups: [
+            'installers.datahub.sap.com',
+          ],
+          resources: [
+            'datahubs',
+          ],
+        },
         $.rbac.role.watch {
           apiGroups: [
             'sap.com',
