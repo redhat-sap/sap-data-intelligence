@@ -4,7 +4,7 @@
    "metadata": {
       "labels": {
          "created-by": "manual",
-         "sdi-observer/version": "0.1.16"
+         "sdi-observer/version": "0.1.17"
       },
       "name": "ocp-tools"
    },
