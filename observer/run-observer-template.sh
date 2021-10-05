@@ -284,7 +284,7 @@ if [[ "$FLAVOUR" == ubi-build ]]; then
     fi
 fi
 
-if grep -q -i '^\(true\|y\|yes\|1\)$' <<<"$INJECT_CABUNDLE"; then
+if grep -q -i '^\(true\|y\|yes\|1\)$' <<<"${INJECT_CABUNDLE:-true}"; then
     if [[ -n "${CABUNDLE_PATH:-}" ]]; then
         CABUNDLE_SECRET_NAME=cabundle
         oc create secret generic "$CABUNDLE_SECRET_NAME" -n "$NAMESPACE" \
