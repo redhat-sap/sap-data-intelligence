@@ -31,7 +31,7 @@ FLAVOUR=ubi-build
 # 1. ubi-build: set the following variable (use UBI8 for the base image)
 #    Set either *_SECRET_PATH or *_SECRET_NAME
 #    - Path to the local secret file with credentials to registry.redhat.io
-REDHAT_REGISTRY_SECRET_PATH="$HOME/wsp/morrisville/rht-registry-miminar-secret.yaml"
+#  REDHAT_REGISTRY_SECRET_PATH="$HOME/rht-registry-miminar-secret.yaml"
 #    - Alternatively, uncomment the following with the name of the secret present in the $NAMESPACE
 #  REDHAT_REGISTRY_SECRET_NAME=1979710-user-pull-secret
 # 2. ubi-prebuilt
