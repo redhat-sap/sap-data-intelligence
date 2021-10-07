@@ -14,13 +14,11 @@ if [[ "${_SDI_LIB_SOURCED:-0}" == 0 ]]; then
 fi
 common_init
 
-readonly CABUNDLE_VOLUME_NAME="sdi-observer-cabundle"
-readonly CABUNDLE_VOLUME_MOUNT_PATH="/mnt/sdi-observer/cabundle"
-readonly UPDATE_CA_TRUST_CONTAINER_NAME="sdi-observer-update-ca-certificates"
 readonly VORA_CABUNDLE_SECRET_NAME="ca-bundle.pem"
 readonly VREP_EXPORTS_VOLUME_OBSOLETE_NAMES='["exports", "exports-volume"]'
 readonly VREP_EXPORTS_VOLUME_NAME="exports-mask"
 readonly VREP_EXPORTS_VOLUME_SIZE="500Mi"
+readonly FLUENTD_DOCKER_VOLUME_NAME="varlibdockercontainers"
 
 function getRegistries() {
     local registries=()
@@ -37,22 +35,22 @@ function getRegistries() {
 
 # VoraCluster cannot be observed by the regular mechanisms - need to pull the state manually
 function _observeVoraCluster() {
-    local spec
-    local newSpec
+    local def
+    local newDef
     sleep 15
     while true; do
-        newSpec="$(oc get voracluster/vora -o json)"
+        newDef="$(oc get voracluster/vora -o json)"
         local kind namespace rev
         IFS=: read -r kind rev namespace <<<"$(jq -r '[
             .kind, .metadata.resourceVersion, .metadata.namespace
-        ] | join(":")' <<<"${newSpec}")"
-        if [[ -n "${newSpec:-}" && ( -z "${spec:-}" || \
-                "$(jq -r '.metadata.resourceVersion' <<<"${spec}")" -lt "$rev" ) ]];
+        ] | join(":")' <<<"${newDef}")"
+        if [[ -n "${newDef:-}" && ( -z "${def:-}" || \
+                "$(jq -r '.metadata.resourceVersion' <<<"${def}")" -lt "$rev" ) ]];
         then
             # generate an event only if updated or never checked before
             echo "${namespace} vora $kind/vora"
         fi
-        spec="${newSpec}"
+        def="${newDef}"
         sleep 35
     done
     return 0
@@ -177,22 +175,14 @@ gotmplDaemonSet=(
         '{{end}}'
         '#'
         '{{if eq .metadata.name "diagnostics-fluentd"}}'
-            # ((int containerIndex):(string containerName):(bool unprivileged)
-            #            :(int volumeindex):(string varlibdockercontainers volumehostpath)
-            #            :(int volumeMount index):(string varlibdockercontainers volumeMount path)#)+
+            # (string appVersion):((int containerIndex):(string containerName)
+            #       :(bool unprivileged)#)+
+            '{{with $ver := index .metadata.annotations "datahub.sap.com/app-version"}}'
+                '{{$ver}}'
+            '{{end}}'
             '{{range $i, $c := $ds.spec.template.spec.containers}}'
                 '{{if eq $c.name "diagnostics-fluentd"}}'
                     '{{$i}}:{{$c.name}}:{{not $c.securityContext.privileged}}'
-                    '{{range $j, $v := $ds.spec.template.spec.volumes}}'
-                        '{{if eq $v.name "varlibdockercontainers"}}'
-                            ':{{$j}}:{{$v.hostPath.path}}'
-                        '{{end}}'
-                    '{{end}}'
-                    '{{range $j, $vm := $c.volumeMounts}}'
-                        '{{if eq $vm.name "varlibdockercontainers"}}'
-                            ':{{$j}}:{{$vm.mountPath}}'
-                        '{{end}}'
-                    '{{end}}#'
                 '{{end}}'
             '{{end}}'
        $'{{end}}\n'
@@ -657,15 +647,15 @@ function ensureVsystemRoute() {
     if [[ "$remove" == 0 ]] && ! evalBool MANAGE_VSYSTEM_ROUTE; then
         return 0
     fi
-    local routeSpec svcSpec secretSpec
-    routeSpec="$(oc get -n "${SDI_NAMESPACE}" route/vsystem -o json)" ||:
-    svcSpec="$(oc get -n "${SDI_NAMESPACE}" svc/vsystem -o json)" ||:
-    secretSpec="$(oc get -n "${SDI_NAMESPACE}" "secret/$VORA_CABUNDLE_SECRET_NAME" -o json)" ||:
+    local routeDef svcDef secretDef
+    routeDef="$(oc get -n "${SDI_NAMESPACE}" route/vsystem -o json)" ||:
+    svcDef="$(oc get -n "${SDI_NAMESPACE}" svc/vsystem -o json)" ||:
+    secretDef="$(oc get -n "${SDI_NAMESPACE}" "secret/$VORA_CABUNDLE_SECRET_NAME" -o json)" ||:
 
     # delete route
-    if [[ -n "${routeSpec:-}" ]]; then
+    if [[ -n "${routeDef:-}" ]]; then
         local delete=0
-        if [[ -z "${svcSpec:-}${secretSpec:-}" ]]; then
+        if [[ -z "${svcDef:-}${secretDef:-}" ]]; then
             log -n 'Removing vsystem route because either the vsystem service or ca-bundle secret'
             log -d ' does not exist'
             delete=1
@@ -679,34 +669,34 @@ function ensureVsystemRoute() {
         fi
     elif [[ "$remove" == 1 ]]; then
         return 0
-    elif [[ -z "${svcSpec:-}" ]]; then
+    elif [[ -z "${svcDef:-}" ]]; then
         log 'Not creating vsystem route for the missing vsystem service...'
         return 0
     fi
 
     # create or replace route
     local reason=""
-    if [[ -z "${routeSpec:-}" ]]; then
+    if [[ -z "${routeDef:-}" ]]; then
         reason=removed
     else
-        if [[ "$(jq -r '.spec.tls.destinationCACertificate' <<<"$routeSpec" | \
+        if [[ "$(jq -r '.spec.tls.destinationCACertificate' <<<"$routeDef" | \
                 tr -d '[:space:]\n')" != \
-            "$(jq -r '.data["ca-bundle.pem"] | @base64d' <<<"${secretSpec}" | \
+            "$(jq -r '.data["ca-bundle.pem"] | @base64d' <<<"${secretDef}" | \
                 tr -d '[:space:]\n')" ]]
         then
             reason=cert
-        elif [[ "$(getResourceSAPLabels <<<"${routeSpec}")" != \
-            "$(getResourceSAPLabels <<<"$svcSpec")" ]]
+        elif [[ "$(getResourceSAPLabels <<<"${routeDef}")" != \
+            "$(getResourceSAPLabels <<<"$svcDef")" ]]
         then
             reason=label
         elif [[ -n  "${VSYSTEM_ROUTE_HOSTNAME:-}" && "${VSYSTEM_ROUTE_HOSTNAME:-}" != \
-            "$(jq -r '.spec.host' <<<"${routeSpec:-}")" ]]
+            "$(jq -r '.spec.host' <<<"${routeDef:-}")" ]]
         then
             reason=hostname
-        elif ! jq -r '(.metadata.annotations // {}) | keys[]' <<<"$routeSpec" | \
+        elif ! jq -r '(.metadata.annotations // {}) | keys[]' <<<"$routeDef" | \
             grep -F -x -q haproxy.router.openshift.io/timeout || \
             (  evalBool EXPOSE_WITH_LETSENCRYPT \
-            && ! jq -r '(.metadata.annotations // {}) | keys[]' <<<"$routeSpec" | \
+            && ! jq -r '(.metadata.annotations // {}) | keys[]' <<<"$routeDef" | \
                     grep -F -x -q "kubernetes.io/tls-acme=true" )
         then
             reason=annotation
@@ -739,7 +729,7 @@ function ensureVsystemRoute() {
     if evalBool EXPOSE_WITH_LETSENCRYPT; then
         annotations+=( "kubernetes.io/tls-acme=true" )
     fi
-    jq -r '.data["ca-bundle.pem"] | @base64d' <<<"$secretSpec" >"$TMP/vsystem-ca-bundle.pem"
+    jq -r '.data["ca-bundle.pem"] | @base64d' <<<"$secretDef" >"$TMP/vsystem-ca-bundle.pem"
     createOrReplace -n "${SDI_NAMESPACE}" -f <<<"$(oc create route reencrypt "${args[@]}" \
           --dest-ca-cert="$TMP/vsystem-ca-bundle.pem" | \
       oc annotate --local -f - "${annotations[@]}" -o json)"
@@ -753,14 +743,14 @@ function ensureSlcbRoute() {
     if [[ "$remove" == 0 ]] && ! evalBool MANAGE_SLCB_ROUTE; then
         return 0
     fi
-    local routeSpec svcSpec
-    routeSpec="$(oc get -n "${SLCB_NAMESPACE}" route/sap-slcbridge -o json)" ||:
-    svcSpec="$(oc get -n "${SLCB_NAMESPACE}" svc/slcbridgebase-service -o json)" ||:
+    local routeDef svcDef
+    routeDef="$(oc get -n "${SLCB_NAMESPACE}" route/sap-slcbridge -o json)" ||:
+    svcDef="$(oc get -n "${SLCB_NAMESPACE}" svc/slcbridgebase-service -o json)" ||:
 
     # delete route
-    if [[ -n "${routeSpec:-}" ]]; then
+    if [[ -n "${routeDef:-}" ]]; then
         local delete=0
-        if [[ -z "${svcSpec:-}" ]]; then
+        if [[ -z "${svcDef:-}" ]]; then
             log 'Removing slcb route because the slcb service does not exist'
             delete=1
         elif [[ "$remove" == 1 ]]; then
@@ -773,7 +763,7 @@ function ensureSlcbRoute() {
         fi
     elif [[ "$remove" == 1 ]]; then
         return 0
-    elif [[ -z "${svcSpec:-}" ]]; then
+    elif [[ -z "${svcDef:-}" ]]; then
         log 'Not creating slcb route for the missing slcbridgebase-service ...'
         return 0
     fi
@@ -792,18 +782,18 @@ function ensureSlcbRoute() {
 
     # create or replace route
     local reason=""
-    if [[ -z "${routeSpec:-}" ]]; then
+    if [[ -z "${routeDef:-}" ]]; then
         reason=removed
     else
-        if [[ "$(getResourceSAPLabels <<<"${routeSpec}")" != \
-            "$(getResourceSAPLabels <<<"$svcSpec")" ]]
+        if [[ "$(getResourceSAPLabels <<<"${routeDef}")" != \
+            "$(getResourceSAPLabels <<<"$svcDef")" ]]
         then
             reason=label
         elif [[ -n "${SLCB_ROUTE_HOSTNAME:-}" && "${SLCB_ROUTE_HOSTNAME:-}" != \
-            "$(jq -r '.spec.host' <<<"${routeSpec:-}")" ]]
+            "$(jq -r '.spec.host' <<<"${routeDef:-}")" ]]
         then
             reason=hostname
-        elif ! jq -r '(.metadata.annotations // {}) | keys[]' <<<"$routeSpec" | \
+        elif ! jq -r '(.metadata.annotations // {}) | keys[]' <<<"$routeDef" | \
             grep -F -x -q haproxy.router.openshift.io/timeout;
         then
             reason=annotation
@@ -837,18 +827,159 @@ function ensureSlcbRoute() {
         "${args[@]}" | oc annotate --local -f - "${annotations[@]}" -o json)"
 }
 
+
+# 3.1.49 chart yaml default values
+#    fluentd:                                                           
+#                                                               
+#      enabled: true                                                                                
+#                                                                         
+#      # The Docker log directory to mount into Fluentd Pod                                                                                      
+#      # If omitted or empty string, no extra log directory is mounted.
+#      # varlibdockercontainers: "/var/lib/docker/containers"            
+#      varlibdockercontainers: "/var/lib/docker/containers"
+#                                                       
+#      # The time format expected by the log driver
+#      # logDriverTimeFormat: '%Y-%m-%dT%H:%M:%S.%NZ'                              
+#                                                                       
+#      # The log driver regex that is used to parse the log     
+#      # logDriverExpression: /^(?<time>.+) (?<stream>stdout|stderr)( (?<logtag>.))? (?<log>.*)$/   
+#                                                                         
+#      # collectLogs: false
+function patchDiagnosticsFluentd() {
+    local nm="$1"
+    local name="$2"
+    local appVersion="$3"
+    local unprivileged="$4"
+    local jqpatches=()
+    local jqargs=( -r )
+
+    if [[ "$unprivileged" == "true" ]]; then
+        log 'Patching daemonset/%s to make its pods privileged ...' "$name"
+        jqpatches+=( ' .spec.template.spec.containers |= [.[] |
+            if .name == "diagnostics-fluentd" then
+                .securityContext.privileged |= true
+            else . end] ' )
+    else
+        log 'Containers in the daemonset/%s are already privileged.' "$name"
+    fi
+    
+    local def
+    def="$(oc get -o json -n "$nm" ds/"$name")"
+
+    # fluentd already mounts /var/log/containers and /var/log/pods host paths, thus remove any
+    # /var/lib/docker volumes
+    if [[ "$(jq --arg vName "$FLUENTD_DOCKER_VOLUME_NAME" '.spec.template.spec as $s |
+            def inspectVMs($cs): [($cs[] | .valumeMounts[] // [])[] |
+                select(.name == $vName) | true];
+            [$s.volumes[] | select((.name == $vName)
+                or ((.hostPath // "") | test("^/var/lib/docker"))) | true] +
+            inspectVMs($s.containers) + inspectVMs($.initContainers // []) |
+                any' <<<"$def")" == "true" ]];
+    then
+        log 'Removing %s volumes and /var/lib/docker hostPath volumes from the daemonset/%s ...' \
+            "$FLUENTD_DOCKER_VOLUME_NAME" "$name"
+        # shellcheck disable=SC2016
+        jqpatches+=( ' . as $ds | $ds.spec.template.spec.volumes as $vs |
+            [$vs[] | select((.name == $vName)
+                    or ((.hostPath // "") | test("^/var/lib/docker"))) | .name] as $toDelete |
+            $ds.spec.template.spec.volumes |= [.[] | select(
+                    . as $v | $toDelete | all($v.name != .))] |
+            def prune($c): c.volumeMounts |= [(. // [])[] | select(. as $vm | $toDelete |
+                all($vm.name != .))];
+            $ds.spec.template.spec.containers |= [.[] | prune(.)] |
+            $ds.spec.template.spec.initContainers |= [.[] | prune(.)] ' )
+        jqargs+=( --arg vName "$FLUENTD_DOCKER_VOLUME_NAME" )
+    else
+        log -n 'DaemonSet %s does not have any references to /var/lib/docker' "$name"
+        log -d ' host path, no need to patch.'
+    fi
+
+    [[ "${#jqpatches[@]}" == 0 ]] && return 0
+    createOrReplace < <(jq "${jqargs[@]}" "$(join \| "${jqpatches[@]}")" <<<"$def")
+}
+
+function patchDiagnosticsFluentdConfig() {
+    local nm="$1"
+    local name="$2"
+    local resource="cm/$name"
+    local contents
+    local currentLogParseType
+    local newContents
+    local yamlPatch
+
+    contents="$(oc get "$resource" -o go-template='{{index .data "fluent.conf"}}')"
+    if [[ -z "${contents:-}" ]]; then
+        log "Failed to get contents of fluent.conf configuration file!"
+        return 1
+    fi
+    currentLogParseType="$(sed -n '/<parse>/,/<\/parse>/s,^\s\+@type\s*\([^[:space:]]\+\).*,\1,p' <<<"${contents}")"
+    if [[ -z "${currentLogParseType:-}" ]]; then
+        log "Failed to determine the current log type parsing of fluentd pods!"
+        return 1
+    fi
+    case "${currentLogParseType}" in
+    "multi_format")
+        return 0;   # shall support both json and text
+        ;;
+    "json")
+        if [[ "$NODE_LOG_FORMAT" == json ]]; then
+            log "Fluentd pods are already configured to parse json, not patching..."
+            return 0
+        fi
+        ;;
+    "regexp")
+        if [[ "$NODE_LOG_FORMAT" == text ]]; then
+            log "Fluentd pods are already configured to parse text, not patching..."
+            return 0
+        fi
+        ;;
+    esac
+
+    local exprs=(
+        -e '/^\s\+expression\s\+\/\^.*logtag/d'
+    )
+    if [[ "$NODE_LOG_FORMAT" == text ]]; then
+        exprs+=(
+            -e '/<parse>/,/<\/parse>/s,@type.*,@type regexp,'
+            -e '/<parse>/,/<\/parse>/s,\(\s*\)@type.*,\0\n\1expression /^(?<time>.+) (?<stream>stdout|stderr)( (?<logtag>.))? (?<log>.*)$/,'
+            -e "/<parse>/,/<\/parse>/s,time_format.*,time_format '%Y-%m-%dT%H:%M:%S.%N%:z',"
+        )
+    else
+        exprs+=(
+            -e '/<parse>/,/<\/parse>/s,@type.*,@type json,'
+            -e "/<parse>/,/<\/parse>/s,time_format.*,time_format '%Y-%m-%dT%H:%M:%S.%NZ',"
+        )
+    fi
+
+    newContents="$(printf '%s\n' "${contents}" | sed "${exprs[@]}")"
+
+    log 'Patching configmap %s to support %s logging format on OCP 4...' \
+        "$name" "$NODE_LOG_FORMAT"
+
+    # shellcheck disable=SC2001
+    yamlPatch="$(printf '%s\n' "data:" "    fluent.conf: |" \
+        "$(sed 's/^/        /' <<<"${newContents}")")"
+    runOrLog oc patch "$resource" -p "$yamlPatch"
+    readarray -t pods <<<"$(oc get pods -l datahub.sap.com/app-component=fluentd -o name)"
+    [[ "${#pods[@]}" == 0 ]] && return 0
+
+    log 'Restarting fluentd pods ...'
+    runOrLog oc delete --force --grace-period=0 "${pods[@]}" ||:
+}
+
+
 function ensureRoutes() {
     ensureVsystemRoute
     ensureSlcbRoute
 }
 
 function managePullSecret() {
-    local saSpec="$1"   # json of the service account that shall be (un)linked with the secret
+    local saDef="$1"   # json of the service account that shall be (un)linked with the secret
     local secretName="$2"
     local link="$3"     # one of "link" or "unlink"
     local present
     present="$(jq -r --arg secretName "$secretName" '(.imagePullSecrets // [])[] |
-        .name // "" | select(. == $secretName) | "present"' <<<"$saSpec")"
+        .name // "" | select(. == $secretName) | "present"' <<<"$saDef")"
     case "$present:$link" in
         present:link)
             log -n 'Secret %s already linked with the default service acount' "$secretName"
@@ -872,8 +1003,42 @@ function managePullSecret() {
 }
 export -f managePullSecret
 
+function patchDataHubs() {
+    local datahubs
+    local jqpatches=()
+    local jqargs=( -r )
+    datahubs="$(oc get -o json -n "$namespace" datahubs.installers.datahub.sap.com)"
+    if [[ "$(jq -r '[.items[] | .spec.vsystem.vRep.exportsMask // false] | all' \
+            <<<"$datahubs")" != "true" ]];
+    then
+        log 'Patching %s to configure vsystem-vrep with %s volume ...' \
+            "$(jq '[.items[] | "datahub/\(.metadata.name)"] | join(", ")' <<<"$datahubs")" \
+            "$VREP_EXPORTS_VOLUME_NAME"
+        jqpatches+=( '.items |= [.[] | .spec.vsystem.vRep.exportsMask |= true]' )
+    else
+        log 'No need to patch datahubs for vsystem-vrep volume, skipping ...'
+    fi
+
+    if [[ "$(jq -r --arg vName "$FLUENTD_DOCKER_VOLUME_NAME" '[.items[] |
+            .spec.diagnostic.fluentd."\($vName)" // ""] |
+            all(. == "disabled")' <<<"$datahubs")" != "true" ]];
+    then
+        log 'Patching %s to remove /var/lib/docker volumes from ds/fluentd ...' \
+            "$(jq '[.items[] | "datahub/\(.metadata.name)"] | join(", ")' <<<"$datahubs")"
+        # shellcheck disable=SC2016
+        jqpatches+=( '.items |= [.[] | .spec.diagnostic.fluentd."\($vName)" |= "disabled"]' )
+        jqargs+=( --arg "vName" "$FLUENTD_DOCKER_VOLUME_NAME" )
+    else
+        log 'No need to patch datahubs for fluentd volume mounting, skipping ...'
+    fi
+
+    [[ "${#jqpatches[@]}" == 0 ]] && return 0
+    createOrReplace < <(jq "${jqargs[@]}" "$(join \| "${jqpatches[@]}")" <<<"$datahubs")
+}
+export -f patchDataHubs
+
 function patchVsystemVrep() {
-    local stsDef newDef datahubs newDHs
+    local stsDef newDef datahubs
     stsDef="$(oc get -o json -n "$namespace" sts/vsystem-vrep)"
     newDef="$(jq --arg newVolumeName "$VREP_EXPORTS_VOLUME_NAME" \
             --argjson obsoleteNames "$VREP_EXPORTS_VOLUME_OBSOLETE_NAMES" \
@@ -889,26 +1054,14 @@ function patchVsystemVrep() {
                 ($c.name == "vsystem-vrep")
             then
                 [{"mountPath": "/exports", "name": $newVolumeName}]
-            else
-                []
-            end);
+            else [] end);
         .spec.template.spec.containers |= [.[] | mount(.)] |
         .spec.template.spec.initContainers |= [(. // [])[] | mount(.)]' <<<"$stsDef")"
 
     log 'Patching sts/vsystem-vrep for %s volume...' "$VREP_EXPORTS_VOLUME_NAME"
     createOrReplace -f <<<"$newDef" ||:
-    datahubs="$(oc get -o json -n "$namespace" datahubs.installers.datahub.sap.com)"
-    if [[ "$(jq -r '[.items[] | .spec.vsystem.vRep.exportsMask // false] | all' \
-            <<<"$datahubs")" != "true" ]];
-    then
-        log 'Patching datahubs to configure vsystem-vrep with %s volume ...' \
-            "$VREP_EXPORTS_VOLUME_NAME"
-        newDHs="$(jq '.items |= [.[] | .spec.vsystem.vRep.exportsMask |= true]' <<<"$datahubs")"
-        createOrReplace <<<"$newDHs" ||:
-    else
-        log 'No need to patch datahubs for vsystem-vrep volume, skipping ...'
-    fi
 }
+export -f patchVsystemVrep
 
 function ensureRegistryPullSecret() {
     # Motivation:
@@ -958,13 +1111,13 @@ function ensureRegistryPullSecret() {
     esac
 
     local secretName
-    local saSpec
-    saSpec="$(oc get sa default -o json)"
+    local saDef
+    saDef="$(oc get sa default -o json)"
     for secretName in "${!secrets[@]}"; do
         if [[ -z "${secretName:-}" ]]; then
             continue
         fi
-        managePullSecret "$saSpec" "$secretName" "${secrets[${secretName}]}" ||:
+        managePullSecret "$saDef" "$secretName" "${secrets[${secretName}]}" ||:
     done
 }
 export -f ensureRegistryPullSecret
@@ -1189,54 +1342,14 @@ while IFS=' ' read -u 3 -r namespace name resource; do
     daemonset/diagnostics-fluentd)
         IFS='#' read -r nodeSelector _rest <<<"${rest:-}"
         applyNodeSelectorToDS "$namespace" "$name" "${nodeSelector:-}"
-        IFS=: read -r index _ unprivileged _ hostPath volumeMountIndex mountPath <<<"${_rest:-}"
-        patches=()
-        patchTypes=()
-        mountPath="${mountPath%%#*}"
-        if [[ "$unprivileged" == "true" ]]; then
-            log 'Patching container #%d in daemonset/%s to make its pods privileged ...' \
-                    "$index" "$name"
-                    patches+=( "$(join ' ' '{"spec":{"template":{"spec":{"containers":' \
-                                                '[{"name":"diagnostics-fluentd", "securityContext":{"privileged": true}}]}}}}')"
-                    )
-                    patchTypes+=( strategic )
-        else
-            log 'Container #%d in daemonset/%s already patched, skipping ...' "$index" "$name"
-        fi
-        if [[ -n "${hostPath:-}" && "${hostPath}" != "/var/lib/docker" ]]; then
-            log 'Patching container #%d in daemonset/%s to mount /var/lib/docker instead of %s' \
-                    "$index" "$name" "$hostPath"
-            patches+=(
-                "$(join ' ' '[{"op": "replace", "path":' \
-                                '"/spec/template/spec/containers/'"$index/volumeMounts/$volumeMountIndex"'",' \
-                                '"value": {"name":"varlibdockercontainers","mountPath":"/var/lib/docker","readOnly": true}}]' )"
-            )
-            patchTypes+=( json )
-            patches+=(
-                "$(join ' ' '{"spec":{"template":{"spec":' \
-                            '{"volumes":[{"name": "varlibdockercontainers", "hostPath":' \
-                                '{"path": "/var/lib/docker", "type":""}}]}}}}' )"
-            )
-            patchTypes+=( strategic )
-        elif [[ -z "${hostPath:-}" ]]; then
-            log 'Failed to determine hostPath for varlibcontainers volume!'
-        else
-            log 'Daemonset/%s already patched to mount /var/lib/docker, skipping ...' "$name"
-        fi
-
-        [[ "${#patches[@]}" == 0 ]] && continue
-        dsSpec="$(oc get -o json daemonset/"$name")"
-        for ((i=0; i < "${#patches[@]}"; i++)); do
-            patch="${patches[$i]}"
-            patchType="${patchTypes[$i]}"
-            dsSpec="$(oc patch -o json --local -f - --type "$patchType" -p "${patch}" <<<"${dsSpec}")"
-        done
-        createOrReplace <<<"${dsSpec}"
+        IFS=: read -r appVersion _ _ unprivileged <<<"${_rest:-}"
+        patchDiagnosticsFluentd "$namespace" "$name" "$appVersion" "$unprivileged" ||:
+        patchDataHubs ||:
         ;;
 
     daemonset/*)
         IFS='#' read -r nodeSelector _ <<<"${rest:-}"
-        applyNodeSelectorToDS "$namespace" "$name" "${nodeSelector}"
+        applyNodeSelectorToDS "$namespace" "$name" "${nodeSelector}" ||:
         ;;
 
     statefulset/*)
@@ -1246,62 +1359,14 @@ while IFS=' ' read -u 3 -r namespace name resource; do
                 grep -q emptyDir <<<"${BASH_REMATCH[5]:-}";
         then
             log 'StatefulSet vsystem-vrep already masks /exports , skipping ...'
-            continue
+        else
+            patchVsystemVrep ||:
         fi
-        patchVsystemVrep ||:
+        patchDataHubs ||:
         ;;
 
     configmap/diagnostics-fluentd-settings)
-        contents="$(oc get "$resource" -o go-template='{{index .data "fluent.conf"}}')"
-        if [[ -z "${contents:-}" ]]; then
-            log "Failed to get contents of fluent.conf configuration file!"
-            continue
-        fi
-        currentLogParseType="$(sed -n '/<parse>/,/<\/parse>/s,^\s\+@type\s*\([^[:space:]]\+\).*,\1,p' <<<"${contents}")"
-        if [[ -z "${currentLogParseType:-}" ]]; then
-            log "Failed to determine the current log type parsing of fluentd pods!"
-            continue
-        fi
-        case "${currentLogParseType}" in
-        "multi_format") continue; ;; # shall support both json and text
-        "json")
-            if [[ "$NODE_LOG_FORMAT" == json ]]; then
-                log "Fluentd pods are already configured to parse json, not patching..."
-                continue
-            fi
-            ;;
-        "regexp")
-            if [[ "$NODE_LOG_FORMAT" == text ]]; then
-                log "Fluentd pods are already configured to parse text, not patching..."
-                continue
-            fi
-            ;;
-        esac
-        exprs=(
-            -e '/^\s\+expression\s\+\/\^.*logtag/d'
-        )
-        if [[ "$NODE_LOG_FORMAT" == text ]]; then
-            exprs+=(
-                -e '/<parse>/,/<\/parse>/s,@type.*,@type regexp,'
-                -e '/<parse>/,/<\/parse>/s,\(\s*\)@type.*,\0\n\1expression /^(?<time>.+) (?<stream>stdout|stderr)( (?<logtag>.))? (?<log>.*)$/,'
-                -e "/<parse>/,/<\/parse>/s,time_format.*,time_format '%Y-%m-%dT%H:%M:%S.%N%:z',"
-            )
-        else
-            exprs+=(
-                -e '/<parse>/,/<\/parse>/s,@type.*,@type json,'
-                -e "/<parse>/,/<\/parse>/s,time_format.*,time_format '%Y-%m-%dT%H:%M:%S.%NZ',"
-            )
-        fi
-        newContents="$(printf '%s\n' "${contents}" | sed "${exprs[@]}")"
-        log 'Patching configmap %s to support %s logging format on OCP 4...' "$name" "$NODE_LOG_FORMAT"
-        # shellcheck disable=SC2001
-        yamlPatch="$(printf '%s\n' "data:" "    fluent.conf: |" \
-            "$(sed 's/^/        /' <<<"${newContents}")")"
-        runOrLog oc patch "$resource" -p "$yamlPatch"
-        readarray -t pods <<<"$(oc get pods -l datahub.sap.com/app-component=fluentd -o name)"
-        [[ "${#pods[@]}" == 0 ]] && continue
-        log 'Restarting fluentd pods ...'
-        runOrLog oc delete --force --grace-period=0 "${pods[@]}" ||:
+        patchDiagnosticsFluentdConfig "$nm" "$name" ||:
         ;;
 
     configmap/*)
