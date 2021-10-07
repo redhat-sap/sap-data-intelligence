@@ -271,7 +271,7 @@ if [[ "$FLAVOUR" == ubi-build ]]; then
             -f "$REDHAT_REGISTRY_SECRET_PATH" -p '{"foo": "bar"}}' \
             -o jsonpath='{.metadata.name}')"
     elif [[ -n "${REDHAT_REGISTRY_SECRET_NAME:-}" ]]; then
-        if ! oc -n "${NAMESPACE:-}" secret/"${REDHAT_REGISTRY_SECRET_NAME:-}"; then
+        if ! oc get -n "${NAMESPACE:-}" secret/"${REDHAT_REGISTRY_SECRET_NAME:-}"; then
             printf 'Please create the secret REDHAT_REGISTRY_SECRET_NAME (%s)' \
                 "${REDHAT_REGISTRY_SECRET_NAME:-}" >&2
             printf ' in namespace %s first!\n' "${NAMESPACE:-}" >&2
