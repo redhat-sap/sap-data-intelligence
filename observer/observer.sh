@@ -1030,25 +1030,38 @@ function patchDataHub() {
     local jqpatches=()
     local jqargs=( -r )
     datahubs="$(oc get -o json -n "$namespace" datahubs.installers.datahub.sap.com)"
-    if [[ "$(jq -r --arg name "${name:-}" '[.items[] |
-        select((name == "") or (.metadata.name == name)) |
-            .spec.vsystem.vRep.exportsMask // false] | all' \
+    dhNames="$(jq -r '[.items[] | .metadata.name] | if (. | length) > 1 then
+        "datahubs/[\(. | join(", "))]"
+    else if (. | length) == 1 then
+        "datahub/\(.)"
+    else
+        empty
+    end end' <<<"$datahubs")"
+    if [[ -z "${dhNames:-}" ]]; then
+        return 0
+    fi
+    if [[ -n "${name:-}" ]]; then
+        local tmp
+        tmp="$(jq --arg dhName "$name" '[.items[] | select(.metadata.name == $dhName)]' \
+            <<<"$datahubs")"
+        datahubs="$tmp"
+    fi
+    
+    if [[ "$(jq -r "${name:-}" '[.items[] | .spec.vsystem.vRep.exportsMask // false] | all' \
             <<<"$datahubs")" != "true" ]];
     then
         log 'Patching %s to configure vsystem-vrep with %s volume ...' \
-            "$(jq '[.items[] | "datahub/\(.metadata.name)"] | join(", ")' <<<"$datahubs")" \
-            "$VREP_EXPORTS_VOLUME_NAME"
+            "$dhNames" "$VREP_EXPORTS_VOLUME_NAME"
         jqpatches+=( '.items |= [.[] | .spec.vsystem.vRep.exportsMask |= true]' )
     else
-        log 'No need to patch datahubs for vsystem-vrep volume, skipping ...'
+        log 'No need to patch %s for vsystem-vrep volume, skipping ...' "$dhNames"
     fi
 
     if [[ "$(jq -r --arg vName "$FLUENTD_DOCKER_VOLUME_NAME" '[.items[] |
             .spec.diagnostic.fluentd."\($vName)" // ""] |
             all(. == "disabled")' <<<"$datahubs")" != "true" ]];
     then
-        log 'Patching %s to remove /var/lib/docker volumes from ds/fluentd ...' \
-            "$(jq '[.items[] | "datahub/\(.metadata.name)"] | join(", ")' <<<"$datahubs")"
+        log 'Patching %s to remove /var/lib/docker volumes from ds/fluentd ...' "$dhNames"
         # shellcheck disable=SC2016
         jqpatches+=( '.items |= [.[] | .spec.diagnostic.fluentd."\($vName)" |= "disabled"]' )
         jqargs+=( --arg "vName" "$FLUENTD_DOCKER_VOLUME_NAME" )
