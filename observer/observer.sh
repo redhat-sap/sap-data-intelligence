@@ -19,6 +19,9 @@ readonly VREP_EXPORTS_VOLUME_OBSOLETE_NAMES='["exports", "exports-volume"]'
 readonly VREP_EXPORTS_VOLUME_NAME="exports-mask"
 readonly VREP_EXPORTS_VOLUME_SIZE="500Mi"
 readonly FLUENTD_DOCKER_VOLUME_NAME="varlibdockercontainers"
+# number of seconds to sleep between the checks for a SDI custom resource definition
+readonly SDI_CRD_CHECK_PERIOD="35"
+export SDI_CRD_CHECK_PERIOD
 
 function getRegistries() {
     local registries=()
@@ -34,38 +37,53 @@ function getRegistries() {
 }
 
 # VoraCluster cannot be observed by the regular mechanisms - need to pull the state manually
-function _observeVoraCluster() {
+function _observeSdiCrd() {
+    local crdname="$1"
+    # key is in format namespace/name
+    declare -A revisions=()
     local def
-    local newDef
-    sleep 15
+    local ocArgs=( -o json )
+    sleep "$((5 + RANDOM % 10))"
     while true; do
-        newDef="$(oc get voracluster/vora -o json)"
-        local kind namespace rev
-        IFS=: read -r kind rev namespace <<<"$(jq -r '[
-            .kind, .metadata.resourceVersion, .metadata.namespace
-        ] | join(":")' <<<"${newDef}")"
-        if [[ -n "${newDef:-}" && ( -z "${def:-}" || \
-                "$(jq -r '.metadata.resourceVersion' <<<"${def}")" -lt "$rev" ) ]];
-        then
-            # generate an event only if updated or never checked before
-            echo "${namespace} vora $kind/vora"
+        def="$(oc get "${ocArgs[@]}" "$crdname" ||:)"
+        local kind namespace rev name crs=()
+        readarray -t crs <<<"$(jq -r '[
+            .kind, .metadata.resourceVersion, (.metadata.namespace // ""), .metadata.name
+        ] | join(":")' <<<"${def:-}" ||:)"
+        unset def
+        if [[ "${#crs[@]}" == 0 || ( "${#crs[@]}" == 1 && "${crs[0]}" == '' ) ]]; then
+            sleep "$SDI_CRD_CHECK_PERIOD"
+            continue
         fi
-        def="${newDef}"
-        sleep 35
+
+        for ((i=0; i < "${#crs[@]}"; i++)); do
+            IFS=: read -r kind rev namespace name <<<"${crs[$i]}"
+            if [[ -z "${kind:-}" || -z "${name:-}" ]]; then
+                continue
+            fi
+            if [[ ( -z "${revisions["${namespace:-}/${name:-}"]:-}" || \
+                    "${revisions["${namespace:-}/$name"]}" -lt "$rev" ) ]];
+            then
+                # generate an event only if updated or never checked before
+                echo "${namespace} $name $kind/$name"
+            fi
+            revisions["${namespace:-}/$name"]="$rev"
+        done
+        sleep "$SDI_CRD_CHECK_PERIOD"
     done
     return 0
 }
-export -f _observeVoraCluster
+export -f _observeSdiCrd
 
 function _observe() {
     local kind="${1##*:}"
-    if [[ "$kind" == "voracluster" ]]; then
-        _observeVoraCluster
+    if [[ "$kind" =~ ^(([^:]*):)?((voracluster|datahub).*) ]]; then
+        _observeSdiCrd "${BASH_REMATCH[2]:-}" "${BASH_REMATCH[3]}"
         return 0
     fi
     local args=( )
     if [[ "$1" =~ ^(.+):(.+)$ ]]; then
-        args+=( -n "${BASH_REMATCH[1]}" --names="echo" --delete="echo" )
+        args+=( --namespace="${BASH_REMATCH[1]}" --names="echo" --delete="echo" )
     fi
     local jobnumber="$2"
     local portnumber="$((11251 + jobnumber))"
@@ -229,9 +247,9 @@ gotmplRoute=(
     $'{{.kind}}\n'
 )
 
-gotmplVoraCluster=(
-    $'{{.kind}}\n'
-)
+# SDI CRDs
+gotmplDatahub=(     $'{{.kind}}\n' )
+gotmplVoraCluster=( $'{{.kind}}\n' )
 
 # shellcheck disable=SC2016
 gotmplNamespace=(
@@ -309,7 +327,7 @@ if evalBool INJECT_CABUNDLE || [[ -n "${REDHAT_REGISTRY_SECRET_NAME:-}" ]]; then
     export CABUNDLE_SECRET_NAMESPACE CABUNDLE_SECRET_NAME INJECT_CABUNDLE
 fi
 
-# Defines all the resource types that shall be monitored accross different namespaces.
+# Defines all the resource types that shall be monitored across different namespaces.
 # The associated value is a go-template producing an output the will be passed to the observer
 # loop.
 declare -A gotmpls=(
@@ -322,6 +340,7 @@ declare -A gotmpls=(
     ["${SDI_NAMESPACE}:Service"]="$(join '' "${gotmplService[@]}")"
     ["${SDI_NAMESPACE}:Role"]="$(join '' "${gotmplRole[@]}")"
     ["${SDI_NAMESPACE}:VoraCluster"]="$(join '' "${gotmplVoraCluster[@]}")"
+    ["${SDI_NAMESPACE}:DataHub"]="$(join '' "${gotmplDatahub[@]}")"
     ["${SLCB_NAMESPACE}:Route"]="$(join '' "${gotmplRoute[@]}")"
     ["${SLCB_NAMESPACE}:Service"]="$(join '' "${gotmplService[@]}")"
     ["${SLCB_NAMESPACE}:DaemonSet"]="$(join '' "${gotmplDaemonSet[@]}")"
@@ -1003,12 +1022,17 @@ function managePullSecret() {
 }
 export -f managePullSecret
 
-function patchDataHubs() {
+function patchDataHub() {
+    local nm="$1"
+    # if empty, operate on all datahub instances
+    local name="${2:-}"
     local datahubs
     local jqpatches=()
     local jqargs=( -r )
     datahubs="$(oc get -o json -n "$namespace" datahubs.installers.datahub.sap.com)"
-    if [[ "$(jq -r '[.items[] | .spec.vsystem.vRep.exportsMask // false] | all' \
+    if [[ "$(jq -r --arg name "${name:-}" '[.items[] |
+        select((name == "") or (.metadata.name == name)) |
+            .spec.vsystem.vRep.exportsMask // false] | all' \
             <<<"$datahubs")" != "true" ]];
     then
         log 'Patching %s to configure vsystem-vrep with %s volume ...' \
@@ -1035,7 +1059,7 @@ function patchDataHubs() {
     [[ "${#jqpatches[@]}" == 0 ]] && return 0
     createOrReplace < <(jq "${jqargs[@]}" "$(join \| "${jqpatches[@]}")" <<<"$datahubs")
 }
-export -f patchDataHubs
+export -f patchDataHub
 
 function patchVsystemVrep() {
     local stsDef newDef datahubs
@@ -1344,7 +1368,7 @@ while IFS=' ' read -u 3 -r namespace name resource; do
         applyNodeSelectorToDS "$namespace" "$name" "${nodeSelector:-}"
         IFS=: read -r appVersion _ _ unprivileged <<<"${_rest:-}"
         patchDiagnosticsFluentd "$namespace" "$name" "$appVersion" "$unprivileged" ||:
-        patchDataHubs ||:
+        patchDataHub "$namespace" ||:
         ;;
 
     daemonset/*)
@@ -1362,7 +1386,7 @@ while IFS=' ' read -u 3 -r namespace name resource; do
         else
             patchVsystemVrep ||:
         fi
-        patchDataHubs ||:
+        patchDataHub "$namespace" ||:
         ;;
 
     configmap/diagnostics-fluentd-settings)
@@ -1397,6 +1421,10 @@ while IFS=' ' read -u 3 -r namespace name resource; do
             exists=removed
         fi
         ensureRegistryPullSecret "$exists"
+        ;;
+
+    datahub/*)
+        patchDataHub "$namespace" "$name"
         ;;
 
     "role/vora-vsystem-${SDI_NAMESPACE}")
