@@ -8,7 +8,7 @@
          "openshift.io/display-name": "Docker's Container Image Registry",
          "openshift.io/documentation-url": "https://access.redhat.com/articles/4324391",
          "openshift.io/provider-display-name": "Red Hat, Inc.",
-         "sdi-observer/version": "0.1.17"
+         "sdi-observer/version": "0.1.18"
       },
       "name": "container-image-registry"
    },
@@ -34,7 +34,7 @@
                "app": "container-image-registry",
                "created-by": "registry-template",
                "deploymentconfig": "container-image-registry",
-               "sdi-observer/version": "0.1.17"
+               "sdi-observer/version": "0.1.18"
             },
             "name": "container-image-registry",
             "namespace": "${NAMESPACE}"
@@ -62,7 +62,7 @@
                         "env": [
                            {
                               "name": "SDI_OBSERVER_VERSION",
-                              "value": "0.1.17"
+                              "value": "0.1.18"
                            },
                            {
                               "name": "REGISTRY_AUTH_HTPASSWD_REALM",
@@ -178,7 +178,7 @@
             "labels": {
                "created-by": "registry-template",
                "deploymentconfig": "container-image-registry",
-               "sdi-observer/version": "0.1.17"
+               "sdi-observer/version": "0.1.18"
             },
             "name": "container-image-registry",
             "namespace": "${NAMESPACE}"
@@ -219,7 +219,7 @@
          "metadata": {
             "labels": {
                "created-by": "registry-template",
-               "sdi-observer/version": "0.1.17"
+               "sdi-observer/version": "0.1.18"
             },
             "name": "container-image-registry",
             "namespace": "${NAMESPACE}"
@@ -235,7 +235,7 @@
          "metadata": {
             "labels": {
                "created-by": "registry-template",
-               "sdi-observer/version": "0.1.17"
+               "sdi-observer/version": "0.1.18"
             },
             "name": "${SOURCE_IMAGESTREAM_NAME}",
             "namespace": "${NAMESPACE}"
