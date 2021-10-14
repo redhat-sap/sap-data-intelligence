@@ -316,5 +316,66 @@ for var in "${envVars[@]}"; do
 done
 printf '\n'
 
-oc process "${args[@]}" "$@" | oc apply -f - | grep -v -F \
+# maps bcName to .status.lastVersion
+declare -A lastVersions
+if [[ "${FLAVOUR:-}" =~ build ]]; then
+    builds=( sdi-observer )
+    if [[ "${DEPLOY_SDI_REGISTRY:-false}" == true ]]; then
+        builds+=( container-image-registry )
+    fi
+    for b in "${builds[@]}"; do
+        lastVersions["$b"]="$(oc get -n "$NAMESPACE" "bc/${b}" -o \
+            jsonpath='{.status.lastVersion}' --ignore-not-found 2>/dev/null)"
+    done
+fi
+
+oc process "${args[@]}" "$@" | oc apply -f - |& grep -v -F \
     'Warning: oc apply should be used on resource created by'
+
+if [[ "${FLAVOUR:-}" =~ build ]]; then
+    sleep 1
+    printf '\n'
+    # start new image builds if not started automatically
+    for b in "${builds[@]}"; do
+        lv="$(oc get "bc/$b" -n "$NAMESPACE" -o jsonpath='{.status.lastVersion}')"
+        if [[ "${lv:-0}" -gt "${lastVersions["$b"]:-0}" ]]; then
+            printf 'Build "%s" has been started automatically.\n' "$b"
+            printf '  You can follow its progress with: oc logs -n %s -f bc/%s\n' \
+                "$NAMESPACE" "$b"
+            continue
+        fi
+        oc start-build -n "$NAMESPACE" "bc/$b"
+    done
+
+    printf '\n'
+    printf 'You can monitor the progress of SDI Observer'"'"'s deployment with:\n'
+    printf '  watch oc get -n %s is,builds,pods\n' "$NAMESPACE"
+    printf 'If the builds are failing, make sure that the integrated OCP registry is managed and\n'
+    printf 'properly configured. More information at:\n'
+    printf '  https://docs.openshift.com/container-platform/%s/%s\n' \
+        "$OCP_MINOR_RELEASE" "registry/configuring-registry-operator.html"
+    printf 'If there are 6 or more builds in the output, note that you can clean them up with:\n'
+    printf '  oc adm prune builds --confirm\n'
+    printf '  oc adm prune images\n'
+    printf 'Once the build(s) succeed, sdi-observer-* pod should appear and become Running.\n'
+fi
+
+printf '\n'
+printf 'You can monitor the SDI Observer with:\n'
+printf '  oc logs -n %s -f dc/sdi-observer\n' "$NAMESPACE"
+if [[ "${DEPLOY_SDI_REGISTRY:-false}"  == true && \
+        "${SDI_REGISTRY_AUTHENTICATION:-}" == basic ]];
+then
+    printf '\n'
+    if [[ "${FLAVOUR:-}" =~ build ]]; then
+        printf 'The registry deployment job starts once the sdi-registry image is built.\n'
+    fi
+    printf 'To monitor the deployment of the registry, run:\n'
+    printf '  oc logs -n %s -f job/deploy-registry\n' "$NAMESPACE"
+    printf 'Once the deploy-registry job succeeds, you will be able to see the authentication\n'
+    printf 'credentials generated for the registry. Run the following:\n'
+    printf '  oc get -o go-template='"'"'%s'"'"' -n %s \\\n' \
+        '{{index .data ".htpasswd.raw"}}' "$NAMESPACE"
+    printf '    secret/%s | base64 -d\n' \
+        "${SDI_REGISTRY_HTPASSWD_SECRET_NAME:-container-image-registry-htpasswd}"
+fi
