@@ -1,3 +1,4 @@
+- [ ] - do not rely on voracluster (optional component) for ensuring pull secret
 - [ ] - when build pods are pruned manually, right after the run of observer's run script, the following may happen:
 
         oc logs -n sdi-observer -f bc/sdi-observer
