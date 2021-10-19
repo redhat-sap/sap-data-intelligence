@@ -198,11 +198,13 @@ gotmplDaemonSet=(
             '{{end}}'
         '{{end}}'
         '#'
-        '{{if eq .metadata.name "diagnostics-fluentd"}}'
-            # (string appVersion):((int containerIndex):(string containerName)
-            #       :(bool unprivileged)#)+
-            '{{with $ver := index .metadata.annotations "datahub.sap.com/app-version"}}'
-                '{{$ver}}'
+        '{{if eq $ds.metadata.name "diagnostics-fluentd"}}'
+            # (string appVersion):(int containerIndex):(string containerName)
+            #       :(bool unprivileged)
+            '{{range $k, $v := $ds.metadata.labels}}'
+                '{{if eq $k "datahub.sap.com/app-version"}}'
+                    '{{$v}}:'
+                '{{end}}'
             '{{end}}'
             '{{range $i, $c := $ds.spec.template.spec.containers}}'
                 '{{if eq $c.name "diagnostics-fluentd"}}'
