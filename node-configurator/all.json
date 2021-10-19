@@ -19,7 +19,7 @@
          "metadata": {
             "labels": {
                "created-by": "manual",
-               "sdi-observer/version": "0.1.18"
+               "sdi-observer/version": "0.1.19"
             },
             "name": "ocp-tools"
          },
@@ -52,7 +52,7 @@
             "labels": {
                "app": "sdi-node-configurator",
                "daemonset": "sdi-node-configurator",
-               "sdi-observer/version": "0.1.18"
+               "sdi-observer/version": "0.1.19"
             },
             "name": "sdi-node-configurator"
          },
@@ -108,7 +108,7 @@
                         "env": [
                            {
                               "name": "SDI_OBSERVER_VERSION",
-                              "value": "0.1.18"
+                              "value": "0.1.19"
                            },
                            {
                               "name": "DRY_RUN",
