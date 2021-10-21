@@ -38,7 +38,7 @@ FLAVOUR=ubi-build
 # The image shall be first mirrored from the quay.io registry to a local container image registry.
 # Then the below variable must be set accordingly. The %%OCP_MINOR_RELEASE%% macro will be
 # replaced with the value of OCP_MINOR_RELEASE variable.
-#IMAGE_PULL_SPEC=quay.io/miminar/sdi-observer:latest-ocp%%OCP_MINOR_RELEASE%%
+#IMAGE_PULL_SPEC=quay.io/redhat-sap-cop/sdi-observer:latest-ocp%%OCP_MINOR_RELEASE%%
 # 3. custom-build
 #SOURCE_IMAGE_PULL_SPEC=registry.centos.org/centos:8
 #SOURCE_IMAGESTREAM_NAME=centos8
