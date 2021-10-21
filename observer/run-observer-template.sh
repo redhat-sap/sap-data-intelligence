@@ -287,7 +287,7 @@ fi
 if grep -q -i '^\(true\|y\|yes\|1\)$' <<<"${INJECT_CABUNDLE:-true}"; then
     if [[ -n "${CABUNDLE_PATH:-}" ]]; then
         CABUNDLE_SECRET_NAME=cabundle
-        oc create secret generic "$CABUNDLE_SECRET_NAME" -n "$NAMESPACE" \
+        oc create secret generic "$CABUNDLE_SECRET_NAME" -n "$NAMESPACE" -o json \
             --from-file=ca-bundle.pem="${CABUNDLE_PATH:-}" --dry-run=client | oc apply -f -
     fi
 fi
