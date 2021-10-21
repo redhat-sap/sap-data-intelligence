@@ -1474,7 +1474,7 @@ while IFS=' ' read -u 3 -r namespace name resource; do
         ;;
 
     configmap/diagnostics-fluentd-settings)
-        patchDiagnosticsFluentdConfig "$nm" "$name" ||:
+        patchDiagnosticsFluentdConfig "$namespace" "$name" ||:
         ;;
 
     configmap/*)
