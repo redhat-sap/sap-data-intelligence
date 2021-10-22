@@ -178,7 +178,11 @@ function getBucketSpecs() {
     else
         obcs="$(xargs -r oc get "${args[@]}" \
             < <(printf 'objectbucketclaim/%s\n' "${bucketNames[@]}") | \
-            jq --argjson obcs "$obcs" '$obcs + .items' ||:)"
+            jq --argjson obcs "$obcs" '$obcs + (if ((.items // "") | type) == "array" then
+                    .items
+                else
+                    [.] # in case there is just one bucket name
+                end)' ||:)"
         if [[ "$obcs" == '[]' ]]; then rt=1; fi
     fi
     jq 'unique_by([.metadata.name, .metadata.namespace]) |
