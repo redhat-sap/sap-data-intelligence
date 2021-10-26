@@ -630,7 +630,7 @@
                "created-by": "sdi-observer-template",
                "deploymentconfig": "sdi-observer"
             },
-            "name": "sdi-observer",
+            "name": "sdi-observer-in-${NAMESPACE}",
             "namespace": "${SDI_NAMESPACE}"
          },
          "roleRef": {

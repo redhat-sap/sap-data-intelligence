@@ -21,7 +21,9 @@ base {
       metadata: {
         name: jobtmpl.resourceName,
         namespace: '${NAMESPACE}',
-        'sdi-observer/version': jobtmpl.version,
+        labels: {
+          'sdi-observer/version': jobtmpl.version,
+        },
       },
       spec: {
         activeDeadlineSeconds: 30 * 60,
