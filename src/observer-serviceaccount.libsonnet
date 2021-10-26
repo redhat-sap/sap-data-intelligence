@@ -222,7 +222,7 @@
           deploymentconfig: $.resourceName,
           'created-by': $.createdBy,
         },
-        name: $.resourceName,
+        name: $.resourceName + '-in-${NAMESPACE}',
         namespace: '${SDI_NAMESPACE}',
       },
       roleRef: {
