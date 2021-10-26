@@ -320,9 +320,6 @@ printf '\n'
 declare -A lastVersions
 if [[ "${FLAVOUR:-}" =~ build ]]; then
     builds=( sdi-observer )
-    if [[ "${DEPLOY_SDI_REGISTRY:-false}" == true ]]; then
-        builds+=( container-image-registry )
-    fi
     for b in "${builds[@]}"; do
         lastVersions["$b"]="$(oc get -n "$NAMESPACE" "bc/${b}" -o \
             jsonpath='{.status.lastVersion}' --ignore-not-found 2>/dev/null)"
