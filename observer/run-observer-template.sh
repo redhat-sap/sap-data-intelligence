@@ -119,7 +119,7 @@ readonly rwxStorageClasses=(
 )
 
 declare -r -A envVarDefaults=(
-    [IMAGE_PULL_SPEC]='quay.io/miminar/sdi-observer:latest-ocp%%OCP_MINOR_RELEASE%%'
+    [IMAGE_PULL_SPEC]='quay.io/redhat-sap-cop/sdi-observer:latest-ocp%%OCP_MINOR_RELEASE%%'
 )
 
 envVars=( "${commonEnvVars[@]}" )
