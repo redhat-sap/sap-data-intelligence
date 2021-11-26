@@ -6,7 +6,8 @@ IFS=$'\n\t'
 readonly RGW_SERVICE_NAME="rook-ceph-rgw-ocs-storagecluster-cephobjectstore"
 readonly DEFAULT_ENDPOINT="http://${RGW_SERVICE_NAME}.openshift-storage.svc.cluster.local"
 readonly jqMinVersion=1.6
-readonly SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
+SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
+readonly SCRIPT_NAME
 
 readonly USAGE="$SCRIPT_NAME [options]
 
@@ -304,6 +305,16 @@ function updateSecret() {
         -r "$jqCode" | run
 }
 
+function backupSecrets() {
+    if [[ "${dryRun:-0}" == 1 ]]; then
+        return 0
+    fi
+    local fn
+    fn="${namespace}-obmigrate-secrets-backup-$(date -Iseconds -u).json"
+    printf 'secret/%s\n' "$@" | xargs -r oc get -n "$namespace" -o json >"$fn"
+    printf 'Backup of the DI secrets saved as "%s".\n' "$fn"
+}
+
 TMPARGS="$(getopt -o "hn:c:e:a:s:e" -l "$(join , "${longOptions[@]}")" \
     -n "${SCRIPT_NAME}" -- "$@")"
 eval set -- "$TMPARGS"
@@ -422,6 +433,7 @@ if [[ -z "${ACCESS_KEY_ID}" || -z "${SECRET_ACCESS_KEY}" ]]; then
     exit 1
 fi
 
+backupSecrets "${secretsToUpdate[@]}"
 for secret in "${secretsToUpdate[@]}"; do
     updateSecret "$secret"
 done
