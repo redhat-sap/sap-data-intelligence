@@ -8,7 +8,7 @@
          "openshift.io/display-name": "Job to deploy a container image registry.\n",
          "openshift.io/documentation-url": "https://access.redhat.com/articles/4324391",
          "openshift.io/provider-display-name": "Red Hat, Inc.",
-         "sdi-observer/version": "0.1.21"
+         "sdi-observer/version": "0.1.22"
       },
       "name": "deploy-registry"
    },
@@ -18,7 +18,7 @@
          "kind": "Job",
          "metadata": {
             "labels": {
-               "sdi-observer/version": "0.1.21"
+               "sdi-observer/version": "0.1.22"
             },
             "name": "deploy-registry",
             "namespace": "${NAMESPACE}"
@@ -238,7 +238,7 @@
             "labels": {
                "created-by": "registry-deploy",
                "deploymentconfig": "sdi-observer",
-               "sdi-observer/version": "0.1.21"
+               "sdi-observer/version": "0.1.22"
             },
             "name": "sdi-observer",
             "namespace": "${NAMESPACE}"
@@ -247,7 +247,7 @@
             "output": {
                "to": {
                   "kind": "ImageStreamTag",
-                  "name": "sdi-observer:0.1.21-ocp${OCP_MINOR_RELEASE}"
+                  "name": "sdi-observer:0.1.22-ocp${OCP_MINOR_RELEASE}"
                }
             },
             "runPolicy": "Serial",
@@ -282,7 +282,7 @@
          "metadata": {
             "labels": {
                "created-by": "registry-deploy",
-               "sdi-observer/version": "0.1.21"
+               "sdi-observer/version": "0.1.22"
             },
             "name": "sdi-observer",
             "namespace": "${NAMESPACE}"
@@ -298,7 +298,7 @@
          "metadata": {
             "labels": {
                "created-by": "registry-deploy",
-               "sdi-observer/version": "0.1.21"
+               "sdi-observer/version": "0.1.22"
             },
             "name": "ubi8",
             "namespace": "${NAMESPACE}"

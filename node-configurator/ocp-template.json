@@ -8,7 +8,7 @@
          "openshift.io/display-name": "OpenShift compute node configurator for SAP Data Intelligence\n",
          "openshift.io/documentation-url": "https://access.redhat.com/articles/4324391",
          "openshift.io/provider-display-name": "Red Hat, Inc.",
-         "sdi-observer/version": "0.1.21"
+         "sdi-observer/version": "0.1.22"
       },
       "name": "sdi-node-configurator"
    },
@@ -32,7 +32,7 @@
          "metadata": {
             "labels": {
                "created-by": "manual",
-               "sdi-observer/version": "0.1.21"
+               "sdi-observer/version": "0.1.22"
             },
             "name": "ocp-tools",
             "namespace": "${NAMESPACE}"
@@ -66,7 +66,7 @@
             "labels": {
                "app": "sdi-node-configurator",
                "daemonset": "sdi-node-configurator",
-               "sdi-observer/version": "0.1.21"
+               "sdi-observer/version": "0.1.22"
             },
             "name": "sdi-node-configurator",
             "namespace": "${NAMESPACE}"
@@ -123,7 +123,7 @@
                         "env": [
                            {
                               "name": "SDI_OBSERVER_VERSION",
-                              "value": "0.1.21"
+                              "value": "0.1.22"
                            },
                            {
                               "name": "NAMESPACE",

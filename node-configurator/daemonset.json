@@ -8,7 +8,7 @@
       "labels": {
          "app": "sdi-node-configurator",
          "daemonset": "sdi-node-configurator",
-         "sdi-observer/version": "0.1.21"
+         "sdi-observer/version": "0.1.22"
       },
       "name": "sdi-node-configurator"
    },
@@ -64,7 +64,7 @@
                   "env": [
                      {
                         "name": "SDI_OBSERVER_VERSION",
-                        "value": "0.1.21"
+                        "value": "0.1.22"
                      },
                      {
                         "name": "DRY_RUN",
