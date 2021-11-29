@@ -135,7 +135,7 @@ Let's now copy the checkpoint data from the old remote (NooBaa) to the new one (
         # # unless there is an empty output, unset the variables like this (bash)
         # unset $(env | sed -n -r 's/^([^=]*\s)?\<(AWS_[^=]+).*/\2/p' | sort -u)
 
-3. Copy the data with rclone:
+3. Copy the data with rclone, please double check that the remote path is exactly the same for both source and target remotes.
 
         rclone sync --progress \
             morrisville-noobaa:sdi-checkpoint-store-db781d27-a218-47b4-9292-607e0a1a5c59/ \
@@ -143,7 +143,7 @@ Let's now copy the checkpoint data from the old remote (NooBaa) to the new one (
 
 ### Update SDI Secrets
 
-DI stores access details to the checkpoint-store bucket in a couple of secrets. The `update-sdi-ob.sh` script can be used to change the details to the new remote.
+DI stores access details in the checkpoint-store bucket in a couple of secrets. The `update-sdi-ob.sh` script can be used to change the details to the new remote.
 
 On the management host, in the `sap-data-intelligence` local checkout, execute the following:
 
