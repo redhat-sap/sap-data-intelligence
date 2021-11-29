@@ -57,7 +57,7 @@ The default route is insecure (plain HTTP). Let's expose the RGW service secured
 
 Please make sure to modify the `hostname` parameter to match your wildcard apps domain. Unless specified, you will end up with the default hostname: `ocs-storagecluster-cephobjectstore-openshift-storage.apps.<clustername>.<basedomain>`
 
-#### Configure the target remote for rclone
+#### Configure the target (new) remote for rclone
 
 1. Get the credentials:
 
@@ -86,7 +86,7 @@ Please make sure to modify the `hostname` parameter to match your wildcard apps 
 
 Note that we use the endpoint exposed via the secure route created in the previous step. The cluster internal URL is not accessible from the management host.
 
-#### Configure the source remote for rclone
+#### Configure the source (original) remote for rclone
 
 1. Get the credentials:
 
@@ -100,7 +100,7 @@ Note that we use the endpoint exposed via the secure route created in the previo
 2. Configure the remote interactively with `rclone config`:
 
         # rclone config
-        Name> morrisville-rgw
+        Name> morrisville-noobaa
         n) New Remote
         Storage> s3
         provider> other
@@ -114,6 +114,8 @@ Note that we use the endpoint exposed via the secure route created in the previo
         Edit Advanced Config (y/n)? n
 
 #### Copy the data
+
+Let's now copy the checkpoint data from the old remote (NooBaa) to the new one (RGW).
 
 1. Get the CA certificate of the OCP's Ingress Controller and make it trusted on the management host. The following is an example for RHEL 7 or newer:
 
