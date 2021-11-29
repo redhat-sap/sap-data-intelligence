@@ -916,8 +916,10 @@ function patchDiagnosticsFluentd() {
                     . as $v | $toDelete | all($v.name != .))] |
             def prune($c): c.volumeMounts |= [(. // [])[] | select(. as $vm | $toDelete |
                 all($vm.name != .))];
-            $ds.spec.template.spec.containers |= [.[] | prune(.)] |
-            $ds.spec.template.spec.initContainers |= [.[] | prune(.)] ' )
+            $ds | .spec.template.spec.containers |= [.[] | prune(.)] |
+            .spec.template.spec.initContainers |= [(. // [])[] | prune(.)] |
+            .spec.template.spec.volumes |= [.[] | select(.name as $vn |
+                $toDelete | all($vn != .))] ' )
         jqargs+=( --arg vName "$FLUENTD_DOCKER_VOLUME_NAME" )
     else
         log -n 'DaemonSet %s does not have any references to /var/lib/docker' "$name"
