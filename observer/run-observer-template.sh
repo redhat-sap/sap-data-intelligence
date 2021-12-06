@@ -31,7 +31,7 @@ FLAVOUR=ubi-build
 # 1. ubi-build: set the following variable (use UBI8 for the base image)
 #    Set either *_SECRET_PATH or *_SECRET_NAME
 #    - Path to the local secret file with credentials to registry.redhat.io
-#  REDHAT_REGISTRY_SECRET_PATH="$HOME/rht-registry-miminar-secret.yaml"
+#  REDHAT_REGISTRY_SECRET_PATH="$HOME/rht-registry-username-secret.yaml"
 #    - Alternatively, uncomment the following with the name of the secret present in the $NAMESPACE
 #  REDHAT_REGISTRY_SECRET_NAME=1979710-user-pull-secret
 # 2. ubi-prebuilt
@@ -45,7 +45,8 @@ FLAVOUR=ubi-build
 #SOURCE_IMAGESTREAM_TAG=latest
 
 
-# whether the observer shall deploy a container image registry in its NAMESPACE
+# Whether the observer shall deploy a container image registry in its NAMESPACE.
+# Unsupported for ubi-prebuilt flavour.
 DEPLOY_SDI_REGISTRY=false
 #SDI_REGISTRY_STORAGE_CLASS_NAME=       # use the default sc unless set
 # change to ReadWriteMany if supported by the storage class

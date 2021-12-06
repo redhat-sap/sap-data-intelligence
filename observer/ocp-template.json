@@ -1018,7 +1018,7 @@
          "required": false
       },
       {
-         "description": "(deprecated since 0.1.17) Whether to deploy container image registry for the purpose of SAP Data Intelligence. Requires project admin role attached to the sdi-observer service account. If enabled, REDHAT_REGISTRY_SECRET_NAME must be provided.",
+         "description": "(deprecated since 0.1.17) Whether to deploy container image registry for the purpose of SAP Data Intelligence. Requires project admin role attached to the sdi-observer service account. Unsupported in disconnected environments (ubi-prebuilt flavour).",
          "name": "DEPLOY_SDI_REGISTRY",
          "required": false,
          "value": "false"

@@ -128,8 +128,8 @@ Example value: `node-role.kubernetes.io/sdi=`
 === _(optional)_ Deploys container image registry for SDI
 
 Due to a couple of restrictions, it is not possible to mirror SDI images to the integrated OCP
-image registry. Observer can be instructed to deploy another container image registry suitable to
-host the images.
+image registry. Observer can be instructed to deploy another container image registry (called SDI
+Registry) suitable to host the images.
 
 By default, the registry will be secured with TLS and will require authentication. It will be also
 exposed via route utilizing the OpenShift Ingress controller. Unless overridden, credentials for
@@ -148,7 +148,8 @@ trust container image registry].
 | Parameter                           | Default Value   | Description
 | `DEPLOY_SDI_REGISTRY`               | `false`         | Whether to deploy container image
 registry for the purpose of SAP Data Intelligence. Requires project admin role attached to the
-`sdi-observer` service account. If enabled, `REDHAT_REGISTRY_SECRET_NAME` must be provided.
+`sdi-observer` service account. Unsupported in disconnected environments (`ubi-prebuilt` flavour).
+Please refer to its link:../registry/README.adoc[documentation on deploying it manually].
 
 | `SDI_REGISTRY_STORAGE_CLASS_NAME`   |                 | Unless given, the default storage class
 will be used.
@@ -249,7 +250,8 @@ base image.
 
 |`ubi-prebuilt` | link:./ocp-prebuilt-image-template.json[] | (_disconnected_) To be used in
 disconnected/offline/air-gapped OCP clusters. The image must be first mirrored to a local
-registry.
+registry. The link:../registry/README.adoc[SDI Registry must be deployed manually],
+`DEPLOY_SDI_REGISTRY` won't work.
 
 |`custom-build` | link:./ocp-custom-source-image-template.json[] | For non-production, it is
 possible to use a custom base image (e.g. CentOS). A very limited or no support will be offered in
@@ -259,7 +261,8 @@ case of issues though.
 The `FLAVOUR` parameter shall be set in the `run-observer-template.sh` script described
 xref:#tmpl-run[below].
 
-=== Ensuring Red Hat registry pull secret
+[[download-rhpullsecret]]
+=== Download Red Hat Registry pull secret
 
 In order to use `ubi-build` flavour, the pull secret must be configured:
 
@@ -267,20 +270,9 @@ In order to use `ubi-build` flavour, the pull secret must be configured:
   link:https://access.redhat.com/terms-based-registry/[Red Hat Registry Service Accounts]. See
   link:https://access.redhat.com/RegistryAuthentication[Red Hat Container Registry Authentication]
   for more information.
-. Create a project to host SDI Observer (e.g. `sdi-observer`):
-+
-....
-# oc new-project sdi-observer
-....
-+
-. Create the downloaded secret in there and add it as a pull secret for builds:
-+
-....
- # oc create -f rht-registry-miminar-secret.yaml
- secret/1234567-miminar-pull-secret created
- # oc secrets link default 1234567-miminar-pull-secret --for=pull
-....
-
+. Make it available on your management host. Let's assume the file name
+  `rht-registry-username-secret.yaml`. The run script will read it and create it in the desired
+  `NAMESPACE`.
 
 [[tmpl-run]]
 === Template instantiation
@@ -295,7 +287,8 @@ Assuming the SDI will be run in the `SDI_NAMESPACE` which is different from the 
 ....
 +
 2. Edit the downloaded `run-observer-template.sh` file in your favorite editor. Especially, mind
-   the `FLAVOUR`, `NAMESPACE`, `SDI_NAMESPACE` parameters.
+   the `FLAVOUR`, `NAMESPACE`, `SDI_NAMESPACE` parameters. For `ubi-build`, make sure to set the
+  `REDHAT_REGISTRY_SECRET_PATH` to your secret xref:#download-rhpullsecret[downloaded earlier].
 +
 3. Run it in bash like this:
 +
@@ -323,7 +316,7 @@ Bridge runs or will be running.
 The observer will only output what would have been done. Use the following command to monitor its
 progress: `oc logs -n $NAMESPACE -f dc/sdi-observer` 
 
-| `OCP_MINOR_RELEASE` | `4.6`           | Determines the desired release of oc client binary. It
+| `OCP_MINOR_RELEASE` | _server version_ | Determines the desired release of oc client binary. It
 should match the OCP cluster's minor release.
 |===
 

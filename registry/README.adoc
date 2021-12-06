@@ -57,7 +57,7 @@ In order to use `ubi-build` flavour, you must have the pull secret.
   link:https://access.redhat.com/RegistryAuthentication[Red Hat Container Registry Authentication]
   for more information.
 . Make it available on your management host. Let's assume the file name
-  `rht-registry-miminar-secret.yaml`.
+  `rht-registry-username-secret.yaml`.
 
 [[tmpl-run]]
 === Template instantiation
@@ -80,14 +80,14 @@ In order to use `ubi-build` flavour, you must have the pull secret.
 +
 ....
 # ./sap-data-intelligence/registry/deploy-registry.sh --flavour=ubi-build \
-    --rp ./rht-registry-miminar-secret.yaml --dry-run
+    --rp ./rht-registry-username-secret.yaml --dry-run
 ....
 +
 . Next time, deploy the SDI registry for real and wait until it gets deployed:
 +
 ....
 # ./sap-data-intelligence/registry/deploy-registry.sh --flavour=ubi-build \
-    --rp ./rht-registry-miminar-secret.yaml --wait
+    --rp ./rht-registry-username-secret.yaml --wait
 ....
 
 ==== Generic instantiation for a disconnected environment

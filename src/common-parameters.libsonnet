@@ -257,8 +257,8 @@ local urls = import 'urls.jsonnet';
   RegistryDeployParam: $.Param {
     text:: |||
       Whether to deploy container image registry for the purpose of SAP Data Intelligence.
-      Requires project admin role attached to the sdi-observer service account. If enabled,
-      REDHAT_REGISTRY_SECRET_NAME must be provided.
+      Requires project admin role attached to the sdi-observer service account. Unsupported in
+      disconnected environments (ubi-prebuilt flavour).
     |||,
     name: 'DEPLOY_SDI_REGISTRY',
     value: 'false',
