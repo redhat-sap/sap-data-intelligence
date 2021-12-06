@@ -19,7 +19,7 @@ readonly DEFAULT_SOURCE_IMAGE="registry.centos.org/centos:8"
 readonly DEFAULT_IMAGE_PULL_SPEC=quay.io/redhat-sap-cop/container-image-registry:latest
 
 # TODO: specify volume capacity
-readonly USAGE="$(basename "${BASH_SOURCE[0]}") [options]
+USAGE="$(basename "${BASH_SOURCE[0]}") [options]
 
 Deploy container image registry for SAP Data Intelligence.
 
@@ -37,7 +37,8 @@ Options:
  (-o | --output-dir) OUTDIR
                 Output directory where to put htpasswd and .htpasswd.raw files. Defaults to
                 the working directory.
-  -n | --noout  Cleanup temporary htpasswd files.
+  --noout       Cleanup temporary htpasswd files.
+  --no-cleanup  Nelete neither old k8s builds nor deployments.
   --authentication AUTHENTICATION
                 Can be one of: none, basic
                 Defaults to \"basic\" where the credentials are verified against the provided or
@@ -54,7 +55,7 @@ Options:
                 Expose registry's service on the given hostname. Overrides
                 SDI_REGISTRY_ROUTE_HOSTNAME environment variable. The default is:
                     container-image-registry-\$NAMESPACE.\$clustername.\$basedomain
-  --namespace NAMESPACE
+ (-n | --namespace) NAMESPACE
                 Desired k8s NAMESPACE where to deploy the registry. Defaults to the current
                 namespace.
  (--sc | --storage-class) STORAGE_CLASS
@@ -106,6 +107,7 @@ Flavour specific options:
                 must be created in the target NAMESPACE and its name specified here. Overrides
                 SOURCE_IMAGE_REGISTRY_SECRET_NAME environment variable.
 "
+readonly USAGE
 
 declare -r -A flavourParams=(
     [ubi-build]=REDHAT_REGISTRY_SECRET_NAME
@@ -118,7 +120,7 @@ declare -r -A flavourParams=(
 )
 
 readonly longOptions=(
-    help output-dir: noout secret-name: hostname: wait namespace:
+    help output-dir: noout secret-name: hostname: wait namespace: no-cleanup
     authentication: replace-secrets
     no-auth
     rht-registry-secret-name: rht-registry-secret-namespace: rp: rht-registry-secret-path:
@@ -271,11 +273,46 @@ function getStorageClass() {
 }
 export -f getStorageClass
 
+function getCurrentVolumeAccessMode() {
+    local pvc
+    pvc="$(oc get -o json -n "$NAMESPACE" dc/container-image-registry | jq -r \
+        '. as $dc | $dc.spec.template.spec.containers[] | .volumeMounts | (. // [])[] |
+            select(.mountPath == "/var/lib/registry") | .name | . as $vname |
+                $dc.spec.template.spec.volumes[] | select(.name == $vname) |
+                .persistentVolumeClaim.claimName // ""')"
+    if [[ -z "${pvc:-}" ]]; then
+        return 0
+    fi
+    local accessModes phase 
+    IFS=: read -r phase accessModes < <(oc get -o json -n "$NAMESPACE" "pvc/$pvc" | jq -r \
+        '([.status.phase] + .status.accessModes) | join(":")')
+    if [[ "${phase:-}" == Bound ]]; then
+        # print the first accessmode matching the prefix
+        for am in ReadWriteMany ReadWrite Read; do
+            if grep "\<$am" < <(tr ':' '\n' <<<"${accessModes:-}") | head -n 1; then
+                return 0
+            fi
+        done
+    fi
+}
+export -f getCurrentVolumeAccessMode
+
 function getVolumeAccessMode() {
     if [[ -n "${SDI_REGISTRY_VOLUME_ACCESS_MODE:-}" ]]; then
         printf '%s' "$SDI_REGISTRY_VOLUME_ACCESS_MODE"
         return 0
     fi
+
+    if ! evalBool REPLACE_PERSISTENT_VOLUME_CLAIMS; then
+        local current
+        current="$(getCurrentVolumeAccessMode)"
+        # we need to respect the current accessmode if defined already
+        if [[ -n "${current:-}" ]]; then
+            printf '%s\n' "$current"
+            return 0
+        fi
+    fi
+
     local sc
     sc="$(getStorageClass)"
     if grep -F -x -q -f <(printf '%s\n' "${rwxStorageClasses[@]}") <<<"${sc:-}";
@@ -381,6 +418,9 @@ function createOrReplaceObjectFromTemplate() {
                 REGISTRY_AUTH_HTPASSWD_REALM- \
                 REGISTRY_AUTH_HTPASSWD_PATH- <<<"$def")"
         fi
+        if [[ "$(getVolumeAccessMode)" =~ ^Read.*WriteOnce ]]; then
+            def="$(jq '.spec.strategy.type |= "Recreate"' <<<"$def")"
+        fi
     esac
     ocApply -n "$NAMESPACE" <<<"$def"
 }
@@ -396,13 +436,17 @@ function deployRegistry() {
     readarray -t resources < <(getRegistryTemplateAs \
         jsonpath='{range .items[*]}{.kind}/{.metadata.name}{"\n"}{end}')
     for resource in "${resources[@]}"; do
-        createOrReplaceObjectFromTemplate "$resource"
+        createOrReplaceObjectFromTemplate "$resource" ||:
     done
 }
 
 function waitForRegistryBuild() {
     local buildName buildVersion
     local phase="Unknown"
+    if [[ ! "$FLAVOUR" =~ build ]]; then
+        phase="None"
+        return 0
+    fi
     for ((i=0; 1; i++)); do
         buildVersion="$(oc get -o jsonpath='{.status.lastVersion}' \
             "bc/container-image-registry")"
@@ -457,7 +501,7 @@ function waitForRegistry() {
     initialPodResourceVersion="$(getLatestRunningPodResourceVersion)" ||:
     local buildRC=0
     read -r -t 600 phase <<<"$(waitForRegistryBuild)"
-    if [[ "$phase" != Complete ]]; then
+    if [[ ! "$phase" =~ ^(Complete|None)$ ]]; then
         log 'WARNING: failed to wait for the latest build of %s' "$resource"
         buildRC=1
     fi
@@ -474,10 +518,11 @@ function waitForRegistry() {
     return "$buildRC"
 }
 
-TMPARGS="$(getopt -o ho:nwr:f:c: -l "$(join , "${longOptions[@]}")" -n "${BASH_SOURCE[0]}" -- "$@")"
+TMPARGS="$(getopt -o ho:n:wr:f:c: -l "$(join , "${longOptions[@]}")" -n "${BASH_SOURCE[0]}" -- "$@")"
 eval set -- "$TMPARGS"
 
 NOOUT=0
+NOCLEANUP=0
 
 while true; do
     case "$1" in
@@ -498,8 +543,12 @@ while true; do
             OUTPUT_DIR="$1"
             shift 2
             ;;
-        -n | --noout)
+        --noout)
             NOOUT=1
+            shift
+            ;;
+        --no-cleanup)
+            NOCLEANUP=1
             shift
             ;;
         --secret-name)
@@ -516,7 +565,7 @@ while true; do
             WAIT_UNTIL_ROLLEDOUT=1
             shift
             ;;
-        --namespace)
+        -n | --namespace)
             NAMESPACE="$2"
             shift 2
             ;;
@@ -589,6 +638,13 @@ while true; do
     esac
 done
 
+if [[ "$#" -gt 0 ]]; then
+    printf 'Unrecognized arguments:' >&2
+    printf ' %s' "$@" >&2
+    printf '\n' >&2
+    exit 1
+fi
+
 common_init
 if [[ -z "${NAMESPACE:-}" && -n "${SDI_REGISTRY_NAMESPACE:-}" ]]; then
     NAMESPACE="${SDI_REGISTRY_NAMESPACE:-}"
@@ -658,8 +714,8 @@ if [[ "$FLAVOUR" == ubi-build ]]; then
     if [[ -n "${REDHAT_REGISTRY_SECRET_PATH:-}" ]]; then
         oc patch --local --dry-run=client -f "${REDHAT_REGISTRY_SECRET_PATH:-}" \
             -p '{"metadata":{"namespace": "'"$NAMESPACE"'"}}' -o json | \
-            ocApply -n "$NAMESPACE"
-        REDHAT_REGISTRY_SECRET_NAME="$(oc patch --local --dry-run=client \
+            ocApply -n "$NAMESPACE" -f -
+        REDHAT_REGISTRY_SECRET_NAME="$(oc patch -n "$NAMESPACE" --local --dry-run=client \
             -f "$REDHAT_REGISTRY_SECRET_PATH" -p '{"foo": "bar"}}' \
             -o jsonpath='{.metadata.name}')"
     elif [[ -n "${REDHAT_REGISTRY_SECRET_NAME:-}" ]]; then
@@ -694,22 +750,49 @@ if evalBool DEPLOY_SDI_REGISTRY true; then
     deployRegistry
 
     # start new image builds if not started automatically
-    for b in "${builds[@]}"; do
-        lv="$(oc get "bc/$b" -n "$NAMESPACE" -o jsonpath='{.status.lastVersion}')"
-        if [[ "${lv:-0}" -gt "${lastVersions["$b"]:-0}" ]]; then
-            printf 'Build "%s" has been started automatically.\n' "$b"
-            printf '  You can follow its progress with: oc logs -n %s -f bc/%s\n' \
-                "$NAMESPACE" "$b"
-            continue
-        fi
-        buildArgs=( -n "$NAMESPACE" )
-        if evalBool WAIT_UNTIL_ROLLEDOUT; then
-            buildArgs+=( -F )
-        fi
-        runOrLog oc start-build "${buildArgs[@]}" "bc/$b"
-    done
+    if [[ "$FLAVOUR" =~ build ]]; then
+        for b in "${builds[@]}"; do
+            lv="$(oc get "bc/$b" -n "$NAMESPACE" -o jsonpath='{.status.lastVersion}')"
+            if [[ "${lv:-0}" -gt "${lastVersions["$b"]:-0}" ]]; then
+                printf 'Build "%s" has been started automatically.\n' "$b"
+                printf '  You can follow its progress with: oc logs -n %s -f bc/%s\n' \
+                    "$NAMESPACE" "$b"
+                continue
+            fi
+            buildArgs=( -n "$NAMESPACE" )
+            if evalBool WAIT_UNTIL_ROLLEDOUT; then
+                buildArgs+=( -F )
+            fi
+            runOrLog oc start-build "${buildArgs[@]}" "bc/$b"
+        done
+    fi
 fi
 
 if evalBool WAIT_UNTIL_ROLLEDOUT && ! evalBool DRY_RUN; then
     waitForRegistry
 fi
+
+if [[ "${NOCLEANUP:-0}" == 1 ]]; then
+    exit 0
+fi
+
+pruneArgs=( -n "$NAMESPACE" )
+if ! evalBool DRY_RUN; then
+    pruneArgs+=( --confirm )
+fi
+
+if [[ ! "$FLAVOUR" =~ build ]]; then
+    readarray -t toDelete < <(oc get bc,build -n "$NAMESPACE" \
+        -l created-by=registry-template -o name)
+    if [[ "${#toDelete[@]}" -gt 1 || ( "${#toDelete[@]}" == 1 && -z "${toDelete[0]:-}" ) ]]; then
+        printf 'Deleting build related objects...\n'
+        printf '%s\n' "${toDelete[@]}" | grep -v '^\s*$' | xargs -P 4 -n 1 -r \
+            oc delete -n "$NAMESPACE"
+    fi
+else
+    printf 'Pruning old builds...\n'
+    oc adm prune builds "${pruneArgs[@]}"
+fi
+
+printf 'Pruning old deployments...\n'
+oc adm prune deployments "${pruneArgs[@]}"
