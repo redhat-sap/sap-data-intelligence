@@ -61,7 +61,7 @@ local urls = import 'urls.jsonnet';
     |||,
     name: 'OCP_MINOR_RELEASE',
     required: true,
-    value: '4.6',
+    value: '4.8',
   },
 
   DryRun: $.Param {

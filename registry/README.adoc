@@ -20,7 +20,7 @@ script.
 
 . OCP cluster must be healthy including all the cluster operators.
 . _(`ubi-build` or `custom-build` flavours)_The
-  link:https://docs.openshift.com/container-platform/4.6/registry/configuring-registry-operator.html[OCP
+  link:https://docs.openshift.com/container-platform/4.8/registry/configuring-registry-operator.html[OCP
   integrated image registry] must be properly configured and working.
 . _(`ubi-build` flavour)_ Pull secret for the registry.redhat.io must be configured. 
 . `jq >= 1.6` binary available on the management host

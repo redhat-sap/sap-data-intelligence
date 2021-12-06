@@ -808,7 +808,7 @@
          "description": "Minor release of OpenShift Container Platform (e.g. 4.2). This value must match the OCP server version. The biggest tolerated difference between the versions is 1 in the second digit.",
          "name": "OCP_MINOR_RELEASE",
          "required": true,
-         "value": "4.6"
+         "value": "4.8"
       },
       {
          "description": "The name of the SAP Data Intelligence namespace to manage. Should be set to a namespace other than NAMESPACE.",
@@ -881,7 +881,7 @@
          "description": "Pull specification of a prebuilt image of SDI Observer. If the registry requires\nauthentication, a pull secret must be created and linked with the sdi-observer service\naccount.\n",
          "name": "IMAGE_PULL_SPEC",
          "required": true,
-         "value": "quay.io/redhat-sap-cop/sdi-observer:0.1.23-ocp4.6"
+         "value": "quay.io/redhat-sap-cop/sdi-observer:0.1.23-ocp4.8"
       }
    ]
 }

@@ -232,7 +232,7 @@ the observer in a separate namespace from SDI.
 
 . OCP cluster must be healthy including all the cluster operators.
 . The
-  link:https://docs.openshift.com/container-platform/4.6/registry/configuring-registry-operator.html[OCP
+  link:https://docs.openshift.com/container-platform/4.8/registry/configuring-registry-operator.html[OCP
   integrated image registry] must be properly configured and working.
 . _(`ubi-build` flavour)_ Pull secret for the registry.redhat.io must be configured. 
 
@@ -360,11 +360,11 @@ cluster.
 ....
 # podman login local.image.registry:5000    # if the local registry requires authentication
 # skopeo copy \
-    docker://quay.io/redhat-sap-cop/sdi-observer:latest-ocp4.6 \
-    docker://local.image.registry:5000/sdi-observer:latest-ocp4.6
+    docker://quay.io/redhat-sap-cop/sdi-observer:latest-ocp4.8 \
+    docker://local.image.registry:5000/sdi-observer:latest-ocp4.8
 ....
 +
-.Please make sure to modify the `4.6` suffix according to your OCP server minor release.
+.Please make sure to modify the `4.8` suffix according to your OCP server minor release.
 +
 2. Execute the same steps as outlined in xref:tmpl-run[Template instantiation] while making sure that in step 2,
    `FLAVOUR` is set to the `ocp-prebuilt` and `IMAGE_PULL_SPEC` to your `local.image.registry:5000`
