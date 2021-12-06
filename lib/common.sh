@@ -17,6 +17,7 @@ readonly DEFAULT_SDI_REGISTRY_HTPASSWD_SECRET_NAME="container-image-registry-htp
 
 readonly DEFAULT_SOURCE_IMAGESTREAM_NAME=customsourceimage
 readonly DEFAULT_SOURCE_IMAGESTREAM_TAG=latest
+readonly DEFAULT_SOURCE_IMAGE="registry.centos.org/centos:8"
 
 readonly SDI_REGISTRY_TEMPLATE_FILE_NAME=ocp-template.json
 readonly SOURCE_KEY_ANNOTATION=source-secret-key
@@ -285,6 +286,9 @@ function common_init() {
     export REDHAT_REGISTRY_SECRET_NAME REDHAT_REGISTRY_SECRET_NAMESPACE
 
     if [[ -z "${SOURCE_IMAGESTREAM_NAME:-}" ]]; then
+        if [[ "${SOURCE_IMAGE_PULL_SPEC:-}" == "${DEFAULT_SOURCE_IMAGE}" ]]; then
+            SOURCE_IMAGESTREAM_NAME=centos8
+        fi
         SOURCE_IMAGESTREAM_NAME="${DEFAULT_SOURCE_IMAGESTREAM_NAME}"
     fi
     if [[ -z "${SOURCE_IMAGESTREAM_TAG:-}" ]]; then
