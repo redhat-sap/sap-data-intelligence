@@ -12,15 +12,18 @@ bctmpl {
 
   dockerfile: |||
     FROM openshift/cli:latest
-    RUN dnf update -y --skip-broken --nobest ||:
+    LABEL maintainer="Michal Minář <miminar@redhat.com>"
+    RUN dnf update -y --skip-broken --nobest --disableplugin=subscription-manager ||:
     # TODO: jq is not yet available in EPEL-8
     # make sure to use epel (jq 1.6) instead of rhel repository (jq 1.5)
-    RUN dnf install -y \
+    RUN dnf install -y --disableplugin=subscription-manager \
       https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm && \
-      dnf install --disablerepo=\* --enablerepo=epel -y jq
-    RUN dnf install -y \
-      https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm && \
-      dnf install -y parallel procps-ng bc git httpd-tools && dnf clean all -y
+      dnf install --disableplugin=subscription-manager --disablerepo=\* --enablerepo=epel -y jq
+    RUN dnf install -y --disableplugin=subscription-manager \
+        https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm && \
+      dnf install -y --disableplugin=subscription-manager \
+        parallel procps-ng bc git httpd-tools && dnf clean all -y && \
+      rm -rf /var/cache/yum /var/cache/dnf
     # TODO: determine OCP version from environment
     RUN cd tmp; \
       curl -L -O https://mirror.openshift.com/pub/openshift-v4/clients/ocp/stable-${OCP_MINOR_RELEASE}/openshift-client-linux.tar.gz; \

@@ -335,14 +335,26 @@ if [[ "${FLAVOUR:-}" =~ build ]]; then
     printf '\n'
     # start new image builds if not started automatically
     for b in "${builds[@]}"; do
-        lv="$(oc get "bc/$b" -n "$NAMESPACE" -o jsonpath='{.status.lastVersion}')"
-        if [[ "${lv:-0}" -gt "${lastVersions["$b"]:-0}" ]]; then
-            printf 'Build "%s" has been started automatically.\n' "$b"
-            printf '  You can follow its progress with: oc logs -n %s -f bc/%s\n' \
-                "$NAMESPACE" "$b"
-            continue
+        printf 'Starting build %s\n' "$b"
+        started=0
+        for ((i=0; i<3; i++)); do
+            lv="$(oc get "bc/$b" -n "$NAMESPACE" -o jsonpath='{.status.lastVersion}')"
+            if [[ "${lv:-0}" -gt "${lastVersions["$b"]:-0}" ]]; then
+                printf 'Build "%s" has been started automatically.\n' "$b"
+                printf '  You can follow its progress with: oc logs -n %s -f bc/%s\n' \
+                    "$NAMESPACE" "$b"
+                continue 2
+            fi
+
+            # it takes some time for source image to get imported
+            oc start-build -n "$NAMESPACE" "bc/$b" 2>/dev/null && started=1 && break
+            sleep 1
+        done
+        if [[ "$started" == 0 ]]; then
+            set -x
+            oc start-build -n "$NAMESPACE" "bc/$b" ||:
+            { set +x; } >/dev/null 2>&1
         fi
-        oc start-build -n "$NAMESPACE" "bc/$b"
     done
 
     printf '\n'
