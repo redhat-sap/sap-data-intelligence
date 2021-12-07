@@ -33,6 +33,7 @@ base {
 
     dockerfile:: |||
       FROM openshift/ubi8:latest
+      LABEL maintainer="Michal Minář <miminar@redhat.com>"
       # docker-distribution is not yet available on UBI - install from fedora repo
       # RHEL8 / UBI8 is based on fedora 28
       ENV FEDORA_BASE_RELEASE=28
@@ -50,19 +51,19 @@ base {
           "gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-$FEDORA_BASE_RELEASE-$(uname -m)" \
           "skip_if_unavailable=False" >/etc/yum.repos.d/fedora-$repo.repo; \
         done'
-      RUN dnf update -y --skip-broken --nobest ||:
+      RUN dnf update -y --skip-broken --nobest --disableplugin=subscription-manager ||:
       # install the GPG keys first, so we can enable GPG keys checking for
       # the package in question
       RUN dnf install -y \
         --enablerepo=fedora-base \
         --enablerepo=fedora-updates \
+        --disableplugin=subscription-manager \
         fedora-gpg-keys
       RUN sed -i 's/^\(gpgcheck=\)0/\11/' /etc/yum.repos.d/fedora-*.repo
-      RUN dnf install -y \
+      RUN dnf install -y --disableplugin=subscription-manager \
         --enablerepo=fedora-base \
         --enablerepo=fedora-updates \
-        docker-distribution
-      RUN dnf clean all -y
+        docker-distribution && dnf clean all -y && rm -rf /var/cache/yum /var/cache/dnf
       EXPOSE 5000
       ENTRYPOINT [ \
         "/usr/bin/registry", \
