@@ -16,10 +16,12 @@ fi
 readonly DEFAULT_SC_ANNOTATION="storageclass.kubernetes.io/is-default-class"
 readonly DEFAULT_VOLUME_CAPACITY="120Gi"
 readonly DEFAULT_IMAGE_PULL_SPEC=quay.io/redhat-sap-cop/container-image-registry:latest
+# shellcheck disable=SC2034
+readonly DEFAULT_FLAVOUR=ubi-prebuilt
 
 USAGE="$(basename "${BASH_SOURCE[0]}") [options]
 
-Deploy container image registry for SAP Data Intelligence.
+Deploy SDI Registry (a container image registry for SAP Data Intelligence) on OpenShift.
 
 Options:
   -h | --help   Show this message and exit.
@@ -27,11 +29,14 @@ Options:
                 the cluster. Overrides DRY_RUN environment variable.
  (-f | --flavour) FLAVOUR
                 Choose one of the flavours:
-                    ubi-build    - (default) Build registry image on OpenShift cluster, store it
-                                   internally in the integrated image registry and deploy it from there.
-                    ubi-prebuilt - (disconnected) Specify a local image location of the prebuilt
-                                   image.
-                    custom-build - specify a custom base image.
+                  ubi-prebuilt - (default) Specify a remote or local image location of the
+                                 prebuilt SDI Registry image. The only option for disconnected
+                                 clusters.
+                  ubi-build    - (connected) Build registry image on OpenShift cluster using the
+                                 Red Hat UBI8, store it internally in the integrated image registry
+                                 and deploy it from there.
+                  custom-build - (connected) Specify a custom base image to be used instead of
+                                 UBI8.
  (-o | --output-dir) OUTDIR
                 Output directory where to put htpasswd and .htpasswd.raw files. Defaults to
                 the working directory.
@@ -74,6 +79,11 @@ Options:
                 generated.
 
 Flavour specific options:
+- ubi-prebuilt flavour
+    --image-pull-spec IMAGE_PULL_SPEC
+                Location of the locally mirrored registry's container image. Overrides the
+                eponymous environment variable. Defaults to $DEFAULT_IMAGE_PULL_SPEC
+
 - ubi-build flavour
    (-r | --rht-registry-secret-name) REDHAT_REGISTRY_SECRET_NAME
                 A secret for registry.redhat.io - required for the build of registry image.
@@ -82,11 +92,6 @@ Flavour specific options:
     --rht-registry-secret-namespace REDHAT_REGISTRY_SECRET_NAMESPACE
                 K8s namespace, where the REDHAT_REGISTRY_SECRET_NAME secret resides. Defaults to the
                 target NAMESPACE.
-
-- ubi-prebuilt flavour
-    --image-pull-spec IMAGE_PULL_SPEC
-                Location of the locally mirrored registry's container image. Overrides the
-                eponymous environment variable. Defaults to $DEFAULT_IMAGE_PULL_SPEC
 
 - custom-build flavour
     --custom-source-image SOURCE_IMAGE_PULL_SPEC

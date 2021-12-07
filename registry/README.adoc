@@ -18,46 +18,35 @@ script.
 
 === Prerequisites
 
-. OCP cluster must be healthy including all the cluster operators.
+. OpenShift cluster must be healthy including all the cluster operators.
 . _(`ubi-build` or `custom-build` flavours)_The
   link:https://docs.openshift.com/container-platform/4.8/registry/configuring-registry-operator.html[OCP
   integrated image registry] must be properly configured and working.
-. _(`ubi-build` flavour)_ Pull secret for the registry.redhat.io must be configured. 
 . `jq >= 1.6` binary available on the management host
+. _(`ubi-build` flavour)_ Pull secret for the registry.redhat.io must be configured.
 
 === Template flavours
 
-There are three different OCP templates designed for different scenarios:
+There are three different OpenShift templates designed for different scenarios:
 
 [[template-flavours]]
 [width="100%",cols="17%,35%,48%",options="header",]
 |===
 |Flavour | Template file| Description
-|`ubi-build` | link:./ocp-template.json[] | (_recommended_, _connected_, _default_) To be used in
-connected OCP clusters. A local build of SDI Registry will be performed using UBI8 as the base
-image.
-
-|`ubi-prebuilt` | link:./ocp-prebuilt-image-template.json[] | (_disconnected_) To be used in
-disconnected/offline/air-gapped OCP clusters. The image must be first mirrored to a local
+|`ubi-prebuilt` | link:./ocp-prebuilt-image-template.json[] | (_recommended_, _default_) For generic use. A
+must for _disconnected_ clusters where the SDI Registry's image must be first mirrored to a local
 registry (other than SDI Registry).
 
-|`custom-build` | link:./ocp-custom-source-image-template.json[] | For non-production, it is
-possible to use a custom base image (e.g. CentOS). A very limited or no support will be offered in
-case of issues though.
+|`ubi-build` | link:./ocp-template.json[] | (_connected_) To be used in connected OpenShift
+clusters. A local build of SDI Registry will be performed using UBI8 as the base image.
+
+|`custom-build` | link:./ocp-custom-source-image-template.json[] | (_connected_) For
+non-production, it is possible to use a custom base image (e.g. CentOS). A very limited or no
+support will be offered in case of issues though.
 |===
 
-The flavour shall be passed as `--flavour` parameter to the link:./deploy-registry.sh[] script.
-
-=== Ensuring Red Hat registry pull secret
-
-In order to use `ubi-build` flavour, you must have the pull secret.
-
-. Get a secret for accessing registry.redhat.io at
-  link:https://access.redhat.com/terms-based-registry/[Red Hat Registry Service Accounts]. See
-  link:https://access.redhat.com/RegistryAuthentication[Red Hat Container Registry Authentication]
-  for more information.
-. Make it available on your management host. Let's assume the file name
-  `rht-registry-username-secret.yaml`.
+The flavour can be explicitly set with the `--flavour` parameter passed to the
+link:./deploy-registry.sh[] script.
 
 [[tmpl-run]]
 === Template instantiation
@@ -76,18 +65,18 @@ In order to use `ubi-build` flavour, you must have the pull secret.
 # ./sap-data-intelligence/registry/deploy-registry.sh --help
 ....
 +
-. Choose the right set of arguments and make a dry run to see what will happen:
+. Choose the right set of arguments and make a dry run to see what will happen. The `ubi-prebuilt`
+  flavour will be chosen by default. The image will be pulled from
+  link:https://quay.io/redhat-sap-cop/container-image-registry[quay.io/redhat-sap-cop/container-image-registry].
 +
 ....
-# ./sap-data-intelligence/registry/deploy-registry.sh --flavour=ubi-build \
-    --rp ./rht-registry-username-secret.yaml --dry-run
+# ./sap-data-intelligence/registry/deploy-registry.sh --dry-run
 ....
 +
 . Next time, deploy the SDI registry for real and wait until it gets deployed:
 +
 ....
-# ./sap-data-intelligence/registry/deploy-registry.sh --flavour=ubi-build \
-    --rp ./rht-registry-username-secret.yaml --wait
+# ./sap-data-intelligence/registry/deploy-registry.sh --wait
 ....
 
 ==== Generic instantiation for a disconnected environment
@@ -152,6 +141,44 @@ as long as it is compatible. Otherwise, please follow this guide.
 +
 . Please make sure to backup the arguments used for future updates.
 
+==== UBI build template instantiation for a connected environment
+
+. Get the pull secret for the Red Hat Registry.
++
+In order to use `ubi-build` flavour, you must have a valid pull secret.
++
+.. Get a secret for accessing link:https://registry.redhat.io[registry.redhat.io] at
+  link:https://access.redhat.com/terms-based-registry/[Red Hat Registry Service Accounts]. See
+  link:https://access.redhat.com/RegistryAuthentication[Red Hat Container Registry Authentication]
+  for more information.
+.. Make it available on your management host. Let's assume the file name
+  `rht-registry-username-secret.yaml`.
+. Make the git repository available on your management host.
++
+....
+# git clone https://github.com/redhat-sap/sap-data-intelligence
+....
++
+. Inspect the available arguments of the deployment script:
++
+....
+# ./sap-data-intelligence/registry/deploy-registry.sh --help
+....
++
+. Choose the right set of arguments and make a dry run to see what will happen:
++
+....
+# ./sap-data-intelligence/registry/deploy-registry.sh --flavour=ubi-build \
+    --rp ./rht-registry-username-secret.yaml --dry-run
+....
++
+. Next time, deploy the SDI registry for real and wait until it gets deployed:
++
+....
+# ./sap-data-intelligence/registry/deploy-registry.sh --flavour=ubi-build \
+    --rp ./rht-registry-username-secret.yaml --wait
+....
+
 == Update instructions
 
 So far, updates need to be performed manually.
@@ -211,7 +238,7 @@ The username and password are separated by a colon in the `SDI_REGISTRY_HTPASSWD
 secret:
 
 ....
-# # make sure to change the "sdi-registry" to your SDI Registry's namespace 
+# # make sure to change the "sdi-registry" to your SDI Registry's namespace
 # oc get -o json -n "sdi-registry" secret/container-image-registry-htpasswd | \
     jq -r '.data[".htpasswd.raw"] | @base64d'
 user-qpx7sxeei:OnidDrL3acBHkkm80uFzj697JGWifvma
