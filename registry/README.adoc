@@ -124,18 +124,17 @@ as long as it is compatible. Otherwise, please follow this guide.
 # ./sap-data-intelligence/registry/deploy-registry.sh --help
 ....
 +
-. Choose the right set of arguments and make a dry run to see what will happen. Make sure to
-  choose `ubi-prebuilt` flavour and use the right image pull specification:
+. Choose the right set of arguments and make a dry run to see what will happen:
 +
 ....
-# ./sap-data-intelligence/registry/deploy-registry.sh --flavour=ubi-prebuilt \
+# ./sap-data-intelligence/registry/deploy-registry.sh \
     --image-pull-spec=local.image.registry:5000/container-image-registry:latest --dry-run
 ....
 +
 . Next time, deploy the SDI Registry for real and wait until it gets deployed:
 +
 ....
-# ./sap-data-intelligence/registry/deploy-registry.sh --flavour=ubi-prebuilt \
+# ./sap-data-intelligence/registry/deploy-registry.sh \
     --image-pull-spec=local.image.registry:5000/container-image-registry:latest --wait
 ....
 +
