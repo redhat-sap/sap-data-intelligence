@@ -298,6 +298,9 @@ function common_init() {
            SOURCE_IMAGE_REGISTRY_SECRET_NAME
 
     getFlavour >/dev/null
+    if [[ "$FLAVOUR" == "ubi-prebuilt" && -z "${IMAGE_PULL_SPEC:-}" ]]; then
+        IMAGE_PULL_SPEC="${DEFAULT_IMAGE_PULL_SPEC:-}"
+    fi
 
     _common_init_performed=1
     export _common_init_performed
@@ -533,16 +536,39 @@ function common_cleanup() {
     rm -rf "$TMP"
 }
 
+function isFlavourSatisfied() {
+    case "$1" in
+        ubi-build)
+            [[ -n "${REDHAT_REGISTRY_SECRET_NAME:-}" ]]
+            ;;
+        ubi-prebuilt)
+            [[ -n "${IMAGE_PULL_SPEC:-}" || -n "${DEFAULT_IMAGE_PULL_SPEC:-}" ]]
+            ;;
+        custom-build)
+            [[ -n "${SOURCE_IMAGESTREAM_NAME:-}" && \
+                "${SOURCE_IMAGESTREAM_TAG:-}" && -n "${SOURCE_IMAGE_PULL_SPEC:-}" ]]
+            ;;
+        *)
+            log 'WARN: Unknown flavour "%s"!' "$1"
+    esac
+}
+
 function getFlavour() {
+    if [[ -z "${DEFAULT_FLAVOUR:-}" ]]; then
+        DEFAULT_FLAVOUR="ubi-build"
+        export DEFAULT_FLAVOUR
+        readonly DEFAULT_FLAVOUR
+    fi
+
     if [[ -z "${FLAVOUR:-}" ]]; then
-        if [[ -n "${SOURCE_IMAGESTREAM_NAME:-}" && \
-            "${SOURCE_IMAGESTREAM_TAG:-}" && -n "${SOURCE_IMAGE_PULL_SPEC:-}" ]];
-        then
-            FLAVOUR="custom-build"
-        elif [[ -n "${IMAGE_PULL_SPEC:-}" ]]; then
-            FLAVOUR="ubi-prebuilt"
-        else
-            FLAVOUR="ubi-build"
+        FLAVOUR="${DEFAULT_FLAVOUR}"
+        if ! isFlavourSatisfied "${DEFAULT_FLAVOUR}"; then
+            for f in custom-build ubi-build ubi-prebuilt; do
+                if isFlavourSatisfied "$f"; then
+                    FLAVOUR="${f}"
+                    break
+                fi
+            done
         fi
         export FLAVOUR
     fi
