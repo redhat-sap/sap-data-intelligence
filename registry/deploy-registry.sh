@@ -278,7 +278,7 @@ export -f getStorageClass
 
 function getCurrentVolumeAccessMode() {
     local pvc
-    pvc="$(oc get -o json -n "$NAMESPACE" dc/container-image-registry | jq -r \
+    pvc="$(oc get -o json -n "$NAMESPACE" dc/container-image-registry 2>/dev/null | jq -r \
         '. as $dc | $dc.spec.template.spec.containers[] | .volumeMounts | (. // [])[] |
             select(.mountPath == "/var/lib/registry") | .name | . as $vname |
                 $dc.spec.template.spec.volumes[] | select(.name == $vname) |
@@ -287,8 +287,8 @@ function getCurrentVolumeAccessMode() {
         return 0
     fi
     local accessModes phase 
-    IFS=: read -r phase accessModes < <(oc get -o json -n "$NAMESPACE" "pvc/$pvc" | jq -r \
-        '([.status.phase] + .status.accessModes) | join(":")')
+    IFS=: read -r phase accessModes < <(oc get -o json -n "$NAMESPACE" "pvc/$pvc" 2>/dev/null | \
+        jq -r '([.status.phase] + .status.accessModes) | join(":")')
     if [[ "${phase:-}" == Bound ]]; then
         # print the first accessmode matching the prefix
         for am in ReadWriteMany ReadWrite Read; do
