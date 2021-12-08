@@ -419,7 +419,9 @@ function createOrReplaceObjectFromTemplate() {
         fi
         if evalBool NOEXPOSE; then
             local deleteArgs=( --ignore-not-found -n "$NAMESPACE" )
-            deleteArgs+=( "$DRUNARG" )
+            if evalBool DRY_RUN; then
+                deleteArgs+=( "$DRUNARG" )
+            fi
             oc get route -n "$NAMESPACE" -o json | jq -r '.items[] | . as $r | .metadata.labels |
                 select([(.app // ""), (.deploymentconfig // "")] |
                     any(. == "container-image-registry")) | "route/\($r.metadata.name)"' | \
