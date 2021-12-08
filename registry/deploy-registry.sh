@@ -418,10 +418,12 @@ function createOrReplaceObjectFromTemplate() {
             def="$(jq '.metadata.annotations["kubernetes.io/tls-acme"] |= "true"' <<<"$def")"
         fi
         if evalBool NOEXPOSE; then
+            local deleteArgs=( --ignore-not-found -n "$NAMESPACE" )
+            deleteArgs+=( "$DRUNARG" )
             oc get route -n "$NAMESPACE" -o json | jq -r '.items[] | . as $r | .metadata.labels |
                 select([(.app // ""), (.deploymentconfig // "")] |
                     any(. == "container-image-registry")) | "route/\($r.metadata.name)"' | \
-                xargs -r oc delete oc delete --ignore-not-found
+                xargs -r oc delete "${deleteArgs[@]}"
             return 0
         fi
         ;;
