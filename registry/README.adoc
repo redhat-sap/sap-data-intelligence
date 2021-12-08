@@ -13,7 +13,7 @@ The registry will be referred to throughout this document as SDI Registry.
 == Deployment
 
 SDI Registry's kubernetes resources are defined in OpenShift Templates. To choose the right template
-and provide the right parameters for it, it is recommended to use the link:../deploy-registry.sh[]
+and provide the right parameters for it, it is recommended to use the link:./deploy-registry.sh[]
 script.
 
 === Prerequisites
@@ -230,7 +230,6 @@ link:https://help.sap.com/viewer/a8d90a56d61a49718ebcb5f65014bbe7/3.2.latest/en-
 secret is configured correctly]. That can be done by link:../observer/README.adoc[SDI Observer] as long as the
 `INJECT_CABUNDLE` is set to `true`.
 
-
 === Determine Registry's credentials
 
 The username and password are separated by a colon in the `SDI_REGISTRY_HTPASSWD_SECRET_NAME`
@@ -242,6 +241,30 @@ secret:
     jq -r '.data[".htpasswd.raw"] | @base64d'
 user-qpx7sxeei:OnidDrL3acBHkkm80uFzj697JGWifvma
 ....
+
+==== Configuring SDI Tenants
+
+The credentials must be imported to each non-default tenant manually. Import them using the SDI
+System Management by following the official documentation
+link:https://help.sap.com/viewer/a8d90a56d61a49718ebcb5f65014bbe7/3.2.latest/en-US/a1cbbc0acc834c0cbbe443f2e0d63ab9.html[Provide
+Access Credentials for a Password Protected Container Registry].
+
+As an alternative to the step "1. Create a secret file that contains the container registry
+credentials and …", you can also use the following bash code to create the
+`vsystem-registry-secret.txt` file:
+
+....
+# nm=sdi-registry     # set the k8s namespace of SDI Registry
+# hostname="$(oc get route -n "$nm" container-image-registry -o jsonpath='{.spec.host}')"
+# oc get -o json -n "$nm" secret/container-image-registry-htpasswd | \
+    jq -r '.data[".htpasswd.raw"] | @base64d | sub("^\\s*Credentials:\\s+"; "") | gsub("\\s+"; "") | split(":") |
+        [{"username":.[0], "password":.[1], "address":"'"$hostname"'"}]' | \
+    json2yaml | tee vsystem-registry-secret.txt
+....
+
+If you prefer to open the registry to unauthenticated users, feel free to re-configure the
+registry by running the link:./deploy-registry.sh[] with `--no-auth` parameter. That flag shall
+not be used on publicly exposed OpenShift clusters.
 
 === Verification
 

@@ -36,69 +36,6 @@ readonly SDI_CABUNDLE_SECRET_FILE_NAME="cert"
 function join() { local IFS="${1:-}"; shift; echo "$*"; }
 export -f join
 
-# support both 3.x and 4.x output formats
-version="$(oc version --short 2>/dev/null || oc version)"
-OCP_SERVER_VERSION="$(sed -n 's/^\(\([sS]erver\|[kK]ubernetes\).*:\|[oO]pen[sS]hift\) v\?\([0-9]\+\.[0-9]\+\).*/\3/p' \
-                    <<<"$version" | head -n 1)"
-OCP_CLIENT_VERSION="$(sed -n 's/^\([cC]lient.*:\|oc\) \(openshift-clients-\|v\|\)\([0-9]\+\.[0-9]\+\).*/\3/p' \
-                    <<<"$version" | head -n 1)"
-unset version
-# translate k8s 1.13 to ocp 4.1
-#               1.14 to ocp 4.2
-#               1.16 to ocp 4.3
-#               1.17 to ocp 4.4
-if [[ "${OCP_SERVER_VERSION:-}" =~ ^1\.([0-9]+)$ && "${BASH_REMATCH[1]}" -gt 14 ]]; then
-    OCP_SERVER_VERSION="4.$((BASH_REMATCH[1] - 13))"
-elif [[ "${OCP_SERVER_VERSION:-}" =~ ^1\.([0-9]+)$ && "${BASH_REMATCH[1]}" -gt 12 ]]; then
-    OCP_SERVER_VERSION="4.$((BASH_REMATCH[1] - 12))"
-fi
-if [[ -z "${OCP_CLIENT_VERSION:-}" ]]; then
-    printf 'WARNING: Failed to determine oc client version!\n' >&2
-elif [[ -z "${OCP_SERVER_VERSION}" ]]; then 
-    printf 'WARNING: Failed to determine k8s server version!\n' >&2
-elif [[ "${OCP_SERVER_VERSION}" != "${OCP_CLIENT_VERSION}" ]]; then
-    printf 'WARNING: Client version != Server version (%s != %s).\n' "$OCP_CLIENT_VERSION" "$OCP_SERVER_VERSION" >&2
-    printf '                 Please reinstantiate this template with the correct BASE_IMAGE_TAG parameter (e.g. v%s)."\n' >&2 \
-        "$OCP_SERVER_VERSION"
-
-    serverMinor="$(cut -d . -f 2 <<<"$OCP_SERVER_VERSION")"
-    clientMinor="$(cut -d . -f 2 <<<"$OCP_CLIENT_VERSION")"
-    if [[ "$(bc <<<"define abs(i) { if (i < 0) return (-i); return (i); };
-                abs($serverMinor - $clientMinor)")" -gt 1 ]];
-    then
-        printf 'FATAL: The difference between minor versions of client and server is too big.\n' >&2
-        printf 'Refusing to continue. Please reinstantiate the template with the correct' >&2
-        printf ' OCP_MINOR_RELEASE!\n' >&2
-        exit 1
-    fi
-else
-    printf "Server and client version: %s\n" "$OCP_SERVER_VERSION"
-fi
-if [[ ! "${OCP_SERVER_VERSION:-}" =~ ^4\. ]]; then
-    printf 'FATAL: OpenShift server version other then 4.* is not supported!\n' >&2
-    exit 1
-fi
-DRUNARG="--dry-run"
-if [[ "$(cut -d . -f 2 <<<"${OCP_CLIENT_VERSION}")" -ge 5 ]]; then
-    DRUNARG="--dry-run=client"
-fi
-export OCP_SERVER_VERSION OCP_CLIENT_VERSION DRUNARG
-
-if [[ ! "${NODE_LOG_FORMAT:-}" =~ ^(text|json|)$ ]]; then
-    printf 'FATAL: unrecognized NODE_LOG_FORMAT; "%s" is not one of "json" or "text"!' \
-        "$NODE_LOG_FORMAT"
-    exit 1
-fi
-if [[ -z "${NODE_LOG_FORMAT:-}" ]]; then
-    if [[ "${OCP_SERVER_VERSION}" =~ ^3 ]]; then
-        NODE_LOG_FORMAT=json
-    else
-        NODE_LOG_FORMAT=text
-    fi
-
-fi
-export NODE_LOG_FORMAT
-
 function matchDictEntries() {
     # Arguments:
     #  Attribute      - an path in object to a dictionary that shall be matched
@@ -248,6 +185,69 @@ function common_init() {
     done
     HOME="$TMP"    # so that oc can create $HOME/.kube/ directory
     export TMP HOME
+
+    local version
+    version="$(oc version --short 2>/dev/null || oc version)"
+    OCP_SERVER_VERSION="$(sed -n 's/^\(\([sS]erver\|[kK]ubernetes\).*:\|[oO]pen[sS]hift\) v\?\([0-9]\+\.[0-9]\+\).*/\3/p' \
+                        <<<"$version" | head -n 1)"
+    OCP_CLIENT_VERSION="$(sed -n 's/^\([cC]lient.*:\|oc\) \(openshift-clients-\|v\|\)\([0-9]\+\.[0-9]\+\).*/\3/p' \
+                        <<<"$version" | head -n 1)"
+    # translate k8s 1.13 to ocp 4.1
+    #               1.14 to ocp 4.2
+    #               1.16 to ocp 4.3
+    #               1.17 to ocp 4.4
+    if [[ "${OCP_SERVER_VERSION:-}" =~ ^1\.([0-9]+)$ && "${BASH_REMATCH[1]}" -gt 14 ]]; then
+        OCP_SERVER_VERSION="4.$((BASH_REMATCH[1] - 13))"
+    elif [[ "${OCP_SERVER_VERSION:-}" =~ ^1\.([0-9]+)$ && "${BASH_REMATCH[1]}" -gt 12 ]]; then
+        OCP_SERVER_VERSION="4.$((BASH_REMATCH[1] - 12))"
+    fi
+    if [[ -z "${OCP_CLIENT_VERSION:-}" ]]; then
+        printf 'WARNING: Failed to determine oc client version!\n' >&2
+    elif [[ -z "${OCP_SERVER_VERSION}" ]]; then 
+        printf 'WARNING: Failed to determine k8s server version!\n' >&2
+    elif [[ "${OCP_SERVER_VERSION}" != "${OCP_CLIENT_VERSION}" ]]; then
+        printf 'WARNING: Client version != Server version (%s != %s).\n' "$OCP_CLIENT_VERSION" "$OCP_SERVER_VERSION" >&2
+        printf '                 Please reinstantiate this template with the correct BASE_IMAGE_TAG parameter (e.g. v%s)."\n' >&2 \
+            "$OCP_SERVER_VERSION"
+
+        local serverMinor clientMinor
+        serverMinor="$(cut -d . -f 2 <<<"$OCP_SERVER_VERSION")"
+        clientMinor="$(cut -d . -f 2 <<<"$OCP_CLIENT_VERSION")"
+        if [[ "$(bc <<<"define abs(i) { if (i < 0) return (-i); return (i); };
+                    abs($serverMinor - $clientMinor)")" -gt 1 ]];
+        then
+            printf 'FATAL: The difference between minor versions of client and server is too big.\n' >&2
+            printf 'Refusing to continue. Please reinstantiate the template with the correct' >&2
+            printf ' OCP_MINOR_RELEASE!\n' >&2
+            exit 1
+        fi
+    else
+        printf "Server and client version: %s\n" "$OCP_SERVER_VERSION"
+    fi
+    if [[ ! "${OCP_SERVER_VERSION:-}" =~ ^4\. ]]; then
+        printf 'FATAL: OpenShift server version other then 4.* is not supported!\n' >&2
+        exit 1
+    fi
+    DRUNARG="--dry-run"
+    if [[ "$(cut -d . -f 2 <<<"${OCP_CLIENT_VERSION}")" -ge 5 ]]; then
+        DRUNARG="--dry-run=client"
+    fi
+    export OCP_SERVER_VERSION OCP_CLIENT_VERSION DRUNARG
+
+    if [[ ! "${NODE_LOG_FORMAT:-}" =~ ^(text|json|)$ ]]; then
+        printf 'FATAL: unrecognized NODE_LOG_FORMAT; "%s" is not one of "json" or "text"!' \
+            "$NODE_LOG_FORMAT"
+        exit 1
+    fi
+    if [[ -z "${NODE_LOG_FORMAT:-}" ]]; then
+        if [[ "${OCP_SERVER_VERSION}" =~ ^3 ]]; then
+            NODE_LOG_FORMAT=json
+        else
+            NODE_LOG_FORMAT=text
+        fi
+
+    fi
+    export NODE_LOG_FORMAT
 
     # shellcheck disable=SC2015
     # Disable quotation remark according to `parallel --bibtex`:

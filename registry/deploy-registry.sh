@@ -58,6 +58,9 @@ Options:
                 Expose registry's service on the given hostname. Overrides
                 SDI_REGISTRY_ROUTE_HOSTNAME environment variable. The default is:
                     container-image-registry-\$NAMESPACE.\$clustername.\$basedomain
+  --no-expose   Do not make the registry accessible from outside of the OpenShift cluster.
+                By default, an Ingress Route is created with the given REGISTRY_HOSTNAME for
+                external access.
  (-n | --namespace) NAMESPACE
                 Desired k8s NAMESPACE where to deploy the registry. Defaults to the current
                 namespace.
@@ -125,7 +128,7 @@ declare -r -A flavourParams=(
 readonly longOptions=(
     help output-dir: noout secret-name: hostname: wait namespace: no-cleanup
     authentication: replace-secrets
-    no-auth
+    no-auth no-expose
     rht-registry-secret-name: rht-registry-secret-namespace: rp: rht-registry-secret-path:
     dry-run
     custom-source-image custom-source-imagestream-name custom-source-imagestream-tag
@@ -414,6 +417,13 @@ function createOrReplaceObjectFromTemplate() {
         if evalBool EXPOSE_WITH_LETSENCRYPT; then
             def="$(jq '.metadata.annotations["kubernetes.io/tls-acme"] |= "true"' <<<"$def")"
         fi
+        if evalBool NOEXPOSE; then
+            oc get route -n "$NAMESPACE" -o json | jq -r '.items[] | . as $r | .metadata.labels |
+                select([(.app // ""), (.deploymentconfig // "")] |
+                    any(. == "container-image-registry")) | "route/\($r.metadata.name)"' | \
+                xargs -r oc delete oc delete --ignore-not-found
+            return 0
+        fi
         ;;
     deploymentconfig)
         if [[ "${AUTHENTICATION:-basic}" == none ]]; then
@@ -526,6 +536,7 @@ eval set -- "$TMPARGS"
 
 NOOUT=0
 NOCLEANUP=0
+NOEXPOSE=0
 
 while true; do
     case "$1" in
@@ -578,6 +589,10 @@ while true; do
             ;;
         --no-auth)
             AUTHENTICATION=none
+            shift
+            ;;
+        --no-expose)
+            NOEXPOSE=1
             shift
             ;;
         --sc | --storage-class)
