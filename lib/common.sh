@@ -651,56 +651,55 @@ function ensurePullsFromNamespace() {
 }
 
 function ensureRedHatRegistrySecret() {
-    local namespace="${1:-}"
+    local srcnm="${1:-}"
+    local dstnm="${2:-$NAMESPACE}"
     if [[ -z "${REDHAT_REGISTRY_SECRET_NAME:-}" ]]; then
-        if [[ ( -n "${FLAVOUR:-}" && "${FLAVOUR}" != ubi-build ) ||
-                -n "${SOURCE_IMAGE_PULL_SPEC:-}" ]];
-        then
+        if [[ -n "${FLAVOUR:-}" && "${FLAVOUR}" != ubi-build ]]; then
             return 0
         fi
         log 'FATAL: REDHAT_REGISTRY_SECRET_NAME must be provided!'
         exit 1
     fi
 
-    if [[ -n "${REDHAT_REGISTRY_SECRET_NAMESPACE:-}" ]]; then
-        REDHAT_REGISTRY_SECRET_NAME="${REDHAT_REGISTRY_SECRET_NAME##*/}"
-    elif [[ "$REDHAT_REGISTRY_SECRET_NAME" =~ ^([^/]+)/(.*) ]]; then
-        REDHAT_REGISTRY_SECRET_NAME="${BASH_REMATCH[2]}"
-        REDHAT_REGISTRY_SECRET_NAMESPACE="${BASH_REMATCH[1]}"
-    fi
     local existArgs=()
-    if [[ -n "${REDHAT_REGISTRY_SECRET_NAMESPACE:-}" ]]; then
-        existArgs+=( -n "${REDHAT_REGISTRY_SECRET_NAMESPACE}" )
+    if [[ -z "${srcnm:-}" && -n "${REDHAT_REGISTRY_SECRET_NAMESPACE:-}" ]]; then
+        srcnm="${REDHAT_REGISTRY_SECRET_NAMESPACE:-}"
+    elif [[ -z "${srcnm:-}" ]]; then
+        srcnm="$NAMESPACE"
+    fi
+    if [[ -n "${srcnm:-}" ]]; then
+        existArgs+=( -n "${srcnm}" )
     fi
     existArgs+=( "secret/$REDHAT_REGISTRY_SECRET_NAME" )
     # (because existArgs may be empty which would result in an empty string being passed to the
     # function)
     if ! doesResourceExist "${existArgs[@]}"; then
-        log 'FATAL: REDHAT_REGISTRY_SECRET_NAME (secret/%s) does not exist!' \
-            "$REDHAT_REGISTRY_SECRET_NAME"
+        log 'FATAL: REDHAT_REGISTRY_SECRET_NAME (secret/%s) does not exist in namespace "%s"!' \
+            "$REDHAT_REGISTRY_SECRET_NAME" "$srcnm"
         exit 1
     fi
     local contents
     contents="$(oc get -o json "${existArgs[@]}")"
     local uid
     uid="$(jq -r '.metadata.uid' <<<"$contents")"
-    namespace="${namespace:-$NAMESPACE}"
-    if [[ "${REDHAT_REGISTRY_SECRET_NAMESPACE:-$NAMESPACE}" != "${namespace}" ]]; then
+    if [[ "${srcnm:-}" != "${dstnm:-}" ]]; then
         local ann
-        ann="$(mkSourceKeyAnnotation "$REDHAT_REGISTRY_SECRET_NAMESPACE" \
-            "$REDHAT_REGISTRY_SECRET_NAME" "$uid")"
-        if doesResourceExist -a "$ann" -n "$namespace" "secret/$REDHAT_REGISTRY_SECRET_NAME"; then
+        ann="$(mkSourceKeyAnnotation "$srcnm" "$REDHAT_REGISTRY_SECRET_NAME" "$uid")"
+        if doesResourceExist -a "$ann" -n "$dstnm" "secret/$REDHAT_REGISTRY_SECRET_NAME"; then
             log -n 'Secret "%s" to pull images from Red Hat registry already' \
                 "$REDHAT_REGISTRY_SECRET_NAME"
-            log -d ' exists in the target namespace "%s"' "$namespace"
+            log -d ' exists in the target namespace "%s"' "$dstnm"
         else
             log 'Copying secret "%s" from namespace "%s" to namespace "%s".' \
-                "$REDHAT_REGISTRY_SECRET_NAME" "$REDHAT_REGISTRY_SECRET_NAMESPACE" "$namespace"
-            createOrReplace -f -n "$namespace" < <(jq '.metadata.annotations |= ((. // {}) +
-                {"'"${ann%%=*}"'": "'"${ann##*=}"'"}) | del(.metadata.uid)' <<<"$contents")
+                "$REDHAT_REGISTRY_SECRET_NAME" "$srcnm" "$dstnm"
+            printf 'contents:\n'
+            printf '%s' "$contents"
+            createOrReplace -f -n "$dstnm" < <(jq '.metadata.annotations |= ((. // {}) +
+                {"'"${ann%%=*}"'": "'"${ann##*=}"'"}) | del(.metadata.uid) |
+                    del(.metadata.resourceVersion)' <<<"$contents")
         fi
     fi
-    runOrLog oc secrets link default -n "$namespace" "$REDHAT_REGISTRY_SECRET_NAME" --for=pull
+    runOrLog oc secrets link default -n "$dstnm" "$REDHAT_REGISTRY_SECRET_NAME" --for=pull
 }
 export -f ensureRedHatRegistrySecret
 

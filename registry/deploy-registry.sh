@@ -444,7 +444,7 @@ function createOrReplaceObjectFromTemplate() {
 export -f createOrReplaceObjectFromTemplate
 
 function deployRegistry() {
-    ensureRedHatRegistrySecret "$NAMESPACE"
+    ensureRedHatRegistrySecret "" "$NAMESPACE"
     if [[ "${AUTHENTICATION:-basic}" == basic ]]; then
         getOrCreateHtpasswdSecret
     fi

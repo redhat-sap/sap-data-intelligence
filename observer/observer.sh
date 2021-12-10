@@ -1498,7 +1498,7 @@ while IFS=' ' read -u 3 -r namespace name resource; do
         ;&  # fallthrough to the next secret/$VORA_CABUNDLE_SECRET_NAME
 
     "secret/${REDHAT_REGISTRY_SECRET_NAME:-}")
-        ensureRedHatRegistrySecret "$NAMESPACE"
+        ensureRedHatRegistrySecret "" "$NAMESPACE"
         ensurePullsFromNamespace "$NAMESPACE" default "$SLCB_NAMESPACE"
         ensurePullsFromNamespace "$NAMESPACE" default "$SDI_NAMESPACE"
         ensureRoutes
