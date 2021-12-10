@@ -8,7 +8,7 @@
          "openshift.io/display-name": "OpenShift enabler and observer for SAP Data intelligence\n",
          "openshift.io/documentation-url": "https://access.redhat.com/articles/4324391",
          "openshift.io/provider-display-name": "Red Hat, Inc.",
-         "sdi-observer/version": "0.1.24"
+         "sdi-observer/version": "0.1.25"
       },
       "name": "sdi-observer"
    },
@@ -34,7 +34,7 @@
                "app": "sdi-observer",
                "created-by": "sdi-observer-template",
                "deploymentconfig": "sdi-observer",
-               "sdi-observer/version": "0.1.24"
+               "sdi-observer/version": "0.1.25"
             },
             "name": "sdi-observer",
             "namespace": "${NAMESPACE}"
@@ -64,7 +64,7 @@
                         "env": [
                            {
                               "name": "SDI_OBSERVER_VERSION",
-                              "value": "0.1.24"
+                              "value": "0.1.25"
                            },
                            {
                               "name": "NAMESPACE",
@@ -170,7 +170,7 @@
                      ],
                      "from": {
                         "kind": "ImageStreamTag",
-                        "name": "sdi-observer:0.1.24-ocp${OCP_MINOR_RELEASE}"
+                        "name": "sdi-observer:0.1.25-ocp${OCP_MINOR_RELEASE}"
                      }
                   },
                   "type": "ImageChange"
@@ -753,7 +753,7 @@
          "metadata": {
             "labels": {
                "created-by": "sdi-observer-template",
-               "sdi-observer/version": "0.1.24"
+               "sdi-observer/version": "0.1.25"
             },
             "name": "sdi-observer",
             "namespace": "${NAMESPACE}"
@@ -768,7 +768,7 @@
                   "importPolicy": {
                      "scheduled": true
                   },
-                  "name": "0.1.24-ocp${OCP_MINOR_RELEASE}",
+                  "name": "0.1.25-ocp${OCP_MINOR_RELEASE}",
                   "referencePolicy": {
                      "type": "Source"
                   }
@@ -881,7 +881,7 @@
          "description": "Pull specification of a prebuilt image of SDI Observer. If the registry requires\nauthentication, a pull secret must be created and linked with the sdi-observer service\naccount.\n",
          "name": "IMAGE_PULL_SPEC",
          "required": true,
-         "value": "quay.io/redhat-sap-cop/sdi-observer:0.1.24-ocp4.8"
+         "value": "quay.io/redhat-sap-cop/sdi-observer:0.1.25-ocp4.8"
       }
    ]
 }
