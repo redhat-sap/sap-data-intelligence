@@ -25,7 +25,7 @@ SDI_NODE_SELECTOR="node-role.kubernetes.io/sdi="
 # 1. ubi-build      (recommended, connected)
 # 2. ubi-prebuilt   (disconnected/offline/air-gapped) - use pre-built images
 # 3. custom-build   (best-effort-support)
-FLAVOUR=ubi-build
+FLAVOUR=ubi-prebuilt
 
 # Required parameters for each template flavour:
 # 1. ubi-build: set the following variable (use UBI8 for the base image)
@@ -281,6 +281,11 @@ if [[ "$FLAVOUR" == ubi-build ]]; then
     else
         printf 'Please set either the REDHAT_REGISTRY_SECRET_NAME '
         printf ' or REDHAT_REGISTRY_SECRET_PATH for ubi-build flavour!\n' >&2
+        exit 1
+    fi
+elif [[ "$FLAVOUR"  == ubi-prebuilt ]]; then
+    if grep -q -i '^\(true\|y\|yes\|1\)$' <<<"${DEPLOY_SDI_REGISTRY:-0}"; then
+        printf 'DEPLOY_SDI_REGISTRY is not supported with ubi-prebuilt flavour!\n' >&2
         exit 1
     fi
 fi
