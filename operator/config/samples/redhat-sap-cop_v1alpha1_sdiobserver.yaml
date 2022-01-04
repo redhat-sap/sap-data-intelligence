@@ -1,0 +1,16 @@
+---
+apiVersion: di.sap-cop.redhat.com/v1alpha1
+kind: SdiObserver
+metadata:
+  name: sdiobserver-sdi
+spec:
+  # unless set, all namespaces where SAP DI is deployed will be observed
+  sdiNamespace: sdi
+  # unless set, all namespaces where SAP SLCB is deployed will be observed
+  slcbNamespace: sap-slcbridge
+  vsystemRoute:
+    managementState: "Managed"
+    # hostname: vsystem.apps.cluster.example.ltd
+  slcbRoute:
+    managementState: "Managed"
+    # hostname: slcb.apps.cluster.example.ltd
