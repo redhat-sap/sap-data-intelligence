@@ -121,6 +121,15 @@ readonly rwxStorageClasses=(
 
 declare -r -A envVarDefaults=(
     [IMAGE_PULL_SPEC]='quay.io/redhat-sap-cop/sdi-observer:latest-ocp%%OCP_MINOR_RELEASE%%'
+    # must be explicit because oc apply does not remove defined variables from env
+    [CABUNDLE_SECRET_NAME]='openshift-ingress-operator/router-ca'
+    [DEPLOY_SDI_REGISTRY]='false'
+    [DRY_RUN]='false'
+    [INJECT_CABUNDLE]='true'
+    [MANAGE_SLCB_ROUTE]='true'
+    [MANAGE_VSYSTEM_ROUTE]='true'
+    [SDI_OBSERVER_GIT_REVISION]='master'
+    [SDI_OBSERVER_REPOSITORY]='https://github.com/redhat-sap/sap-data-intelligence'
 )
 
 envVars=( "${commonEnvVars[@]}" )
