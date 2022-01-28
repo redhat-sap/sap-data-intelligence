@@ -36,7 +36,7 @@ import (
 	routev1 "github.com/openshift/api/route/v1"
 
 	sdiv1alpha1 "github.com/redhat-sap/sap-data-intelligence/operator/api/v1alpha1"
-	"github.com/redhat-sap/sap-data-intelligence/operator/controllers"
+	"github.com/redhat-sap/sap-data-intelligence/operator/controllers/sdiobserver"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -90,7 +90,7 @@ func main() {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
 	if len(namespace) == 0 {
-		setupLog.Error(fmt.Errorf("Missing namespace argument, please set at least the NAMESPACE variable!"), "fatal")
+		setupLog.Error(fmt.Errorf("missing namespace argument, please set at least the NAMESPACE variable"), "fatal")
 		os.Exit(1)
 	}
 
@@ -113,9 +113,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	r := controllers.NewSdiObserverReconciler(mgr.GetClient(), mgr.GetScheme(), mgr)
-	if r.SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "SdiObserver")
+	r := sdiobserver.NewReconciler(mgr.GetClient(), mgr.GetScheme(), mgr)
+	if err := r.SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "SDIObserver")
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder

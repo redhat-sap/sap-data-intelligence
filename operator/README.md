@@ -21,7 +21,7 @@ Implemented SDI Observer features:
 - [] configure node selector on namespace
 
 Missing generic functionality:
-- [] SdiObserver status updates
+- [] SDIObserver status updates
 
 ## Usage
 

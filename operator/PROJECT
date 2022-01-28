@@ -13,7 +13,7 @@ resources:
   controller: true
   domain: sap-cop.redhat.com
   group: di
-  kind: SdiObserver
+  kind: SDIObserver
   path: github.com/redhat-sap/sap-data-intelligence/operator/api/v1alpha1
   version: v1alpha1
 version: "3"

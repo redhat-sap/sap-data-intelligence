@@ -8,11 +8,6 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-	//"k8s.io/apimachinery/pkg/runtime"
-	//"sigs.k8s.io/controller-runtime/pkg/scheme"
-	// DNSEndoints
-	//externaldns "github.com/kubernetes-incubator/external-dns/endpoint"
-	//metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // +k8s:deepcopy-gen=v1alpha1
@@ -59,7 +54,7 @@ func DataHubToUnstructured(dh *DataHub) (*unstructured.Unstructured, error) {
 	return res, nil
 }
 
-func GetSampleDh(namespace string) *unstructured.Unstructured {
+func GetSampleDH(namespace string) *unstructured.Unstructured {
 	res, err := DataHubToUnstructured(&DataHub{
 		TypeMeta: metav1.TypeMeta{
 			Kind: "DataHub",

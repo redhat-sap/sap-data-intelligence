@@ -1,4 +1,4 @@
-package managed_dh
+package namespaced
 
 import (
 	"context"
@@ -6,10 +6,12 @@ import (
 	"reflect"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -20,7 +22,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	routev1 "github.com/openshift/api/route/v1"
-	//csroute "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
 
 	sdiv1alpha1 "github.com/redhat-sap/sap-data-intelligence/operator/api/v1alpha1"
 )
@@ -40,18 +41,42 @@ const (
 	opSdkPrimaryResourceTypeAnnotationKey = "operator-sdk/primary-resource-type"
 )
 
-func manageVsystemRoute(
+func setConditions(
+	owner *sdiv1alpha1.SDIObserver,
+	status *sdiv1alpha1.SDIObserverRouteStatus,
+	exposed, degraded metav1.ConditionStatus,
+	reason, msg string,
+) {
+	meta.SetStatusCondition(&status.Conditions, metav1.Condition{
+		Type:               "Exposed",
+		Status:             exposed,
+		Reason:             reason,
+		Message:            msg,
+		ObservedGeneration: owner.Generation,
+	})
+	meta.SetStatusCondition(&status.Conditions, metav1.Condition{
+		Type:               "Degraded",
+		Status:             degraded,
+		Reason:             reason,
+		Message:            msg,
+		ObservedGeneration: owner.Generation,
+	})
+}
+
+func manageVSystemRoute(
 	ctx context.Context,
 	scheme *runtime.Scheme,
 	client client.Client,
-	owner *sdiv1alpha1.SdiObserver,
-	rc *sdiv1alpha1.SdiObserverSpecRoute,
+	owner *sdiv1alpha1.SDIObserver,
 	namespace string,
 ) error {
 	logger := log.FromContext(ctx)
-	if regexp.MustCompile("^(\\s*|(?i)Unmanaged)$").MatchString(rc.ManagementState) {
-		logger.V(2).Info("vsystem route is not managed")
-		// TODO: need to update at least the owner's status
+
+	spec := owner.Spec.VSystemRoute
+	if regexp.MustCompile(`^(\s*|(?i)Unmanaged)$`).MatchString(spec.ManagementState) {
+		logger.V(2).Info("manageVSystemRoute: vsystem route is not managed")
+		setConditions(owner, &owner.Status.VSystemRoute, metav1.ConditionUnknown, metav1.ConditionFalse,
+			"Unmanaged", "the vsystem route is not managed by this SDIObserver instance")
 		return nil
 	}
 
@@ -60,17 +85,15 @@ func manageVsystemRoute(
 		Name:      "vsystem",
 	}
 
-	/*
-		corecs := c8s.NewForConfigOrDie(cfg).CoreV1()
-		svcs := corecs.Services(namespace)
-	*/
 	svc := &corev1.Service{}
 	svcGetErr := client.Get(ctx, types.NamespacedName{
 		Namespace: namespace,
 		Name:      "vsystem",
 	}, svc)
 	if svcGetErr != nil && !errors.IsNotFound(svcGetErr) {
-		logger.Error(svcGetErr, "failed to get vsystem service")
+		logger.Error(svcGetErr, "manageVSystemRoute: failed to get vsystem service")
+		setConditions(owner, &owner.Status.VSystemRoute, metav1.ConditionUnknown, metav1.ConditionTrue,
+			"FailedGet", fmt.Sprintf("failed to get vsystem service: %v", svcGetErr))
 		return svcGetErr
 	}
 
@@ -78,19 +101,31 @@ func manageVsystemRoute(
 		route := &routev1.Route{}
 		routeGetErr := client.Get(ctx, svcKey, route)
 		if routeGetErr != nil && !errors.IsNotFound(routeGetErr) {
-			logger.Error(routeGetErr, "failed to get vsystem route")
+			logger.Error(routeGetErr, "manageVSystemRoute: failed to get vsystem route")
+			setConditions(owner, &owner.Status.VSystemRoute, metav1.ConditionUnknown, metav1.ConditionTrue,
+				"FailedGet", fmt.Sprintf("failed to get vsystem route: %v", svcGetErr))
 			return routeGetErr
 		}
 
-		if regexp.MustCompile("^(?i)removed?$").MatchString(rc.ManagementState) || errors.IsNotFound(svcGetErr) {
+		if regexp.MustCompile("^(?i)removed?$").MatchString(spec.ManagementState) || errors.IsNotFound(svcGetErr) {
 			if errors.IsNotFound(routeGetErr) {
-				logger.Info("vsystem route already removed, nothing to do")
+				msg := "vsystem route is removed"
+				if errors.IsNotFound(svcGetErr) {
+					msg += " due to missing service"
+				} else {
+					msg += " as instructed"
+				}
+				logger.Info("manageVSystemRoute: vsystem route already removed, nothing to do", "message", msg)
+				setConditions(owner, &owner.Status.VSystemRoute, metav1.ConditionFalse, metav1.ConditionFalse,
+					"Removed", msg)
 				return nil
 			}
-			logger.Info("deleting vsystem route")
+			logger.Info("manageVSystemRoute: deleting vsystem route")
 			if err := client.Delete(ctx, route); err != nil {
 				if !errors.IsNotFound(err) {
-					logger.Error(err, "failed to delete vsystem route")
+					logger.Error(err, "manageVSystemRoute: failed to delete vsystem route")
+					setConditions(owner, &owner.Status.VSystemRoute, metav1.ConditionUnknown, metav1.ConditionTrue, "FailedDelete",
+						fmt.Sprintf("failed to delete vsystem route: %v", svcGetErr))
 				}
 			}
 			return nil
@@ -102,11 +137,15 @@ func manageVsystemRoute(
 			Name:      vsystemCaBundleSecretName,
 		}, caBundleSecret)
 		if err != nil {
-			logger.Error(err, "failed to get vsystem/vora ca-bundle.pem secret")
+			logger.Error(err, "manageVSystemRoute: failed to get vsystem/vora ca-bundle.pem secret")
+			setConditions(owner, &owner.Status.VSystemRoute, metav1.ConditionUnknown, metav1.ConditionTrue,
+				"FailedGet", fmt.Sprintf("failed to get vsystem/vora ca-bundle.pem secret: %v", err))
 			return err
 		}
 		caBundle, err := getCertFromCaBundleSecret(caBundleSecret)
 		if err != nil {
+			setConditions(owner, &owner.Status.VSystemRoute, metav1.ConditionUnknown, metav1.ConditionTrue,
+				"InvalidSecret", fmt.Sprintf("%v", err))
 			return err
 		}
 
@@ -120,7 +159,7 @@ func manageVsystemRoute(
 					opSdkPrimaryResourceAnnotationKey: fmt.Sprintf("%s/%s", owner.ObjectMeta.Namespace, owner.ObjectMeta.Name),
 					opSdkPrimaryResourceTypeAnnotationKey: schema.GroupKind{
 						Group: sdiv1alpha1.GroupVersion.Group,
-						Kind:  "SdiObserver",
+						Kind:  "SDIObserver",
 					}.String(),
 				},
 				Labels: getRouteLabelsForVsystemService(svc),
@@ -138,40 +177,99 @@ func manageVsystemRoute(
 				},
 			},
 		}
-		if len(rc.Hostname) > 0 {
-			newRoute.Spec.Host = rc.Hostname
+		if len(spec.Hostname) > 0 {
+			newRoute.Spec.Host = spec.Hostname
 		}
 
-		if routeGetErr == nil {
+		if routeGetErr == nil && len(route.UID) > 0 {
 			changed, updatedFields := updateRoute(route, &newRoute)
 			if !changed {
-				logger.Info("manageVsystemRoute: route is up to date")
+				logger.Info("manageVSystemRoute: route is up to date")
+				setStatusForUptodateRoute(owner, route)
 				return nil
 			}
-			logger.Info("manageVsystemRoute: updating route", "fields", strings.Join(updatedFields, ","))
+
+			logger.Info("manageVSystemRoute: updating route", "fields", strings.Join(updatedFields, ","))
 			diff := cmp.Diff(route, &newRoute)
-			logger.V(2).Info("manageVsystemRoute", "route diff", diff)
+			logger.V(2).Info("manageVSystemRoute", "route diff", diff)
 			err = client.Update(ctx, route)
 			// an immutable field (like TLS certificate) has changed
 			if errors.IsInvalid(err) {
-				logger.Info("manageVsystemRoute: route update has been refused, replacing instead...",
+				logger.Info("manageVSystemRoute: route update has been refused, replacing instead...",
 					"error type", fmt.Sprintf("%T", err), "error", err)
 				err := client.Delete(ctx, route)
 				if err != nil && !errors.IsNotFound(err) {
+					// TODO set status
 					return err
 				}
 				err = client.Create(ctx, &newRoute)
-			} else if err != nil {
-				logger.Info("manageVsystemRoute: route update has been refused ...",
+				return err
+			}
+			if err != nil {
+				logger.Info("manageVSystemRoute: route update has been refused ...",
 					"error type", fmt.Sprintf("%T", err), "error", err)
 			}
 		} else {
-			logger.Info("manageVsystemRoute: creating a new route")
+			logger.Info("manageVSystemRoute: creating a new route")
 			err = client.Create(ctx, &newRoute)
 		}
 		return err
 	})
+	// TODO set status
 	return err
+}
+
+// TODO(miminar) move to route utility module
+func findRouteIngressCondition(
+	conditions []routev1.RouteIngressCondition,
+	conditionType routev1.RouteIngressConditionType,
+) *routev1.RouteIngressCondition {
+	for i := range conditions {
+		if conditions[i].Type == conditionType {
+			return &conditions[i]
+		}
+	}
+	return nil
+}
+
+func isAnyRouteIngressAdmitted(route *routev1.Route) bool {
+	for _, ingress := range route.Status.Ingress {
+		c := findRouteIngressCondition(ingress.Conditions, "Admitted")
+		if c != nil && c.Status == corev1.ConditionTrue {
+			return true
+		}
+	}
+	return false
+}
+
+func setStatusForUptodateRoute(obs *sdiv1alpha1.SDIObserver, route *routev1.Route) {
+	if isAnyRouteIngressAdmitted(route) {
+		setConditions(obs, &obs.Status.VSystemRoute, metav1.ConditionTrue, metav1.ConditionFalse,
+			"Admitted", "the route is up to date and admitted")
+		return
+	}
+
+	msg := "the route is up to date but has not been admitted"
+	now := time.Now()
+	aMinuteAgo := metav1.NewTime(now.Add(-time.Minute))
+	c := meta.FindStatusCondition(obs.Status.VSystemRoute.Conditions, "Exposed")
+	if c != nil && c.Reason == sdiv1alpha1.ConditionRouteNotAdmitted && c.LastTransitionTime.Before(&aMinuteAgo) {
+		// If the route hasn't been admitted for more then a minute, switch to degraded
+		msg += " for more than " + now.Sub(c.LastTransitionTime.Time).String()
+		setConditions(obs, &obs.Status.VSystemRoute, metav1.ConditionFalse, metav1.ConditionTrue,
+			sdiv1alpha1.ConditionRouteNotAdmitted, msg)
+		return
+	}
+
+	if c != nil && c.Reason != sdiv1alpha1.ConditionRouteNotAdmitted {
+		msg += fmt.Sprintf(" (Reason=%s): %s", c.Reason, c.Message)
+		setConditions(obs, &obs.Status.VSystemRoute, metav1.ConditionFalse, metav1.ConditionFalse,
+			sdiv1alpha1.ConditionRouteNotAdmitted, msg)
+		return
+	}
+
+	setConditions(obs, &obs.Status.VSystemRoute, metav1.ConditionFalse, metav1.ConditionFalse,
+		sdiv1alpha1.ConditionRouteNotAdmitted, msg)
 }
 
 func updateRoute(current, newRoute *routev1.Route) (bool, []string) {
@@ -244,7 +342,7 @@ func getRoutePortForVsystemService(svc *corev1.Service) *routev1.RoutePort {
 
 func getRouteLabelsForVsystemService(svc *corev1.Service) map[string]string {
 	var labels = make(map[string]string)
-	var reKey = regexp.MustCompile("^datahub\\.sap\\.com/")
+	var reKey = regexp.MustCompile(`^datahub\.sap\.com/`)
 	for k, v := range svc.ObjectMeta.Labels {
 		if reKey.MatchString(k) {
 			labels[k] = v
@@ -254,9 +352,9 @@ func getRouteLabelsForVsystemService(svc *corev1.Service) map[string]string {
 }
 
 func getCertFromCaBundleSecret(secret *corev1.Secret) (string, error) {
-	if value, ok := secret.Data[vsystemCaBundleSecretKey]; !ok {
-		return "", fmt.Errorf("failed to find key \"%s\" in \"%s\" secret!", vsystemCaBundleSecretKey, secret.ObjectMeta.Name)
-	} else {
-		return strings.TrimSpace(string(value[:])), nil
+	value, ok := secret.Data[vsystemCaBundleSecretKey]
+	if !ok {
+		return "", fmt.Errorf("failed to find key \"%s\" in \"%s\" secret", vsystemCaBundleSecretKey, secret.ObjectMeta.Name)
 	}
+	return strings.TrimSpace(string(value[:])), nil
 }

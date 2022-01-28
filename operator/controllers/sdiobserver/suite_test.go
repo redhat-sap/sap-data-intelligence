@@ -1,4 +1,20 @@
-package managed_dh
+/*
+Copyright 2022.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package sdiobserver_test
 
 import (
 	"context"
@@ -7,15 +23,13 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes/scheme"
-	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -24,21 +38,20 @@ import (
 	routev1 "github.com/openshift/api/route/v1"
 
 	sdiv1alpha1 "github.com/redhat-sap/sap-data-intelligence/operator/api/v1alpha1"
+	. "github.com/redhat-sap/sap-data-intelligence/operator/controllers/sdiobserver"
+	"github.com/redhat-sap/sap-data-intelligence/operator/controllers/sdiobserver/namespaced"
 	dhv1alpha1 "github.com/redhat-sap/sap-data-intelligence/operator/test/datahub/api/v1alpha1"
 	//+kubebuilder:scaffold:imports
 )
 
+// +k8s:deepcopy-gen=test
+
 // These tests use Ginkgo (BDD-style Go testing framework). Refer to
 // http://onsi.github.io/ginkgo/ to learn more about Ginkgo.
 
-var cfg *rest.Config
 var k8sClient client.Client
-var k8sManager ctrl.Manager
 var testEnv *envtest.Environment
-var obsController DhController
-
-// need to use the k8sClient throughout the tests instead of OpenShift client
-//var routeClient csroutev1.RouteV1Interface
+var k8sManager ctrl.Manager
 var mgrCancel context.CancelFunc
 var dhClient dynamic.NamespaceableResourceInterface
 
@@ -78,13 +91,17 @@ var _ = BeforeSuite(func() {
 	Expect(k8sClient).NotTo(BeNil())
 
 	k8sManager, err = ctrl.NewManager(cfg, ctrl.Options{
-		Scheme: scheme.Scheme,
+		Scheme:             scheme.Scheme,
+		MetricsBindAddress: "0",
+		//HealthProbeBindAddress: "0",
 	})
 	Expect(err).ToNot(HaveOccurred())
 
-	//routeClient = csroute.NewForConfigOrDie(cfg).RouteV1()
+	r := NewReconciler(k8sManager.GetClient(), k8sManager.GetScheme(), k8sManager)
+	Expect(r.SetupWithManager(k8sManager)).ToNot(HaveOccurred())
+
 	dynClient := dynamic.NewForConfigOrDie(cfg)
-	dhClient := dynClient.Resource(MkDataHubGvr())
+	dhClient = dynClient.Resource(namespaced.MakeDataHubGVR())
 
 	for _, nm := range []string{"sdi", "sdi-observer"} {
 		Expect(k8sClient.Create(context.TODO(), &corev1.Namespace{
@@ -94,42 +111,21 @@ var _ = BeforeSuite(func() {
 		})).ToNot(HaveOccurred())
 	}
 
-	obsController, err = NewManagedDhController(
-		k8sClient,
-		scheme.Scheme,
-		types.NamespacedName{
-			Namespace: "sdi-observer",
-			Name:      "sdi",
-		},
-		"sdi",
-		k8sManager,
-		controller.Options{},
-	)
-
-	dh := dhv1alpha1.GetSampleDh("sdi")
-	Expect(dh).ShouldNot(BeNil())
-	_, err = dhClient.Namespace("sdi").Create(context.TODO(), dh, metav1.CreateOptions{})
-	Expect(err).NotTo(HaveOccurred())
-
 	var ctx context.Context
 	ctx, mgrCancel = context.WithCancel(context.Background())
 	go func() {
 		defer GinkgoRecover()
-		err = k8sManager.Start(ctx)
-		Expect(err).ToNot(HaveOccurred(), "failed to run manager")
+		err := k8sManager.Start(ctx)
+		Expect(err).ToNot(HaveOccurred())
 	}()
-
-	Expect(obsController.Start(ctx)).NotTo(HaveOccurred())
 }, 60)
 
 var _ = AfterSuite(func() {
 	By("tearing down the test environment")
-	if obsController != nil {
-		obsController.Stop()
-	}
 	if mgrCancel != nil {
 		mgrCancel()
 	}
-	err := testEnv.Stop()
-	Expect(err).NotTo(HaveOccurred())
+	// TODO: uncomment (the kube-apiserver is timing out)
+	// Expect(testEnv.Stop()).NotTo(HaveOccurred())
+	_ = testEnv.Stop()
 })

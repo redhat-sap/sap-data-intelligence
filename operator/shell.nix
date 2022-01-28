@@ -22,6 +22,7 @@ drv.overrideAttrs (attrs: {
     remarshal
     shellcheck
     operator-sdk
+    golangci-lint
   ]; #++ attrs.buildInputs;
 
   shellHook = ''
@@ -29,12 +30,17 @@ drv.overrideAttrs (attrs: {
 
     echo 'Entering ${attrs.pname}'
     set -v
+    #export GO111MODULE='on'
+    unset GO111MODULE
+    #export GOFLAGS=-mod=vendor
+    unset GOFLAGS
+    #go mod init ${goPackagePath}
+
     export GOPATH="$(pwd)/.go"
+    export GOBIN="$GOPATH/bin"
     export GOCACHE=""
-    export GO111MODULE='on'
-    export GOFLAGS=-mod=vendor
-    go mod init ${goPackagePath}
     export DOCKER_CMD="sudo podman"
+    export PATH="$GOPATH/bin:$PATH"
     set +v
   '';
 })

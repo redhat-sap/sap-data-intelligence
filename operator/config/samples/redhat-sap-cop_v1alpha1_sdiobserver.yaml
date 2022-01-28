@@ -1,6 +1,6 @@
 ---
 apiVersion: di.sap-cop.redhat.com/v1alpha1
-kind: SdiObserver
+kind: SDIObserver
 metadata:
   name: sdiobserver-sdi
 spec:
