@@ -9,8 +9,11 @@ Generates NO_PROXY settings for SAP Data Intelligence installation requiring HTT
 external resources. Alternatively, it can also generate NO_PROXY value for SLC Bridge, which is
 used during the SLC Bridge init.
 
-Additional hostnames can be given as arguments. If a domain is prefixed with '!', it will be
+Additional domains can be given as arguments. If a domain is prefixed with '!', it will be
 excluded from the list. IOW, it will be proxied.
+
+If a (longer wildcard) domain is matched by a(nother) wildcard domain, it is excluded from the
+output.
 
 Requirements:
 - OpenShift client binaries (oc) must be installed and located in PATH.
@@ -19,8 +22,7 @@ Requirements:
 
 Options:
   -h | --help       Show this help message and exit.
-  -s | --slcbridge
-                    Compute NO_PROXY for SLC Bridge init instead of SAP DI.
+  -s | --slcbridge  Compute NO_PROXY for SLC Bridge init instead of SAP DI.
   -d | --sdi        Compute NO_PROXY for SAP DI."
 readonly usage
 
@@ -55,6 +57,10 @@ readonly longOptions=(
     help slcb sdi
 )
 
+# normalize reads the arguments and produces a newline-separated list of NO_PROXY entries.
+# If an argument contains a comma, it will be split.
+# If the first argument is `-e` only the entries prefixed with ! will be produced, otherwise
+# only non-prefixed entries will be produced.
 function normalize() {
     local entry
     local selectExcluded=0
@@ -113,29 +119,95 @@ function normalize() {
     done
 }
 
-function joinFromStdin() {
-    awk '{
+# filterOutRedundancies reads newline-separated list of NO_PROXY entries from stdin, removes the
+# duplicates, removes subdomains of wildcard domains and moves wildcard entries to the while
+# trying to preserve the order of the items.
+# Limitations: does not care about CIDRs.
+function filterOutRedundancies() {
+    awk 3< <(printf '%s\n' "${excludes[@]}") '
+    {
+        if (isExcluded($0)) {
+            next
+        }
         if ($0 ~ /^[*.]/) {
-            if (wildcards[$0]++ == 0) {
-                wildcardList[length(wildcardList)] = $0
-            }
+            addWildcard($0)
         } else {
-            if (nonWildcards[$0]++ == 0) {
-                nonWildcardList[length(nonWildcardList)] = $0
-            }
+            addDomain($0, nonWildcards, nonWildcardList)
         }
     }
+
     BEGIN {
         split("", nonWildcardList)
         split("", wildcardList)
+
+        while ((getline line <"/dev/fd/3") > 0) {
+            excludes[line]++
+        }
     }
+
     END {
         for (i in nonWildcardList) {
-            print nonWildcardList[i]
+            domain = nonWildcardList[i]
+            if (isMatchedByAnyWildcard(domain)) {
+                continue
+            }
+            print domain
         }
-        // wildcard domains must be at the end of NO_PROXY as of SLCB 1.1.72
         for (i in wildcardList) {
             print wildcardList[i]
+        }
+    }
+
+    function isSubdomain(domain, wildcard,       w, i) {
+        w = wildcard
+        sub(/^\*/, "", w)
+        i = index(domain, w)
+        return i > 0 && i + length(w) >= length(domain)
+    }
+
+    function isMatchedByAnyWildcard(domain) {
+        for (w in wildcards) {
+            if (isSubdomain(domain, w)) {
+                return 1
+            }
+        }
+        return 0
+    }
+
+    function isExcluded(d) {
+        for (e in excludes) {
+            if (d == e) {
+                return 1
+            }
+        }
+        return 0
+    }
+
+    function removeWildcard(w) {
+        delete wildcards[w]
+        for (i in wildcardList) {
+            if (wildcardList[i] == w) {
+                delete wildcardList[i]
+                break
+            }
+        }
+    }
+
+    function addWildcard(w) {
+        for (w in wildcards) {
+            if (isSubdomain($0, w)) {
+                next
+            }
+            if (isSubdomain(w, $0)) {
+                removeWildcard(w)
+            }
+        }
+        addDomain($0, wildcards, wildcardList)
+    }
+
+    function addDomain(d, map, list) {
+        if (map[$0]++ == 0) {
+            list[length(list)] = $0
         }
     }'
 }
@@ -161,17 +233,13 @@ function setExcludes() {
     fi
 }
 
-function filterOutExcludes() {
-    if [[ "${#excludes[@]}" == 0 ]]; then
-        cat /dev/stdin
-        return 0
-    fi
-    grep -v -F -f <(printf '%s\n' "${excludes[@]}") /dev/stdin
-}
-
 function assertDependencies() {
     if [[ -z "$(command -v oc)" ]]; then
         printf 'Please ensure oc binary is in PATH and its minor release matches the server!\n' >&2
+        exit 1
+    fi
+    if [[ "$(gawk 'END {split("a,b", a, /,/); print length(a)}' </dev/null)" != 2 ]]; then
+        printf 'Please ensure that GNU AWK is installed and present in the PATH!\n' >&2
         exit 1
     fi
     if ! oc auth can-i list proxies.config.openshift.io --all-namespaces >/dev/null; then
@@ -189,7 +257,7 @@ function computeNoProxy() {
         if [[ "${mode:-sdi}" == sdi ]]; then \
             printf '%s\n' "${mustHaveSDI[@]}"; \
         fi \
-    } | joinFromStdin | filterOutExcludes)
+    } | filterOutRedundancies)
     join , "${entries[@]}"
 }
 
