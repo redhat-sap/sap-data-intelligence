@@ -3,11 +3,14 @@
 set -euo pipefail
 IFS=$'\n\t'
 
-usage="$(basename "${BASH_SOURCE[0]}") [Options] [domain.ltd,...]
+usage="$(basename "${BASH_SOURCE[0]}") [Options] [domain.ltd,...] [!excluded.domain]
 
 Generates NO_PROXY settings for SAP Data Intelligence installation requiring HTTP proxy to access
 external resources. Alternatively, it can also generate NO_PROXY value for SLC Bridge, which is
-used during the SLC Bridge init. Additional hostnames can be given as arguments.
+used during the SLC Bridge init.
+
+Additional hostnames can be given as arguments. If a domain is prefixed with '!', it will be
+excluded from the list. IOW, it will be proxied.
 
 Requirements:
 - OpenShift client binaries (oc) must be installed and located in PATH.
@@ -54,21 +57,47 @@ readonly longOptions=(
 
 function normalize() {
     local entry
+    local selectExcluded=0
+    if [[ "${1:-}" == -e ]]; then
+        selectExcluded=1
+        shift
+    fi
+
     for entry in "$@"; do
         # shellcheck disable=SC2001
         if [[ "${entry}" =~ , ]]; then
             local entries=()
             readarray -t entries < <(tr ',' '\n' <<<"${entry}")
-            normalize "${entries[@]}"
+            local args=()
+            if [[ "$selectExcluded" == 1 ]]; then
+                args+=( -e )
+            fi
+            # shellcheck disable=SC2068
+            normalize ${args[@]} "${entries[@]}"
             continue
         fi
+
         entry="$(sed \
             -e 's/\([[:space:]]\|,\)\+//g' \
             -e 's/\.\+/./g' \
+            -e 's/\!\+/!/g' \
             -e 's/\*\+/*/g' <<<"${entry:-}")"
         if [[ -z "${entry:-}" ]]; then
             continue
         fi
+
+        case "$selectExcluded$entry" in
+            "0!"*)
+                continue
+                ;;
+            "1!"*)
+                entry="${entry##\!}"
+                ;;
+            "1"*)
+                continue
+                ;;
+        esac
+
         case "${mode:-sdi}" in
             slcb)
                 entry="${entry##\*}"
@@ -125,6 +154,33 @@ function getOpenShiftNoProxyOrDie() {
     printf '%s' "$osNoProxy"
 }
 
+function setExcludes() {
+    readarray -t excludes < <(normalize -e "$@")
+    if [[ "${#excludes[@]}" == 1 && -z "${excludes[0]:-}" ]]; then
+        excludes=()
+    fi
+}
+
+function filterOutExcludes() {
+    if [[ "${#excludes[@]}" == 0 ]]; then
+        cat /dev/stdin
+        return 0
+    fi
+    grep -v -F -f <(printf '%s\n' "${excludes[@]}") /dev/stdin
+}
+
+function assertDependencies() {
+    if [[ -z "$(command -v oc)" ]]; then
+        printf 'Please ensure oc binary is in PATH and its minor release matches the server!\n' >&2
+        exit 1
+    fi
+    if ! oc auth can-i list proxies.config.openshift.io --all-namespaces >/dev/null; then
+        printf 'Please ensure the current OpenShift user is logged-in and has at least the' >&2
+        printf ' cluster-reader role.\n' >&2
+        exit 1
+    fi
+}
+
 function computeNoProxy() {
     local osNoProxy=() entries=()
     readarray -t osNoProxy < <(getOpenShiftNoProxyOrDie | tr ',' '\n')
@@ -133,7 +189,7 @@ function computeNoProxy() {
         if [[ "${mode:-sdi}" == sdi ]]; then \
             printf '%s\n' "${mustHaveSDI[@]}"; \
         fi \
-    } | joinFromStdin)
+    } | joinFromStdin | filterOutExcludes)
     join , "${entries[@]}"
 }
 
@@ -141,6 +197,7 @@ TMPARGS="$(getopt -o hsd -l "$(join , "${longOptions[@]}")" -n "${BASH_SOURCE[0]
 eval set -- "$TMPARGS"
 
 mode=sdi
+excludes=()
 
 while true; do 
     case "$1" in
@@ -167,4 +224,6 @@ while true; do
     esac
 done
 
+assertDependencies
+setExcludes "$@"
 computeNoProxy "$@"
