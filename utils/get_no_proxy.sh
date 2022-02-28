@@ -28,16 +28,23 @@ readonly usage
 
 readonly mustHave=(
     127.0.0.1
+    169.254.169.254
 
     localhost
+    metadata.google.internal
 
-    *.svc
+    *.local
     *.cluster.local
+    *.internal
+    *.google.internal
+    *.svc
+)
+
+readonly mustHaveSLCB=(
+    sap-slcbridge
 )
 
 readonly mustHaveSDI=(
-    169.254.169.254
-
     auditlog
     datalake
     diagnostics-prometheus-pushgateway
@@ -254,9 +261,14 @@ function computeNoProxy() {
     readarray -t osNoProxy < <(getOpenShiftNoProxyOrDie | tr ',' '\n')
     readarray -t entries < <({ \
         normalize "${osNoProxy[@]}" "$@" "${mustHave[@]}"; \
-        if [[ "${mode:-sdi}" == sdi ]]; then \
-            printf '%s\n' "${mustHaveSDI[@]}"; \
-        fi \
+        case "${mode:-sdi}" in
+            sdi)
+                printf '%s\n' "${mustHaveSDI[@]}";
+                ;;
+            slcb)
+                printf '%s\n' "${mustHaveSLCB[@]}";
+                ;;
+        esac; \
     } | filterOutRedundancies)
     join , "${entries[@]}"
 }
