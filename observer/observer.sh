@@ -167,21 +167,6 @@ gotmplDeployment=(
                 # print (string kind)#(string componentName):(string version)
                 '{{$d.kind}}#{{$appcomp}}:'
                $'{{index $d.metadata.labels "datahub.sap.com/package-version"}}:\n'
-            '{{else if eq $appcomp "vsystem-app"}}'
-                # print (string kind)#((int containerIndex):(bool unprivileged))?#
-                #       ((int initContainerIndex):(bool unprivileged))?
-                '{{$d.kind}}#'
-                '{{range $i, $c := $d.spec.template.spec.containers}}'
-                    '{{if eq .name "vsystem-iptables"}}'
-                        '{{$i}}:{{not $c.securityContext.privileged}}'
-                    '{{end}}'
-                '{{end}}#'
-                '{{range $i, $c := $d.spec.template.spec.initContainers}}'
-                    '{{if eq .name "vsystem-iptables"}}'
-                        '{{$i}}:{{not $c.securityContext.privileged}}'
-                    '{{end}}'
-                '{{end}}'
-                $'\n'
             '{{end}}'
         '{{end}}'
     '{{end}}'
@@ -358,6 +343,7 @@ declare -A gotmpls=(
 
 if evalBool INJECT_CABUNDLE; then
     gotmpls["${CABUNDLE_SECRET_NAMESPACE}:Secret"]="$(join '' "${gotmplSecret[@]}")"
+    gotmpls["${SDI_NAMESPACE}:Secret"]="$(join '' "${gotmplSecret[@]}")"
 fi
 if [[ -n "${REDHAT_REGISTRY_SECRET_NAME:-}" ]]; then
     for nm in ${REDHAT_REGISTRY_SECRET_NAMESPACE} "${SDI_NAMESPACE}" "${SLCB_NAMESPACE}"; do
@@ -1430,27 +1416,6 @@ while IFS=' ' read -u 3 -r namespace name resource; do
         if [[ "${#patches[@]}" -gt 0 ]]; then
             runOrLog oc patch --type json -p "[$(join , "${patches[@]}")]" deploy "$name"
         fi
-        ;&
-
-    deployment/*)
-        if ! evalBool MAKE_VSYSTEM_IPTABLES_PODS_PRIVILEGED; then
-            log 'Not patching %s because MAKE_VSYSTEM_IPTABLES_PODS_PRIVILEGED is not true, ...' \
-                "$resource"
-            continue
-        fi
-        IFS='#' read -r cs ics <<<"${rest:-}"
-        IFS=: read -r cindex cunprivileged <<<"${cs:-}"
-        IFS=: read -r icindex icunprivileged <<<"${ics:-}"
-        patches=()
-        patch="$(mkVsystemIptablesPatchFor "$name" "containers" \
-            "${cindex:-}" "${cunprivileged:-}")"
-        [[ "${patch:-}" ]] && patches+=( "${patch}" )
-        patch="$(mkVsystemIptablesPatchFor "$name" "initContainers" \
-            "${icindex:-}" "${icunprivileged:-}")"
-        [[ "${patch:-}" ]] && patches+=( "${patch}" )
-        [[ "${#patches[@]}" == 0 ]] && continue
-
-        runOrLog oc patch "deploy/$name" --type json -p '['"$(join , "${patches[@]}")"']'
         ;;
 
     daemonset/diagnostics-fluentd)

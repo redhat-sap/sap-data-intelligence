@@ -409,8 +409,8 @@ function createOrReplace() {
     local creator=""
     creator="$(jq -r '.metadata.labels["created-by"]' <<<"$object")" ||:
 
-    IFS=: read -r namespace kind name <<<"$(oc create "$DRUNARG" -f - -o \
-        jsonpath=$'{.metadata.namespace}:{.kind}:{.metadata.name}\n' <<<"$object")"
+    IFS=: read -r namespace kind name < <(oc create "$DRUNARG" -f - -o \
+        jsonpath=$'{.metadata.namespace}:{.kind}:{.metadata.name}\n' <<<"$object")
     namespace="${namespace:-$NAMESPACE}"
     [[ -z "${namespace:-}" ]] && namespace="$(oc project -q)"
     if evalBool DRY_RUN; then
@@ -613,7 +613,8 @@ function mkSourceKeyAnnotation() {
     local namespace="$1"
     local name="$2"
     local uid="$3"
-    printf '%s=%s:%s:%s' "$SOURCE_KEY_ANNOTATION" "$namespace" "$name" "$uid"
+    local resourceVersion="$4"
+    printf '%s=%s:%s:%s:%s' "$SOURCE_KEY_ANNOTATION" "$namespace" "$name" "$uid" "$resourceVersion"
 }
 export -f mkSourceKeyAnnotation
 
@@ -680,11 +681,13 @@ function ensureRedHatRegistrySecret() {
     fi
     local contents
     contents="$(oc get -o json "${existArgs[@]}")"
-    local uid
-    uid="$(jq -r '.metadata.uid' <<<"$contents")"
+    local uid resourceVersion
+    IFS='#' read -r uid resourceVersion < <(jq -r '[.metadata.uid, .metadata.resourceVersion] |
+        join("#")' <<<"$contents")
     if [[ "${srcnm:-}" != "${dstnm:-}" ]]; then
         local ann
-        ann="$(mkSourceKeyAnnotation "$srcnm" "$REDHAT_REGISTRY_SECRET_NAME" "$uid")"
+        ann="$(mkSourceKeyAnnotation "$srcnm" "$REDHAT_REGISTRY_SECRET_NAME" "$uid" \
+            "$resourceVersion")"
         if doesResourceExist -a "$ann" -n "$dstnm" "secret/$REDHAT_REGISTRY_SECRET_NAME"; then
             log -n 'Secret "%s" to pull images from Red Hat registry already' \
                 "$REDHAT_REGISTRY_SECRET_NAME"
@@ -709,17 +712,19 @@ function ensureCABundleSecret() {
     fi
     local uid current currentSource bundleData key nm _name _uid
     current="$(oc get secret -o json "$SDI_CABUNDLE_SECRET_NAME")" ||:
-    uid="$(oc get secret -o jsonpath='{.metadata.uid}' \
-              -n "$CABUNDLE_SECRET_NAMESPACE" "$CABUNDLE_SECRET_NAME")"
+    IFS='#' read -r newUID newResVersion < <(oc get secret -o \
+        jsonpath='{.metadata.uid}#{.metadata.resourceVersion}' \
+              -n "$CABUNDLE_SECRET_NAMESPACE" "$CABUNDLE_SECRET_NAME")
     if [[ -n "${current:-}" ]]; then
         currentSource="$(jq -r '.metadata.annotations["'"$SOURCE_KEY_ANNOTATION"'"]' \
             <<<"${current}")"
-        IFS=: read -r nm _name _uid <<<"${currentSource:-}"
+        IFS=: read -r nm _name _uid _rv <<<"${currentSource:-}"
         if [[ "$nm" == "$CABUNDLE_SECRET_NAMESPACE" && \
-              "$_name" == "$CABUNDLE_SECRET_NAME" && "$_uid" == "$uid" ]];
+              "${_name:-}" == "$CABUNDLE_SECRET_NAME" && "${_uid:-}" == "$newUID" && \
+              "${_rv:-}" == "$newResVersion" ]];
         then
             log 'CA bundle in %s secret is up to date, no need to update.' \
-                "$CABUNDLE_SECRET_NAME"
+                "$SDI_CABUNDLE_SECRET_NAME"
             return 0
         fi
     fi
@@ -734,20 +739,23 @@ function ensureCABundleSecret() {
         return 1
     fi
 
-    log -n 'Creating %s secret in %s namespace containing' "$SDI_CABUNDLE_SECRET_NAME" \
+    local action="Creating"
+    if [[ -n "${current:-}" ]]; then
+        action="Updating"
+    fi
+    log -n '%s %s secret in %s namespace containing' "$action" "$SDI_CABUNDLE_SECRET_NAME" \
         "$SDI_NAMESPACE"
-    log -d ' cabundle that shall be injected into SDI pods.' 
+    log -d ' cabundle that shall be imported into SDI.' 
     oc create secret generic "$SDI_CABUNDLE_SECRET_NAME" "$DRUNARG" -o json \
         --from-literal="${SDI_CABUNDLE_SECRET_FILE_NAME}=$bundleData" | \
         oc annotate --overwrite -f - --local -o json \
             "$(mkSourceKeyAnnotation "$CABUNDLE_SECRET_NAMESPACE" \
-                "$CABUNDLE_SECRET_NAME" "$uid")" | \
+                "$CABUNDLE_SECRET_NAME" "$newUID" "$newResVersion")" | \
         createOrReplace
     if evalBool DRY_RUN; then
         return 0
     fi
-    uid="$(oc get secret "$SDI_CABUNDLE_SECRET_NAME" -o jsonpath='{.metadata.uid}')"
-    key="$CABUNDLE_SECRET_NAMESPACE:$CABUNDLE_SECRET_NAME:$uid"
+    key="$CABUNDLE_SECRET_NAMESPACE:$CABUNDLE_SECRET_NAME:$newUID:$newResVersion"
     log 'Annotating resources where cabundle needs to be injected.'
     runOrLog oc annotate --overwrite job/datahub.checks.checkpoint \
         "$CABUNDLE_INJECT_ANNOTATION=$key" ||:
