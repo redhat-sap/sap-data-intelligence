@@ -328,8 +328,10 @@ if evalBool INJECT_CABUNDLE || [[ -n "${REDHAT_REGISTRY_SECRET_NAME:-}" ]]; then
     gotmplSecret=(
         '{{if or (and (eq .metadata.name "'"$CABUNDLE_SECRET_NAME"'")'
                     ' (eq .metadata.namespace "'"$CABUNDLE_SECRET_NAMESPACE"'"))'
-               ' (eq .metadata.name "'"${REDHAT_REGISTRY_SECRET_NAME:-redhat-registry-secret-name}"'")}}'
-            $'{{.kind}}#{{.metadata.uid}}\n'
+               ' (or (eq .metadata.name "'"${REDHAT_REGISTRY_SECRET_NAME:-redhat-registry-secret-name}"'")'
+                   ' (and (eq .metadata.name "'"${SDI_CABUNDLE_SECRET_NAME}"'")'
+                        ' (eq .metadata.namespace "'"$SDI_NAMESPACE"'")))}}'
+            $'{{.kind}}#{{.metadata.uid}}#{{.metadata.resourceVersion}}\n'
         '{{end}}'
     )
     export CABUNDLE_SECRET_NAMESPACE CABUNDLE_SECRET_NAME INJECT_CABUNDLE
@@ -1489,13 +1491,16 @@ while IFS=' ' read -u 3 -r namespace name resource; do
     service/vsystem | service/slcbridgebase-service | route/*)
         ensureRoutes ||:
         ;;
-
+ 
     "secret/${CABUNDLE_SECRET_NAME:-}" | "secret/$VORA_CABUNDLE_SECRET_NAME")
-        ensureCABundleSecret ||:
         if [[ "$name" == "$VORA_CABUNDLE_SECRET_NAME" ]]; then
             ensureRoutes ||:
         fi
         ;&  # fallthrough to the next secret/$VORA_CABUNDLE_SECRET_NAME
+
+    "secret/${SDI_CABUNDLE_SECRET_NAME}")
+        ensureCABundleSecret ||:
+        ;;
 
     "secret/${REDHAT_REGISTRY_SECRET_NAME:-}")
         ensureRedHatRegistrySecret "" "$NAMESPACE"
@@ -1514,6 +1519,7 @@ while IFS=' ' read -u 3 -r namespace name resource; do
 
     datahub/*)
         patchDataHub "$namespace" "$name"
+        ensureCABundleSecret ||:
         ;;
 
     "role/vora-vsystem-${SDI_NAMESPACE}")
