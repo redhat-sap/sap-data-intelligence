@@ -8,7 +8,7 @@
          "openshift.io/display-name": "OpenShift enabler and observer for SAP Data intelligence\n",
          "openshift.io/documentation-url": "https://access.redhat.com/articles/4324391",
          "openshift.io/provider-display-name": "Red Hat, Inc.",
-         "sdi-observer/version": "0.1.25"
+         "sdi-observer/version": "0.1.26"
       },
       "name": "sdi-observer"
    },
@@ -34,7 +34,7 @@
                "app": "sdi-observer",
                "created-by": "sdi-observer-template",
                "deploymentconfig": "sdi-observer",
-               "sdi-observer/version": "0.1.25"
+               "sdi-observer/version": "0.1.26"
             },
             "name": "sdi-observer",
             "namespace": "${NAMESPACE}"
@@ -64,7 +64,7 @@
                         "env": [
                            {
                               "name": "SDI_OBSERVER_VERSION",
-                              "value": "0.1.25"
+                              "value": "0.1.26"
                            },
                            {
                               "name": "NAMESPACE",
@@ -107,16 +107,8 @@
                               "value": "${SLCB_NAMESPACE}"
                            },
                            {
-                              "name": "MARK_REGISTRY_INSECURE",
-                              "value": "${MARK_REGISTRY_INSECURE}"
-                           },
-                           {
                               "name": "NODE_LOG_FORMAT",
                               "value": "${NODE_LOG_FORMAT}"
-                           },
-                           {
-                              "name": "MAKE_VSYSTEM_IPTABLES_PODS_PRIVILEGED",
-                              "value": "${MAKE_VSYSTEM_IPTABLES_PODS_PRIVILEGED}"
                            },
                            {
                               "name": "SLCB_ROUTE_HOSTNAME",
@@ -234,7 +226,7 @@
                      ],
                      "from": {
                         "kind": "ImageStreamTag",
-                        "name": "sdi-observer:0.1.25-ocp${OCP_MINOR_RELEASE}"
+                        "name": "sdi-observer:0.1.26-ocp${OCP_MINOR_RELEASE}"
                      }
                   },
                   "type": "ImageChange"
@@ -818,7 +810,7 @@
             "labels": {
                "created-by": "sdi-observer-template",
                "deploymentconfig": "sdi-observer",
-               "sdi-observer/version": "0.1.25"
+               "sdi-observer/version": "0.1.26"
             },
             "name": "sdi-observer",
             "namespace": "${NAMESPACE}"
@@ -827,7 +819,7 @@
             "output": {
                "to": {
                   "kind": "ImageStreamTag",
-                  "name": "sdi-observer:0.1.25-ocp${OCP_MINOR_RELEASE}"
+                  "name": "sdi-observer:0.1.26-ocp${OCP_MINOR_RELEASE}"
                }
             },
             "runPolicy": "Serial",
@@ -862,7 +854,7 @@
          "metadata": {
             "labels": {
                "created-by": "sdi-observer-template",
-               "sdi-observer/version": "0.1.25"
+               "sdi-observer/version": "0.1.26"
             },
             "name": "sdi-observer",
             "namespace": "${NAMESPACE}"
@@ -878,7 +870,7 @@
          "metadata": {
             "labels": {
                "created-by": "sdi-observer-template",
-               "sdi-observer/version": "0.1.25"
+               "sdi-observer/version": "0.1.26"
             },
             "name": "ubi8",
             "namespace": "${NAMESPACE}"
@@ -967,21 +959,9 @@
          "value": "sap-slcbridge"
       },
       {
-         "description": "(deprecated since 0.1.13) Set to true if the given or configured VFLOW_REGISTRY shall be marked as insecure in all instances of Pipeline Modeler.",
-         "name": "MARK_REGISTRY_INSECURE",
-         "required": false,
-         "value": "false"
-      },
-      {
          "description": "Format of the logging files on the nodes. Allowed values are \"json\" and \"text\". Initially, SDI fluentd pods are configured to parse \"json\" while OpenShift 4 uses \"text\" format by default. If not given, the default is \"text\".",
          "name": "NODE_LOG_FORMAT",
          "required": false
-      },
-      {
-         "description": "(deprecated since 0.1.13) Patch deployments with vsystem-iptables container to make them privileged in order to load kernel modules they need. Unless true, it is assumed that the modules have been pre-loaded on the worker nodes. This will make also vsystem-vrep-* pod privileged.",
-         "name": "MAKE_VSYSTEM_IPTABLES_PODS_PRIVILEGED",
-         "required": false,
-         "value": "false"
       },
       {
          "description": "Expose SLC Bridge's service at the provided hostname using a route. If not given, it will be exposed at <SLCB_NAMESPACE>.apps.<clustername>.<basedomainname>.",

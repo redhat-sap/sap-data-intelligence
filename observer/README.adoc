@@ -187,42 +187,6 @@ access mode, please change this to `ReadWriteMany`.
 
 For more information, please see link:../registry/[registry] directory.
 
-[[make_vsystem_iptables_pods_privileged]]
-=== _(deprecated)_ Enable iptables manipulation for pods
-
-*NOTE*: this functionality is disabled by default as there are far better alternatives.
-
-On Red Hat Enterprise Linux CoreOS, `vsystem-iptables` containers need to be run as privileged in
-order to load iptables-related kernel modules. SDI containers named `vsystem-iptables` deployed as
-part of every `vsystem-app` deployment attempt to modify iptables rules without having the
-necessary permissions.
-
-The ideal solution is to pre-load these modules during node’s startup. When not feasible, this
-template can also fix the permissions on-the-fly as the deployments are created. The drawback is a
-slower startup of SDI components.
-
-To enable this functionality upon OCP Template’s instantiation, one must set
-`MAKE_VSYSTEM_IPTABLES_PODS_PRIVILEGED` to `true`. Or set this as the environment variable on the
-observer’s deployment config.
-
-The recommended alternative is to
-https://access.redhat.com/articles/5100521#preload-kernel-modules-post[pre-load the needed kernel
-modules] on the compute nodes.
-
-If not feasible (for example on IBM Cloud platform), one can achieve the same with the
-link:../node-configurator/[Node Configurator daemonset].
-
-_Influential parameters_:
-
-[width="100%",cols="25%,15%,60%",options="header",]
-|===
-|Parameter | Default value | Description
-|`MAKE_VSYSTEM_IPTABLES_PODS_PRIVILEGED` | `false` |Patch deployments with `vsystem-iptables`
-container to make them privileged in order to load kernel modules they need. Unless `true`, it is
-assumed that the modules have been pre-loaded on the worker nodes. This will make also
-`vsystem-vrep-*` pod privileged.
-|===
-
 == Usage
 
 The template must be instantiated before the SDI installation. It is strongly recommended to run
@@ -478,11 +442,6 @@ installer-config secret in the `SDI_NAMESPACE.` If `DEPLOY_SDI_REGISTRY`
 is set to `true`, this variable will be used as the container image
 registry’s hostname when creating the corresponding route.
 
-|`MARK_REGISTRY_INSECURE` |0.1.13 |`INJECT_CABUNDLE`,
-`CABUNDLE_SECRET_NAME` |Set to true if the given or configured
-`REGISTRY` shall be marked as insecure in all instances of Pipeline
-Modeler.
-
 |`DEPLOY_LETSENCRYPT` |0.1.13 | |Whether to deploy letsencrypt
 controller. Requires project admin role attached to the sdi-observer
 service account.
@@ -498,9 +457,5 @@ for letsencrypt controller. Requires project admin role attached to the
 sdi-observer service account. Letsencrypt controller must be deployed
 either via this observer or cluster-wide for this to have an effect.
 Defaults to the value of `DEPLOY_LETSENCRYPT`
-
-|`MAKE_VSYSTEM_IPTABLES_PODS_PRIVILEGED` | 0.1.13 | | Please see
-xref:#make_vsystem_iptables_pods_privileged[above] for an alternative.
-
 |
 |===

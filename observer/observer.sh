@@ -134,43 +134,9 @@ function observe() {
     log 'WARNING: Monitoring terminated.'
 }
 
-function mkVsystemIptablesPatchFor() {
-    local name="$1"
-    local specField="$2"
-    local containerIndex="${3:-}"
-    local unprivileged="${4:-}"
-    if [[ -z "${containerIndex:-}" || -z "${unprivileged:-}" ]]; then
-        return 0
-    fi
-    if [[ "$unprivileged" == "true" ]]; then
-        log 'Patching container #%d in deployment/%s to make its pods privileged ...' \
-                "$containerIndex" "$name"
-        printf '{
-            "op": "add", "value": true,
-            "path": "/spec/template/spec/%s/%d/securityContext/privileged"
-        }' "$specField" "$containerIndex"
-    else
-        log 'Container #%d in deployment/%s already patched, skipping ...' \
-            "$containerIndex" "$name"
-    fi
-}
-
 if [[ -z "${SLCB_NAMESPACE:-}" ]]; then
     export SLCB_NAMESPACE=sap-slcbridge
 fi
-
-# shellcheck disable=SC2016
-gotmplDeployment=(
-    '{{with $d := .}}'
-        '{{with $appcomp := index $d.metadata.labels "datahub.sap.com/app-component"}}'
-            '{{if eq $appcomp "vflow"}}'
-                # print (string kind)#(string componentName):(string version)
-                '{{$d.kind}}#{{$appcomp}}:'
-               $'{{index $d.metadata.labels "datahub.sap.com/package-version"}}:\n'
-            '{{end}}'
-        '{{end}}'
-    '{{end}}'
-)
 
 # shellcheck disable=SC2016
 gotmplDaemonSet=(
@@ -327,7 +293,6 @@ fi
 # loop.
 declare -A gotmpls=(
     [":Namespace"]="$(join '' "${gotmplNamespace[@]}")"
-    ["${SDI_NAMESPACE}:Deployment"]="$(join '' "${gotmplDeployment[@]}")"
     ["${SDI_NAMESPACE}:DaemonSet"]="$(join '' "${gotmplDaemonSet[@]}")"
     ["${SDI_NAMESPACE}:StatefulSet"]="$(join '' "${gotmplStatefulSet[@]}")"
     ["${SDI_NAMESPACE}:ConfigMap"]="$(join '' "${gotmplConfigMap[@]}")"
@@ -413,7 +378,7 @@ function checkPermissions() {
     local rc=0
     local toCheck=()
     for verb in get patch watch; do
-        for resource in configmaps daemonsets deployments statefulsets jobs role route; do
+        for resource in configmaps daemonsets statefulsets jobs role route; do
             toCheck+=( "$verb/$resource" )
         done
     done
@@ -1355,69 +1320,6 @@ while IFS=' ' read -u 3 -r namespace name resource; do
     resource="${resource,,}"
 
     case "${resource}" in
-    deployment/vflow* | deployment/pipeline-modeler*)
-        patches=()
-        registries=()
-        vflowargs=()
-        if evalBool MARK_REGISTRY_INSECURE; then
-            if [[ "${REGISTRY:-}" ]]; then
-                registries=( "$REGISTRY" )
-            else
-                readarray -t vflowargs <<<"$(oc get deploy -o go-template="${gotmplvflow}" "$name")"
-                for arg in "${vflowargs[@]}"; do
-                    if [[ "${arg:-}" =~ ^-registry=([^[:space:]]+) ]]; then
-                        registries+=( "${BASH_REMATCH[1]}" )
-                    fi
-                done
-            fi
-
-            if [[ "${#registries[@]}" == 0 || "${#registries[0]}" == 0 ]]; then
-                readarray -t registries <<<"$(getRegistries)"
-            fi
-        fi
-
-        if evalBool MARK_REGISTRY_INSECURE && \
-                    [[ "${#registries[@]}" -gt 0 && "${#registries[0]}" -gt 0 ]];
-        then
-            if  [[ "${#vflowargs[@]}" -lt 1 ]]; then
-                readarray -t vflowargs <<<"$(oc get deploy -o go-template="${gotmplvflow}" "$name")"
-            fi
-            newargs=( )
-            doPatch=0
-            for reg in "${registries[@]}"; do
-                if [[ -z "${reg:-}" ]]; then
-                    continue
-                fi
-                if ! grep -q -F -- "-insecure-registry=${reg}" <<<"${vflowargs[@]}"; then
-                    log 'Patching deployment/%s to treat %s registry as insecure ...' \
-                            "$name" "$reg"
-                    vflowargs+=( "-insecure-registry=${reg}" )
-                    doPatch=1
-                else
-                    log '%s already patched to treat %s registry as insecure, skipping ...' \
-                        "$resource" "$reg"
-                fi
-            done
-            if [[ "${doPatch}" == 1 ]]; then
-                # turn the argument array into a json list of strings
-                for ((i=0; i<"${#vflowargs[@]}"; i++)) do
-                    # escape double qoutes of each argument and surround it with double quotes
-                    newargs+=( '"'"${vflowargs[$i]//\"/\\\"}"'"' )
-                done
-                newarglist="[$(join , "${newargs[@]}")]"
-                patches+=( "$(join "," '{"op":"add"' \
-                    '"path":"/spec/template/spec/containers/0/args"' \
-                    '"value":'"$newarglist"'}')" )
-            else
-                log 'No need to update insecure registries in %s ...' "$resource"
-            fi
-        fi
-
-        if [[ "${#patches[@]}" -gt 0 ]]; then
-            runOrLog oc patch --type json -p "[$(join , "${patches[@]}")]" deploy "$name"
-        fi
-        ;;
-
     daemonset/diagnostics-fluentd)
         IFS='#' read -r nodeSelector _rest <<<"${rest:-}"
         applyNodeSelectorToDS "$namespace" "$name" "${nodeSelector:-}"

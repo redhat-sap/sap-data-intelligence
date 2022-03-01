@@ -112,32 +112,11 @@ local urls = import 'urls.jsonnet';
     },
     $.Param {
       text:: |||
-        Set to true if the given or configured VFLOW_REGISTRY shall be marked as insecure in all
-        instances of Pipeline Modeler.
-      |||,
-      name: 'MARK_REGISTRY_INSECURE',
-      value: 'false',
-      deprecated:: true,
-      deprecated_since:: '0.1.13',
-    },
-    $.Param {
-      text:: |||
         Format of the logging files on the nodes. Allowed values are "json" and "text".
         Initially, SDI fluentd pods are configured to parse "json" while OpenShift 4 uses
         "text" format by default. If not given, the default is "text".
       |||,
       name: 'NODE_LOG_FORMAT',
-    },
-    $.Param {
-      text:: |||
-        Patch deployments with vsystem-iptables container to make them privileged in order to load
-        kernel modules they need. Unless true, it is assumed that the modules have been pre-loaded
-        on the worker nodes. This will make also vsystem-vrep-* pod privileged.
-      |||,
-      name: 'MAKE_VSYSTEM_IPTABLES_PODS_PRIVILEGED',
-      value: 'false',
-      deprecated:: true,
-      deprecated_since:: '0.1.13',
     },
     $.Param {
       text:: |||
