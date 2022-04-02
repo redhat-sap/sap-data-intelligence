@@ -25,6 +25,7 @@ import (
 	routeinformers "github.com/openshift/client-go/route/informers/externalversions"
 
 	sdiv1alpha1 "github.com/redhat-sap/sap-data-intelligence/operator/api/v1alpha1"
+	λ "github.com/redhat-sap/sap-data-intelligence/operator/util/log"
 )
 
 const (
@@ -64,6 +65,7 @@ func NewController(
 	mgr manager.Manager,
 	options controller.Options,
 ) (*Controller, error) {
+	defer λ.Leave(λ.Enter(logf.Log))
 	r := &reconciler{
 		client:         client,
 		scheme:         scheme,
@@ -120,6 +122,7 @@ func NewController(
 }
 
 func (c *Controller) startFactories(chCancel <-chan struct{}) {
+	defer λ.Leave(λ.Enter(c.GetLogger()))
 	if !c.isStarted {
 		// we don't want to miss the intial list of objects produced by each informer once started
 		// let's make sure to start the factories once the controller and its queue are prepared
@@ -132,10 +135,13 @@ func (c *Controller) startFactories(chCancel <-chan struct{}) {
 }
 
 func (c *Controller) ReconcileObs(obs *sdiv1alpha1.SDIObserver) {
+	defer λ.Leave(λ.Enter(c.GetLogger()))
 	c.chanReconcileObs <- event.GenericEvent{Object: obs}
 }
 
 func (c *Controller) manageDHNamespace(ctx context.Context, dhNamespace string) error {
+	tracer := λ.Enter(c.GetLogger())
+	defer λ.Leave(tracer)
 	cfg := c.mgr.GetConfig()
 	kubeClient, err := kubernetes.NewForConfig(cfg)
 	if err != nil {
@@ -148,8 +154,7 @@ func (c *Controller) manageDHNamespace(ctx context.Context, dhNamespace string) 
 	}
 
 	// Create a factory object that can generate informers for resource types
-	c.GetLogger().Info("(*controller).manageDHNamespace: setting up watches for DH instance",
-		"DH namespace", dhNamespace)
+	tracer.Info("setting up watches for DH instance", "DH namespace", dhNamespace)
 
 	// TODO: Watch just metadata
 	factory := dynamicinformer.NewFilteredDynamicSharedInformerFactory(
@@ -210,10 +215,13 @@ func (c *Controller) manageDHNamespace(ctx context.Context, dhNamespace string) 
 }
 
 func (c *Controller) Start(ctx context.Context) error {
+	tracer := λ.Enter(c.GetLogger())
+	defer λ.Leave(tracer)
+
 	childContext, cancel := context.WithCancel(context.Background())
 	go func() {
 		if err := c.Controller.Start(childContext); err != nil {
-			c.GetLogger().Error(err, "(*controller).Start: controller terminated")
+			tracer.Error(err, "controller terminated")
 		}
 	}()
 
@@ -224,6 +232,7 @@ func (c *Controller) Start(ctx context.Context) error {
 }
 
 func (c *Controller) Stop() {
+	defer λ.Leave(λ.Enter(c.GetLogger()))
 	close(c.chanReconcileObs)
 	for _, c := range c.cancels {
 		c()

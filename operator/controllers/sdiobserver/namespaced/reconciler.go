@@ -19,6 +19,7 @@ import (
 
 	"github.com/redhat-sap/sap-data-intelligence/operator/api/v1alpha1"
 	sdiv1alpha1 "github.com/redhat-sap/sap-data-intelligence/operator/api/v1alpha1"
+	λ "github.com/redhat-sap/sap-data-intelligence/operator/util/log"
 	"github.com/redhat-sap/sap-data-intelligence/operator/util/sdiobservers"
 )
 
@@ -46,30 +47,30 @@ var _ reconcile.Reconciler = &reconciler{}
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.9.2/pkg/reconcile
 func (r *reconciler) Reconcile(ctx context.Context, req reconcile.Request) (rs reconcile.Result, err error) {
-	logger := log.FromContext(ctx)
-	logger.Info("(*reconciler).Reconcile: started", "request", req)
-	defer logger.Info("(*reconciler).Reconcile: finished")
+	tracer := λ.Enter(log.FromContext(ctx), "request", req)
+	defer λ.Leave(tracer)
+
 	select {
 	case <-ctx.Done():
-		logger.Info("(*reconciler).Reconcile: context cancelled")
+		tracer.Info("context cancelled")
 		return
 	default:
 	}
 
 	obs := &sdiv1alpha1.SDIObserver{}
-	logger.Info("(*reconciler).Reconcile: getting obs")
+	tracer.Info("getting obs")
 	if err = r.client.Get(ctx, r.namespacedName, obs); err != nil {
-		logger.Error(err, "(*reconciler).Reconcile: failed to get SDIObserver instance")
+		tracer.Error(err, "failed to get SDIObserver instance")
 		return
 	}
 
 	ready, degraded, progressing, err := r.doReconcileObs(ctx, obs)
 	if err != nil {
-		logger.Error(err, "(*reconciler).Reconcile: failed to reconcile SDI Observer")
+		tracer.Error(err, "failed to reconcile SDI Observer")
 	}
 	err = r.updateStatus(ctx, obs, ready, degraded, progressing)
 	if err != nil {
-		logger.Error(err, "(*reconciler).Reconcile: failed to update SDI Observer status")
+		tracer.Error(err, "failed to update SDI Observer status")
 	}
 	// TODO: handle FailedGet on DH - require after some time
 	if sdiobservers.IsStatusInCondition(obs, "FailedGet") {
@@ -83,11 +84,11 @@ func (r *reconciler) doReconcileObs(
 	ctx context.Context,
 	obs *sdiv1alpha1.SDIObserver,
 ) (ready, degraded, progressing []metav1.Condition, err error) {
-	logger := log.FromContext(ctx)
-	logger.Info("(*reconciler).Reconcile: getting the managed DH")
+	tracer := λ.Enter(log.FromContext(ctx))
+	defer λ.Leave(tracer)
+
 	var dh *unstructured.Unstructured
 	dh, err = r.dhClient.Get(ctx, r.dhNamespace)
-	logger.Info("(*reconciler).Reconcile: do we have an error?", "err", err)
 	removeManagedObjects := false
 	if err != nil {
 		if errors.IsNotFound(err) {
@@ -102,7 +103,7 @@ func (r *reconciler) doReconcileObs(
 				Reason:  "NotFound",
 				Message: fmt.Sprintf("waiting for the managed DH to appear: %v", err),
 			})
-			logger.Info("(*reconciler).Reconcile: DH not found")
+			tracer.Info("DH not found")
 			err = nil
 			obs.Status.ManagedDataHubRef = nil
 			return
@@ -126,7 +127,7 @@ func (r *reconciler) doReconcileObs(
 		return
 	}
 
-	logger.Info("(*reconciler).Reconcile: handling managed DH")
+	tracer.V(2).Info("handling managed DH")
 	// Backup status is controlled by the parent controller
 	if sdiobservers.IsBackup(obs) {
 		msg := "there is another SDIObserver instance managing the SDINamespace"
@@ -157,7 +158,7 @@ func (r *reconciler) doReconcileObs(
 	}
 	err = manageVSystemRoute(ctx, r.scheme, r.client, owner, r.dhNamespace)
 	if err != nil {
-		logger.Error(err, "failed to reconcile vsystem route")
+		tracer.Error(err, "failed to reconcile vsystem route")
 		ready = append(ready, metav1.Condition{
 			Status:  metav1.ConditionFalse,
 			Reason:  "VSystemRoute",
@@ -218,7 +219,9 @@ func (r *reconciler) updateStatus(
 	degraded []metav1.Condition,
 	progressing []metav1.Condition,
 ) error {
-	logger := log.FromContext(ctx)
+	tracer := λ.Enter(log.FromContext(ctx))
+	defer λ.Leave(tracer)
+
 	for _, clist := range []struct {
 		Type       string
 		Conditions []metav1.Condition
@@ -321,10 +324,10 @@ func (r *reconciler) updateStatus(
 				}
 			}
 		}
-		logger.Info("(*reconciler).updateStatus: setting condition", "type", product.Type, "status", product.Status, "reason", product.Reason)
+		tracer.Info("setting condition", "type", product.Type, "status", product.Status, "reason", product.Reason)
 		meta.SetStatusCondition(&obs.Status.Conditions, product)
 	}
 	// if this ends up in a conflict, let's just do a new reconciliation round
-	logger.Info("(*reconciler).updateStatus: updating obs", "obs", fmt.Sprintf("%#v", obs))
+	tracer.Info("updating obs", "obs", fmt.Sprintf("%#v", obs))
 	return r.client.Status().Update(ctx, obs)
 }

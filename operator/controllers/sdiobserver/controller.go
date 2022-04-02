@@ -32,6 +32,7 @@ import (
 
 	sdiv1alpha1 "github.com/redhat-sap/sap-data-intelligence/operator/api/v1alpha1"
 	"github.com/redhat-sap/sap-data-intelligence/operator/controllers/sdiobserver/namespaced"
+	λ "github.com/redhat-sap/sap-data-intelligence/operator/util/log"
 	"github.com/redhat-sap/sap-data-intelligence/operator/util/sdiobservers"
 )
 
@@ -84,10 +85,8 @@ func NewReconciler(
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.9.2/pkg/reconcile
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (rs ctrl.Result, err error) {
-	logger := log.FromContext(ctx)
-
-	logger.Info("(*Reconciler) Reconcile: got request")
-	defer logger.Info("(*Reconciler) Reconcile: finished")
+	tracer := λ.Enter(log.FromContext(ctx))
+	defer λ.Leave(tracer)
 
 	knownManagedNamespace := r.ManagedDHPerObserver[req.NamespacedName]
 	_, isActive := r.NamespacedControllers[req.NamespacedName]
@@ -107,7 +106,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (rs ctrl.R
 				return
 			}
 			if candidate == nil {
-				logger.Info("(*Reconciler) Reconcile: no known suitable substitute SDIObserver found")
+				tracer.Info("no known suitable substitute SDIObserver found")
 				return
 			}
 			return ctrl.Result{}, r.manageDataHubs(ctx, candidate, knownManagedNamespace)
@@ -121,10 +120,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (rs ctrl.R
 	}
 
 	if nm, ok := r.ManagedDHPerObserver[client.ObjectKeyFromObject(obs)]; !ok {
-		logger.Info("(*Reconciler) Reconcile: recording new Observer instance")
+		tracer.Info("recording new Observer instance")
 		r.ManagedDHPerObserver[client.ObjectKeyFromObject(obs)] = sdiNamespace
 	} else if nm != sdiNamespace {
-		logger.Info("(*Reconciler) Reconcile: managed DH namespace change", "original", nm, "new", sdiNamespace)
+		tracer.Info("managed DH namespace change", "original", nm, "new", sdiNamespace)
 		_, err = r.orphanDH(ctx, nm)
 		r.ManagedDHPerObserver[client.ObjectKeyFromObject(obs)] = sdiNamespace
 	}
@@ -147,9 +146,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (rs ctrl.R
 }
 
 func (r *Reconciler) orphanDH(ctx context.Context, dhNamespace string) (changed bool, err error) {
-	logger := log.FromContext(ctx)
-	logger.Info("(*Reconciler) orphanDH: destroying controller for DI", "dhNamespace", dhNamespace)
-	defer logger.Info("(*Reconciler) orphanDH: finished")
+	defer λ.Leave(λ.Enter(log.FromContext(ctx), "dhNamespace", dhNamespace))
 	obsNMName, ok := r.ActiveObserverForDH[dhNamespace]
 	if !ok {
 		return false, nil
@@ -159,20 +156,18 @@ func (r *Reconciler) orphanDH(ctx context.Context, dhNamespace string) (changed 
 		delete(r.ActiveObserverForDH, dhNamespace)
 		return true, nil
 	}
-	r.destroyController(obsNMName)
+	r.destroyController(ctx, obsNMName)
 	changed = true
 	return
 }
 
 func (r *Reconciler) unblockObs(ctx context.Context, obs *sdiv1alpha1.SDIObserver) (update bool) {
-	logger := log.FromContext(ctx)
-	logger.Info("(*Reconciler) unblockObs: started for obs", "namespace", obs.Namespace, "name", obs.Name)
-	defer logger.Info("(*Reconciler) unblockObs: finished")
-
+	defer λ.Leave(λ.Enter(log.FromContext(ctx), "namespace", obs.Namespace, "name", obs.Name))
 	return sdiobservers.SetBackup(ctx, r.Client, obs, false, client.ObjectKeyFromObject(obs))
 }
 
-func (r *Reconciler) destroyController(obsNMName types.NamespacedName) {
+func (r *Reconciler) destroyController(ctx context.Context, obsNMName types.NamespacedName) {
+	defer λ.Leave(λ.Enter(log.FromContext(ctx), "observer namespace/name", obsNMName.String()))
 	dhctrl, ok := r.NamespacedControllers[obsNMName]
 	if !ok {
 		return
@@ -258,6 +253,9 @@ func (r *Reconciler) findNewObsForDH(
 	// Reduce the searched instances only to those already tracked by this reconciler.
 	onlyTracked bool,
 ) (*sdiv1alpha1.SDIObserver, error) {
+	tracer := λ.Enter(log.FromContext(ctx))
+	defer λ.Leave(tracer)
+
 	var obss sdiv1alpha1.SDIObserverList
 	err := r.List(ctx, &obss)
 	if err != nil || len(obss.Items) == 0 {
@@ -267,10 +265,7 @@ func (r *Reconciler) findNewObsForDH(
 		dhNamespace: dhNamespace,
 		items:       obss.Items,
 	})
-	logger := log.FromContext(ctx)
 	for _, obs := range obss.Items {
-		logger.Info("(*Reconciler).findNewObsForDH:", "obs.Spec.SDINamespace", obs.Spec.SDINamespace, "dhNamespace", dhNamespace)
-
 		if obs.DeletionTimestamp == nil && (obs.Spec.SDINamespace == dhNamespace ||
 			(len(obs.Spec.SDINamespace) == 0 && obs.Namespace == dhNamespace)) {
 			if _, ok := r.ManagedDHPerObserver[client.ObjectKeyFromObject(&obs)]; !onlyTracked || ok {
@@ -289,13 +284,15 @@ func (r *Reconciler) manageDataHubs(
 	obs *sdiv1alpha1.SDIObserver,
 	sdiNamespace string,
 ) error {
-	logger := log.FromContext(ctx)
+	tracer := λ.Enter(log.FromContext(ctx), "SDI namespace", sdiNamespace)
+	defer λ.Leave(tracer)
+
 	obsNMName := client.ObjectKeyFromObject(obs)
 	if _, ok := r.NamespacedControllers[obsNMName]; ok {
 		// already managed
 		return nil
 	}
-	logger.Info("(*Reconciler).manageDataHubs: creating the controller for SAP Data Intelligence instance", "SDI namespace", sdiNamespace)
+	tracer.Info("creating the controller for SAP Data Intelligence instance", "SDI namespace", sdiNamespace)
 
 	ctrl, err := namespaced.NewController(
 		r.Client,
@@ -310,24 +307,24 @@ func (r *Reconciler) manageDataHubs(
 
 	err = ctrl.Start(ctx)
 	if err != nil {
-		logger.Error(err, "(*Reconciler).manageDataHubs: controller of SDI instance", "SDI namespace", sdiNamespace)
+		tracer.Error(err, "controller of SDI instance", "SDI namespace", sdiNamespace)
 		return err
 	}
+	tracer.Info("started the controller")
 
 	r.ActiveObserverForDH[sdiNamespace] = obsNMName
 	r.ManagedDHPerObserver[obsNMName] = sdiNamespace
 	r.NamespacedControllers[obsNMName] = ctrl
-	logger.Info("(*Reconciler).manageDataHubs: starting the management of SDI instance", "SDI namespace", sdiNamespace)
+	tracer.Info("starting the management of SDI instance", "SDI namespace", sdiNamespace)
 	if err != nil {
-		logger.Error(err, "(*Reconciler).manageDataHubs: controller of SDI instance", "SDI namespace", sdiNamespace)
+		tracer.Error(err, "controller of SDI instance", "SDI namespace", sdiNamespace)
 		return err
 	}
-	logger.Info("(*Reconciler).manageDataHubs: started")
 
 	if r.unblockObs(ctx, obs) {
 		err = r.Update(ctx, obs)
 		if err != nil {
-			logger.Error(err, "(*Reconciler).manageDataHubs: failed to update the SDIObserver", "SDIObserver instance", obsNMName.String())
+			tracer.Error(err, "failed to update the SDIObserver", "SDIObserver instance", obsNMName.String())
 		}
 	}
 	ctrl.ReconcileObs(&sdiv1alpha1.SDIObserver{

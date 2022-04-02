@@ -13,6 +13,7 @@ import (
 
 	"github.com/redhat-sap/sap-data-intelligence/operator/api/v1alpha1"
 	sdiv1alpha1 "github.com/redhat-sap/sap-data-intelligence/operator/api/v1alpha1"
+	λ "github.com/redhat-sap/sap-data-intelligence/operator/util/log"
 )
 
 func IsBackup(obs *sdiv1alpha1.SDIObserver) bool {
@@ -26,16 +27,18 @@ func SetBackup(
 	backup bool,
 	activeInstance types.NamespacedName,
 ) (update bool) {
-	logger := log.FromContext(ctx)
+	tracer := λ.Enter(log.FromContext(ctx))
+	defer λ.Leave(tracer)
+
 	stateDescription := "active"
 	if backup {
 		stateDescription = "backup"
 	}
 	if IsBackup(obs) == backup {
-		logger.Info(fmt.Sprintf("SetBackupAndUpdate: instance already marked as %s", stateDescription), "instance", client.ObjectKeyFromObject(obs))
+		tracer.Info(fmt.Sprintf("instance already marked as %s", stateDescription), "instance", client.ObjectKeyFromObject(obs))
 		return
 	}
-	logger.Info(fmt.Sprintf("SetBackup: setting the observer instance as %s", stateDescription), "instance", client.ObjectKeyFromObject(obs))
+	tracer.Info(fmt.Sprintf("setting the observer instance as %s", stateDescription), "instance", client.ObjectKeyFromObject(obs))
 
 	backupStatus := metav1.ConditionFalse
 	backupReason := v1alpha1.ConditionReasonActive
@@ -80,14 +83,17 @@ func SetBackupAndUpdate(
 	backup bool,
 	activeInstance types.NamespacedName,
 ) error {
-	logger := log.FromContext(ctx)
+	tracer := λ.Enter(log.FromContext(ctx))
+	defer λ.Leave(tracer)
+
 	firstTry := true
 	if IsBackup(obs) == backup {
 		stateDescription := "active"
 		if backup {
 			stateDescription = "backup"
 		}
-		logger.Info(fmt.Sprintf("SetBackupAndUpdate: instance already marked as %s", stateDescription), "instance", client.ObjectKeyFromObject(obs))
+		tracer.Info(fmt.Sprintf("instance already marked as %s", stateDescription),
+			"instance", client.ObjectKeyFromObject(obs))
 		return nil
 	}
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {

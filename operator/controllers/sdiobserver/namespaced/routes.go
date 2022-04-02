@@ -24,6 +24,7 @@ import (
 	routev1 "github.com/openshift/api/route/v1"
 
 	sdiv1alpha1 "github.com/redhat-sap/sap-data-intelligence/operator/api/v1alpha1"
+	λ "github.com/redhat-sap/sap-data-intelligence/operator/util/log"
 )
 
 const (
@@ -70,11 +71,12 @@ func manageVSystemRoute(
 	owner *sdiv1alpha1.SDIObserver,
 	namespace string,
 ) error {
-	logger := log.FromContext(ctx)
+	tracer := λ.Enter(log.FromContext(ctx))
+	defer λ.Leave(tracer)
 
 	spec := owner.Spec.VSystemRoute
 	if regexp.MustCompile(`^(\s*|(?i)Unmanaged)$`).MatchString(spec.ManagementState) {
-		logger.V(2).Info("manageVSystemRoute: vsystem route is not managed")
+		tracer.V(2).Info("vsystem route is not managed")
 		setConditions(owner, &owner.Status.VSystemRoute, metav1.ConditionUnknown, metav1.ConditionFalse,
 			"Unmanaged", "the vsystem route is not managed by this SDIObserver instance")
 		return nil
@@ -91,7 +93,7 @@ func manageVSystemRoute(
 		Name:      "vsystem",
 	}, svc)
 	if svcGetErr != nil && !errors.IsNotFound(svcGetErr) {
-		logger.Error(svcGetErr, "manageVSystemRoute: failed to get vsystem service")
+		tracer.Error(svcGetErr, "failed to get vsystem service")
 		setConditions(owner, &owner.Status.VSystemRoute, metav1.ConditionUnknown, metav1.ConditionTrue,
 			"FailedGet", fmt.Sprintf("failed to get vsystem service: %v", svcGetErr))
 		return svcGetErr
@@ -101,7 +103,7 @@ func manageVSystemRoute(
 		route := &routev1.Route{}
 		routeGetErr := client.Get(ctx, svcKey, route)
 		if routeGetErr != nil && !errors.IsNotFound(routeGetErr) {
-			logger.Error(routeGetErr, "manageVSystemRoute: failed to get vsystem route")
+			tracer.Error(routeGetErr, "failed to get vsystem route")
 			setConditions(owner, &owner.Status.VSystemRoute, metav1.ConditionUnknown, metav1.ConditionTrue,
 				"FailedGet", fmt.Sprintf("failed to get vsystem route: %v", svcGetErr))
 			return routeGetErr
@@ -115,15 +117,15 @@ func manageVSystemRoute(
 				} else {
 					msg += " as instructed"
 				}
-				logger.Info("manageVSystemRoute: vsystem route already removed, nothing to do", "message", msg)
+				tracer.Info("vsystem route already removed, nothing to do", "message", msg)
 				setConditions(owner, &owner.Status.VSystemRoute, metav1.ConditionFalse, metav1.ConditionFalse,
 					"Removed", msg)
 				return nil
 			}
-			logger.Info("manageVSystemRoute: deleting vsystem route")
+			tracer.Info("deleting vsystem route")
 			if err := client.Delete(ctx, route); err != nil {
 				if !errors.IsNotFound(err) {
-					logger.Error(err, "manageVSystemRoute: failed to delete vsystem route")
+					tracer.Error(err, "failed to delete vsystem route")
 					setConditions(owner, &owner.Status.VSystemRoute, metav1.ConditionUnknown, metav1.ConditionTrue, "FailedDelete",
 						fmt.Sprintf("failed to delete vsystem route: %v", svcGetErr))
 				}
@@ -137,7 +139,7 @@ func manageVSystemRoute(
 			Name:      vsystemCaBundleSecretName,
 		}, caBundleSecret)
 		if err != nil {
-			logger.Error(err, "manageVSystemRoute: failed to get vsystem/vora ca-bundle.pem secret")
+			tracer.Error(err, "failed to get vsystem/vora ca-bundle.pem secret")
 			setConditions(owner, &owner.Status.VSystemRoute, metav1.ConditionUnknown, metav1.ConditionTrue,
 				"FailedGet", fmt.Sprintf("failed to get vsystem/vora ca-bundle.pem secret: %v", err))
 			return err
@@ -184,18 +186,18 @@ func manageVSystemRoute(
 		if routeGetErr == nil && len(route.UID) > 0 {
 			changed, updatedFields := updateRoute(route, &newRoute)
 			if !changed {
-				logger.Info("manageVSystemRoute: route is up to date")
+				tracer.Info("route is up to date")
 				setStatusForUptodateRoute(owner, route)
 				return nil
 			}
 
-			logger.Info("manageVSystemRoute: updating route", "fields", strings.Join(updatedFields, ","))
+			tracer.Info("updating route", "fields", strings.Join(updatedFields, ","))
 			diff := cmp.Diff(route, &newRoute)
-			logger.V(2).Info("manageVSystemRoute", "route diff", diff)
+			tracer.V(3).Info("route diff on Update", "diff", diff)
 			err = client.Update(ctx, route)
 			// an immutable field (like TLS certificate) has changed
 			if errors.IsInvalid(err) {
-				logger.Info("manageVSystemRoute: route update has been refused, replacing instead...",
+				tracer.Info("route update has been refused, replacing instead...",
 					"error type", fmt.Sprintf("%T", err), "error", err)
 				err := client.Delete(ctx, route)
 				if err != nil && !errors.IsNotFound(err) {
@@ -206,11 +208,11 @@ func manageVSystemRoute(
 				return err
 			}
 			if err != nil {
-				logger.Info("manageVSystemRoute: route update has been refused ...",
+				tracer.Info("route update has been refused ...",
 					"error type", fmt.Sprintf("%T", err), "error", err)
 			}
 		} else {
-			logger.Info("manageVSystemRoute: creating a new route")
+			tracer.Info("creating a new route")
 			err = client.Create(ctx, &newRoute)
 		}
 		return err
