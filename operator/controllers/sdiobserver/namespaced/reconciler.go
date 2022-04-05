@@ -161,7 +161,7 @@ func (r *reconciler) doReconcileObs(
 		tracer.Error(err, "failed to reconcile vsystem route")
 		ready = append(ready, metav1.Condition{
 			Status:  metav1.ConditionFalse,
-			Reason:  "VSystemRoute",
+			Reason:  v1alpha1.ConditionReasonIngress,
 			Message: fmt.Sprintf("failed to reconcile vsystem route: %v", err),
 		})
 		return
@@ -172,40 +172,46 @@ func (r *reconciler) doReconcileObs(
 		Status: metav1.ConditionTrue,
 		Reason: v1alpha1.ConditionReasonAsExpected,
 	})
-	if sdiobservers.IsRouteInCondition(obs.Status.VSystemRoute, "Degraded") &&
-		!sdiobservers.IsRouteConditionKnown(obs.Status.VSystemRoute, "Exposed") {
+	if !sdiobservers.IsRouteInCondition(obs.Status.VSystemRoute, "Degraded") &&
+		sdiobservers.IsRouteConditionKnown(obs.Status.VSystemRoute, "Exposed") {
 		progressing = append(progressing, metav1.Condition{
 			Status: metav1.ConditionTrue,
-			Reason: "VSystemRoute",
+			Reason: v1alpha1.ConditionReasonIngress,
 			Message: (func() string {
 				if owner.Spec.VSystemRoute.ManagementState == sdiv1alpha1.RouteManagementStateManaged {
-					return "waiting for vsystem route to be admitted"
+					return "waiting for a route to be admitted"
 				}
-				return "removing the vsystem route"
+				return "removing route(s)"
 			})(),
 		})
 	} else {
+		reason := v1alpha1.ConditionReasonAsExpected
+		message := "route(s) are up to date"
+		if owner.Spec.VSystemRoute.ManagementState == sdiv1alpha1.RouteManagementStateRemoved {
+			message = "route(s) removed"
+		}
+		if sdiobservers.IsRouteInCondition(obs.Status.VSystemRoute, "Degraded") {
+			reason = v1alpha1.ConditionReasonIngressBlocked
+			message = "ingress cannot expose managed routes"
+		}
 		progressing = append(progressing, metav1.Condition{
-			Status: metav1.ConditionFalse,
-			Reason: "VSystemRoute",
-			Message: (func() string {
-				if owner.Spec.VSystemRoute.ManagementState == sdiv1alpha1.RouteManagementStateManaged {
-					return "vsystem route is up to date"
-				}
-				return "vsystem route is removed"
-			})(),
+			Status:  metav1.ConditionFalse,
+			Reason:  reason,
+			Message: message,
 		})
 	}
 
 	degradedStatus := metav1.ConditionFalse
+	reason := v1alpha1.ConditionReasonAsExpected
 	message := ""
 	if sdiobservers.IsRouteInCondition(obs.Status.VSystemRoute, "Degraded") {
 		degradedStatus = metav1.ConditionTrue
+		reason = v1alpha1.ConditionReasonIngress
 		message = meta.FindStatusCondition(obs.Status.VSystemRoute.Conditions, "Degraded").Message
 	}
 	degraded = append(degraded, metav1.Condition{
 		Status:  degradedStatus,
-		Reason:  "VSystemRoute",
+		Reason:  reason,
 		Message: message,
 	})
 	return

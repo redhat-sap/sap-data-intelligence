@@ -1,9 +1,14 @@
 package routes
 
 import (
+	"context"
+	"time"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/client-go/util/retry"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	routev1 "github.com/openshift/api/route/v1"
 )
@@ -79,4 +84,82 @@ func MakeVSystemCABundleSecret(namespace string) *corev1.Secret {
 			"ca-bundle.pem": VSystemCABundle,
 		},
 	}
+}
+
+// FindRouteIngressCondition assumes there is just one ingress configured!
+func FindRouteIngressCondition(
+	r *routev1.Route,
+	cType routev1.RouteIngressConditionType,
+) (*routev1.RouteIngress, *routev1.RouteIngressCondition) {
+	for _, i := range r.Status.Ingress {
+		for _, c := range i.Conditions {
+			if c.Type == routev1.RouteIngressConditionType(cType) {
+				return &i, &c
+			}
+		}
+	}
+	return nil, nil
+}
+
+// SetRouteIngressCondition is only useful in tests!
+// Inspired by k8s.io/apimachinery/pkg/api/meta/conditions.go
+func SetRouteIngressCondition(
+	r *routev1.Route,
+	c *routev1.RouteIngressCondition,
+) *routev1.RouteIngressCondition {
+	if len(r.Status.Ingress) == 0 {
+		r.Status.Ingress = []routev1.RouteIngress{
+			{
+				Host:       "foo.example.ltd",
+				RouterName: "default",
+			},
+		}
+	}
+
+	_, existingCondition := FindRouteIngressCondition(r, c.Type)
+	if existingCondition == nil {
+		var ret *routev1.RouteIngressCondition
+		for i := range r.Status.Ingress {
+			ingress := &r.Status.Ingress[i]
+			if c.LastTransitionTime.IsZero() {
+				t := metav1.NewTime(time.Now())
+				c.LastTransitionTime = &t
+			}
+			ingress.Conditions = append(ingress.Conditions, *c)
+			if ret == nil {
+				ret = &ingress.Conditions[len(ingress.Conditions)-1]
+			}
+		}
+		return ret
+	}
+
+	if existingCondition.Status != c.Status {
+		existingCondition.Status = c.Status
+		if !c.LastTransitionTime.IsZero() {
+			existingCondition.LastTransitionTime = c.LastTransitionTime
+		} else {
+			t := metav1.NewTime(time.Now())
+			existingCondition.LastTransitionTime = &t
+		}
+	}
+
+	existingCondition.Reason = c.Reason
+	existingCondition.Message = c.Message
+	return existingCondition
+}
+
+// AdmitRoute updates the status of the given route on k8s side with the Admitted ingress condition.
+// It also updates the given route inplace.
+func AdmitRoute(k8sClient client.Client, r *routev1.Route) error {
+	ctx := context.Background()
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(r), r); err != nil {
+			return err
+		}
+		SetRouteIngressCondition(r, &routev1.RouteIngressCondition{
+			Type:   "Admitted",
+			Status: corev1.ConditionTrue,
+		})
+		return k8sClient.Update(ctx, r)
+	})
 }

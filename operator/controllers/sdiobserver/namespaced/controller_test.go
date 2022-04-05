@@ -9,6 +9,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -63,7 +64,7 @@ var _ = Describe("Namespaced SDI Observer controller", func() {
 	}
 
 	createObs := func(vsystemManagementState string) *sdiv1alpha1.SDIObserver {
-		ctx := context.TODO()
+		ctx := context.Background()
 		obs := &sdiv1alpha1.SDIObserver{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "sdi",
@@ -81,10 +82,11 @@ var _ = Describe("Namespaced SDI Observer controller", func() {
 	}
 
 	BeforeEach(func() {
-		Ω(k8sClient.Create(context.TODO(), testroutes.MakeVSystemCABundleSecret("sdi"))).ShouldNot(HaveOccurred())
+		Ω(k8sClient.Create(context.Background(), testroutes.MakeVSystemCABundleSecret("sdi"))).ShouldNot(HaveOccurred())
 	})
 
 	AfterEach(func() {
+		fmt.Fprintf(GinkgoWriter, "Cleaning up the sdi namespace...\n")
 		toDelete := []struct {
 			obj             client.Object
 			namespace, name string
@@ -97,9 +99,68 @@ var _ = Describe("Namespaced SDI Observer controller", func() {
 		for _, td := range toDelete {
 			td.obj.SetName(td.name)
 			td.obj.SetNamespace(td.namespace)
-			err := k8sClient.Delete(context.TODO(), td.obj)
+			err := k8sClient.Delete(context.Background(), td.obj)
 			Ω(err).Should(Or(BeNil(), testapi.FailWithStatus(metav1.StatusReasonNotFound)))
 		}
+	})
+
+	Context("When the admission of a route takes too long", func() {
+		It("Should become degraded", func() {
+			ctx := context.Background()
+			Ω(k8sClient.Create(ctx, testroutes.MakeVSystemService("sdi"))).ShouldNot(HaveOccurred())
+			obs := createObs(sdiv1alpha1.RouteManagementStateManaged)
+
+			var fetched routev1.Route
+			Eventually(func() error {
+				return k8sClient.Get(ctx, types.NamespacedName{
+					Namespace: "sdi",
+					Name:      "vsystem",
+				}, &fetched)
+			}, timeout, interval).ShouldNot(HaveOccurred())
+
+			checkRoute(&fetched, testroutes.VSystemCABundle, nil)
+			ωbs.WaitForObserverState(k8sClient, 0, obs, func(g Gomega, obs *sdiv1alpha1.SDIObserver) {
+				g.Ω(obs.Status.VSystemRoute).To(And(
+					ωbs.HaveConditionReason("Exposed", metav1.ConditionUnknown, "NotAdmitted"),
+					ωbs.HaveConditionReason("Degraded", metav1.ConditionFalse, "NotAdmitted")))
+				g.Ω(obs).To(And(
+					ωbs.HaveConditionReason("Progressing", metav1.ConditionTrue, "Ingress"),
+					ωbs.HaveConditionReason("Degraded", metav1.ConditionFalse, "AsExpected"),
+					ωbs.HaveConditionReason("Ready", metav1.ConditionTrue, "AsExpected")))
+			})
+
+			ωbs.UpdateStatus(k8sClient, obs, func(obs *sdiv1alpha1.SDIObserver) {
+				c := meta.FindStatusCondition(obs.Status.VSystemRoute.Conditions, "Exposed")
+				Ω(sdiv1alpha1.RouteManagementStateManaged).NotTo(BeNil())
+				c.LastTransitionTime = metav1.NewTime(c.LastTransitionTime.Add(-time.Minute * 2))
+			})
+			nmCtrl.ReconcileObs(obs)
+			ωbs.WaitForObserverState(k8sClient, 0, obs, func(g Gomega, obs *sdiv1alpha1.SDIObserver) {
+				g.Ω(obs.Status.VSystemRoute).To(And(
+					ωbs.HaveConditionReason("Exposed", metav1.ConditionFalse, "NotAdmitted"),
+					ωbs.HaveConditionReason("Degraded", metav1.ConditionTrue, "NotAdmitted")))
+				g.Ω(obs).To(And(
+					ωbs.HaveConditionReason("Progressing", metav1.ConditionFalse, "IngressBlocked"),
+					ωbs.HaveConditionReason("Degraded", metav1.ConditionTrue, "Ingress"),
+					ωbs.HaveConditionReason("Ready", metav1.ConditionTrue, "AsExpected")))
+			})
+
+			By("Show the route as admitted and exposed")
+			Expect(testroutes.AdmitRoute(k8sClient, &fetched)).NotTo(HaveOccurred())
+			_ = k8sClient.Get(ctx, types.NamespacedName{
+				Namespace: "sdi",
+				Name:      "vsystem",
+			}, &fetched)
+			ωbs.WaitForObserverState(k8sClient, 0, obs, func(g Gomega, obs *sdiv1alpha1.SDIObserver) {
+				g.Ω(obs.Status.VSystemRoute).To(And(
+					ωbs.HaveConditionReason("Exposed", metav1.ConditionTrue, "Admitted"),
+					ωbs.HaveConditionReason("Degraded", metav1.ConditionFalse, "Admitted")))
+				g.Ω(obs).To(And(
+					ωbs.HaveConditionReason("Ready", metav1.ConditionTrue, "AsExpected"),
+					ωbs.HaveConditionReason("Progressing", metav1.ConditionFalse, "AsExpected"),
+					ωbs.HaveConditionReason("Degraded", metav1.ConditionFalse, "AsExpected")))
+			})
+		})
 	})
 
 	Context("When managing vsystem route", func() {
@@ -120,13 +181,35 @@ var _ = Describe("Namespaced SDI Observer controller", func() {
 
 			checkRoute(&fetched, testroutes.VSystemCABundle, nil)
 			ωbs.WaitForObserverState(k8sClient, 0, obs, func(g Gomega, obs *sdiv1alpha1.SDIObserver) {
-				g.Ω(obs.Status.VSystemRoute).To(
-					ωbs.HaveConditionReason("Exposed", metav1.ConditionFalse, "NotAdmitted"))
+				g.Ω(obs.Status.VSystemRoute).To(And(
+					ωbs.HaveConditionReason("Exposed", metav1.ConditionUnknown, "NotAdmitted"),
+					ωbs.HaveConditionReason("Degraded", metav1.ConditionFalse, "NotAdmitted")))
 			})
-			//TODO: manually update the route to Admitted and re-test the Exposed condition
+
+			By("Show the route as admitted and exposed")
+			Expect(testroutes.AdmitRoute(k8sClient, &fetched)).NotTo(HaveOccurred())
+			_ = k8sClient.Get(ctx, types.NamespacedName{
+				Namespace: "sdi",
+				Name:      "vsystem",
+			}, &fetched)
+			ωbs.WaitForObserverState(k8sClient, 0, obs, func(g Gomega, obs *sdiv1alpha1.SDIObserver) {
+				g.Ω(obs.Status.VSystemRoute).To(
+					ωbs.HaveConditionReason("Exposed", metav1.ConditionTrue, "Admitted"))
+				g.Ω(obs).To(ωbs.HaveConditionReason("Ready", metav1.ConditionTrue, "AsExpected"))
+				g.Ω(obs).To(ωbs.HaveConditionReason("Progressing", metav1.ConditionFalse, "AsExpected"))
+				g.Ω(obs).To(ωbs.HaveConditionReason("Degraded", metav1.ConditionFalse, "AsExpected"))
+			})
 
 			fmt.Fprintf(GinkgoWriter, "Removing the route manually ...\n")
 			Ω(k8sClient.Delete(ctx, &fetched)).NotTo(HaveOccurred())
+
+			ωbs.WaitForObserverState(k8sClient, 0, obs, func(g Gomega, obs *sdiv1alpha1.SDIObserver) {
+				g.Ω(obs.Status.VSystemRoute).To(
+					ωbs.HaveConditionReason("Exposed", metav1.ConditionUnknown, "NotAdmitted"))
+				g.Ω(obs).To(ωbs.HaveConditionReason("Ready", metav1.ConditionTrue, "AsExpected"))
+				g.Ω(obs).To(ωbs.HaveConditionReason("Progressing", metav1.ConditionTrue, "Ingress"))
+				g.Ω(obs).To(ωbs.HaveConditionReason("Degraded", metav1.ConditionFalse, "AsExpected"))
+			})
 
 			By("Restoring it when manually deleted")
 			Eventually(func() error {
@@ -137,6 +220,15 @@ var _ = Describe("Namespaced SDI Observer controller", func() {
 			}, timeout, interval).ShouldNot(HaveOccurred())
 
 			checkRoute(&fetched, testroutes.VSystemCABundle, nil)
+
+			Expect(testroutes.AdmitRoute(k8sClient, &fetched)).NotTo(HaveOccurred())
+			ωbs.WaitForObserverState(k8sClient, 0, obs, func(g Gomega, obs *sdiv1alpha1.SDIObserver) {
+				g.Ω(obs.Status.VSystemRoute).To(
+					ωbs.HaveConditionReason("Exposed", metav1.ConditionTrue, "Admitted"))
+				g.Ω(obs).To(ωbs.HaveConditionReason("Ready", metav1.ConditionTrue, "AsExpected"))
+				g.Ω(obs).To(ωbs.HaveConditionReason("Progressing", metav1.ConditionFalse, "AsExpected"))
+				g.Ω(obs).To(ωbs.HaveConditionReason("Degraded", metav1.ConditionFalse, "AsExpected"))
+			})
 		})
 
 		It("Should delete the corresponding route", func() {
@@ -166,7 +258,7 @@ var _ = Describe("Namespaced SDI Observer controller", func() {
 
 			By("Noticing the removal of the vsystem service")
 			fmt.Fprintf(GinkgoWriter, "Setting management state to Managed...\n")
-			ωbs.Update(k8sClient, obs, func(g Gomega, obs *sdiv1alpha1.SDIObserver) {
+			ωbs.Update(k8sClient, obs, func(obs *sdiv1alpha1.SDIObserver) {
 				obs.Spec.VSystemRoute.ManagementState = sdiv1alpha1.RouteManagementStateManaged
 			})
 
@@ -219,7 +311,7 @@ var _ = Describe("Namespaced SDI Observer controller", func() {
 
 			By("An update to the managed route spec")
 			const customHost = "my-vsystem.apps.example.com"
-			ωbs.Update(k8sClient, obs, func(g Gomega, obs *sdiv1alpha1.SDIObserver) {
+			ωbs.Update(k8sClient, obs, func(obs *sdiv1alpha1.SDIObserver) {
 				obs.Spec.VSystemRoute.Hostname = customHost
 			})
 			nmCtrl.ReconcileObs(obs)

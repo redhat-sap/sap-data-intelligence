@@ -90,8 +90,10 @@ type SDIObserverRouteStatus struct {
 
 const (
 	// ConditionReasonNotFound indicates that no DataHub instance exists in the configured SDINamespace.
-	ConditionReasonNotFound   = "NotFound"
-	ConditionReasonAsExpected = "AsExpected"
+	ConditionReasonNotFound       = "NotFound"
+	ConditionReasonAsExpected     = "AsExpected"
+	ConditionReasonIngressBlocked = "IngressBlocked"
+	ConditionReasonIngress        = "Ingress"
 	// ConditionReasonAlreadyManaged indicates that another SDIObserver instance is currently managing the
 	// target SDI Namespace.
 	ConditionReasonAlreadyManaged = "AlreadyManaged"

@@ -187,7 +187,7 @@ func manageVSystemRoute(
 			changed, updatedFields := updateRoute(route, &newRoute)
 			if !changed {
 				tracer.Info("route is up to date")
-				setStatusForUptodateRoute(owner, route)
+				setStatusForUptodateRoute(ctx, owner, route)
 				return nil
 			}
 
@@ -244,7 +244,10 @@ func isAnyRouteIngressAdmitted(route *routev1.Route) bool {
 	return false
 }
 
-func setStatusForUptodateRoute(obs *sdiv1alpha1.SDIObserver, route *routev1.Route) {
+func setStatusForUptodateRoute(ctx context.Context, obs *sdiv1alpha1.SDIObserver, route *routev1.Route) {
+	tracer := λ.Enter(log.FromContext(ctx))
+	defer λ.Leave(tracer)
+
 	if isAnyRouteIngressAdmitted(route) {
 		setConditions(obs, &obs.Status.VSystemRoute, metav1.ConditionTrue, metav1.ConditionFalse,
 			"Admitted", "the route is up to date and admitted")
@@ -265,12 +268,12 @@ func setStatusForUptodateRoute(obs *sdiv1alpha1.SDIObserver, route *routev1.Rout
 
 	if c != nil && c.Reason != sdiv1alpha1.ConditionRouteNotAdmitted {
 		msg += fmt.Sprintf(" (Reason=%s): %s", c.Reason, c.Message)
-		setConditions(obs, &obs.Status.VSystemRoute, metav1.ConditionFalse, metav1.ConditionFalse,
+		setConditions(obs, &obs.Status.VSystemRoute, metav1.ConditionUnknown, metav1.ConditionFalse,
 			sdiv1alpha1.ConditionRouteNotAdmitted, msg)
 		return
 	}
 
-	setConditions(obs, &obs.Status.VSystemRoute, metav1.ConditionFalse, metav1.ConditionFalse,
+	setConditions(obs, &obs.Status.VSystemRoute, metav1.ConditionUnknown, metav1.ConditionFalse,
 		sdiv1alpha1.ConditionRouteNotAdmitted, msg)
 }
 

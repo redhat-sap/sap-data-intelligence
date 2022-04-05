@@ -202,13 +202,13 @@ var _ = Describe("SDIObserver controller", func() {
 				ObjectMeta: metav1.ObjectMeta{Name: "sdi2nd"}})
 		})
 
-		It("Should start manage another DH instance", func() {
+		It("Should start managing another DH instance", func() {
 			ctx := context.Background()
 			dh, err := dhClient.Namespace("sdi").Get(ctx, "default", metav1.GetOptions{})
 			Ω(err).NotTo(HaveOccurred())
 			ωbs.WaitForObserverState(k8sClient, 0, obs,
 				func(g Gomega, obs *sdiv1alpha1.SDIObserver) {
-					g.Ω(obs.Status.VSystemRoute).To(ωbs.HaveConditionReason("Exposed", metav1.ConditionFalse, "NotAdmitted"))
+					g.Ω(obs.Status.VSystemRoute).To(ωbs.HaveConditionReason("Exposed", metav1.ConditionUnknown, "NotAdmitted"))
 					g.Ω(obs).To(ωbs.ReferenceDataHub(dh))
 				})
 
@@ -218,7 +218,7 @@ var _ = Describe("SDIObserver controller", func() {
 			Ω(k8sClient.Get(ctx, types.NamespacedName{Namespace: "sdi2nd", Name: "vsystem"}, &fetched)).Should(HaveOccurred())
 
 			By("Update the SDIObserver instance to manage another DH namespace")
-			ωbs.Update(k8sClient, obs, func(g Gomega, obs *sdiv1alpha1.SDIObserver) {
+			ωbs.Update(k8sClient, obs, func(obs *sdiv1alpha1.SDIObserver) {
 				obs.Spec.SDINamespace = "sdi2nd"
 			})
 

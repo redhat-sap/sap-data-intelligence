@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"k8s.io/client-go/util/retry"
+
 	. "github.com/onsi/gomega"
 	ωtypes "github.com/onsi/gomega/types"
 
@@ -47,12 +49,25 @@ func WaitForObserver(
 func Update(
 	k8sClient client.Client,
 	obs *sdiv1alpha1.SDIObserver,
-	update func(g Gomega, obs *sdiv1alpha1.SDIObserver),
+	update func(obs *sdiv1alpha1.SDIObserver),
 ) {
 	ctx := context.TODO()
-	Eventually(func(g Gomega) {
-		g.Ω(k8sClient.Get(ctx, client.ObjectKeyFromObject(obs), obs)).ToNot(HaveOccurred())
-		update(g, obs)
-		g.Ω(k8sClient.Update(ctx, obs)).NotTo(HaveOccurred())
-	}, timeout, interval).Should(Succeed())
+	Expect(retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		Ω(k8sClient.Get(ctx, client.ObjectKeyFromObject(obs), obs)).ToNot(HaveOccurred())
+		update(obs)
+		return k8sClient.Update(ctx, obs)
+	})).NotTo(HaveOccurred())
+}
+
+func UpdateStatus(
+	k8sClient client.Client,
+	obs *sdiv1alpha1.SDIObserver,
+	update func(obs *sdiv1alpha1.SDIObserver),
+) {
+	ctx := context.TODO()
+	Expect(retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		Ω(k8sClient.Get(ctx, client.ObjectKeyFromObject(obs), obs)).ToNot(HaveOccurred())
+		update(obs)
+		return k8sClient.Status().Update(ctx, obs)
+	})).NotTo(HaveOccurred())
 }
