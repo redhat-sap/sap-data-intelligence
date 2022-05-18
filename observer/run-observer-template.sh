@@ -5,13 +5,13 @@
 set -euo pipefail
 
 # namespace where SAP Data Intelligence is or will be installed
-SDI_NAMESPACE=sdi
+SDI_NAMESPACE=sdi-test
 # namespace where SDI Observer is or will be installed; shall be different from SDI_NAMESPACE
-NAMESPACE=sdi-observer
-SLCB_NAMESPACE=sap-slcbridge
+NAMESPACE=sdi-observer-test
+SLCB_NAMESPACE=sap-slcbridge-test
 # SDI Observer will not do any modifications to the k8s resources, it will only print what would
 # have been done
-DRY_RUN=false
+DRY_RUN=true
 # if left unset, it will be determined from OCP server API
 #OCP_MINOR_RELEASE=4.8
 MANAGE_VSYSTEM_ROUTE=true
@@ -166,13 +166,9 @@ case "${FLAVOUR:-ubi-build}" in
         ;;
 esac
 
+set -x
 if [[ -z "${OCP_MINOR_RELEASE:-}" ]]; then
-    ocpServerVersion="$(oc version | awk 'BEGIN {
-        IGNORECASE=1
-    }
-    match($0, /^server\s*version:\s*([0-9]+.[0-9]+)/, a) {
-        print a[1]
-    }')"
+    ocpServerVersion="$(oc version | sed -n 's/^server\s*version:\s*\([0-9]\+\.[0-9]\+\).*/\1/Ip')"
     if [[ -n "${ocpServerVersion:-}" ]]; then
         OCP_MINOR_RELEASE="${ocpServerVersion}"
     else
@@ -185,16 +181,12 @@ if [[ -z "${OCP_MINOR_RELEASE:-}" ]]; then
     fi
 fi
 
-ocpClientVersion="$(oc version | awk 'BEGIN {
-    IGNORECASE=1
-}
-match($0, /^client\s*version:\s*([0-9]+.[0-9]+)/, a) {
-    print a[1]
-}')"
+ocpClientVersion="$(oc version | sed -n 's/^client\s*version:\s*\([0-9]\+\.[0-9]\+\).*/\1/Ip')"
 minorMismatch="$(bc -l <<< 'define abs(i) {
     if (i < 0) return (-i)
     return (i)
 }'" abs(${OCP_MINOR_RELEASE#*.} - ${ocpClientVersion#*.})")"
+set +x
 
 case "$minorMismatch" in
     0 | 1)
