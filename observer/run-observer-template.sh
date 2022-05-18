@@ -5,10 +5,10 @@
 set -euo pipefail
 
 # namespace where SAP Data Intelligence is or will be installed
-SDI_NAMESPACE=sdi-test
+SDI_NAMESPACE=sdi
 # namespace where SDI Observer is or will be installed; shall be different from SDI_NAMESPACE
-NAMESPACE=sdi-observer-test
-SLCB_NAMESPACE=sap-slcbridge-test
+NAMESPACE=sdi-observer
+SLCB_NAMESPACE=sap-slcbridge
 # SDI Observer will not do any modifications to the k8s resources, it will only print what would
 # have been done
 DRY_RUN=true
