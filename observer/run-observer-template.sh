@@ -166,7 +166,6 @@ case "${FLAVOUR:-ubi-build}" in
         ;;
 esac
 
-set -x
 if [[ -z "${OCP_MINOR_RELEASE:-}" ]]; then
     ocpServerVersion="$(oc version | sed -n 's/^server\s*version:\s*\([0-9]\+\.[0-9]\+\).*/\1/Ip')"
     if [[ -n "${ocpServerVersion:-}" ]]; then
@@ -186,7 +185,6 @@ minorMismatch="$(bc -l <<< 'define abs(i) {
     if (i < 0) return (-i)
     return (i)
 }'" abs(${OCP_MINOR_RELEASE#*.} - ${ocpClientVersion#*.})")"
-set +x
 
 case "$minorMismatch" in
     0 | 1)
