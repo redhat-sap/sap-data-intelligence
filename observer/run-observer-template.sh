@@ -11,7 +11,7 @@ NAMESPACE=sdi-observer
 SLCB_NAMESPACE=sap-slcbridge
 # SDI Observer will not do any modifications to the k8s resources, it will only print what would
 # have been done
-DRY_RUN=true
+DRY_RUN=false
 # if left unset, it will be determined from OCP server API
 #OCP_MINOR_RELEASE=4.8
 MANAGE_VSYSTEM_ROUTE=true
