@@ -268,7 +268,7 @@ if [[ "$FLAVOUR" == ubi-build ]]; then
             -p '{"metadata":{"namespace": "'"$NAMESPACE"'"}}' -o json | \
             oc apply -n "$NAMESPACE" -f -
         REDHAT_REGISTRY_SECRET_NAME="$(oc patch -n "$NAMESPACE" --local --dry-run=client \
-            -f "$REDHAT_REGISTRY_SECRET_PATH" -p '{"foo": "bar"}}' \
+            -f "$REDHAT_REGISTRY_SECRET_PATH" -p '{"foo": "bar"}' \
             -o jsonpath='{.metadata.name}')"
     elif [[ -n "${REDHAT_REGISTRY_SECRET_NAME:-}" ]]; then
         if ! oc get -n "${NAMESPACE:-}" secret/"${REDHAT_REGISTRY_SECRET_NAME:-}"; then
