@@ -181,10 +181,8 @@ if [[ -z "${OCP_MINOR_RELEASE:-}" ]]; then
 fi
 
 ocpClientVersion="$(oc version | sed -n 's/^client\s*version:\s*\([0-9]\+\.[0-9]\+\).*/\1/Ip')"
-minorMismatch="$(bc -l <<< 'define abs(i) {
-    if (i < 0) return (-i)
-    return (i)
-}'" abs(${OCP_MINOR_RELEASE#*.} - ${ocpClientVersion#*.})")"
+minorMismatchHelper="$((${OCP_MINOR_RELEASE#*.} - ${ocpClientVersion#*.}))"
+minorMismatch="${minorMismatchHelper#-}"
 
 case "$minorMismatch" in
     0 | 1)
