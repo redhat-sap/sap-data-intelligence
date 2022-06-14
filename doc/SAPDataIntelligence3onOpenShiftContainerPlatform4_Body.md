@@ -991,15 +991,23 @@ It is assumed the `sdi` project has been already created during [SDI Observer's 
 
 Login to OpenShift as a *cluster-admin*, and perform the following configurations for the installation:
 
-    # # change to the SDI_NAMESPACE project using: oc project "${SDI_NAMESPACE:-sdi}"
-    # oc adm policy add-scc-to-group anyuid "system:serviceaccounts:$(oc project -q)"
-    # oc adm policy add-scc-to-user privileged -z "$(oc project -q)-elasticsearch"
-    # oc adm policy add-scc-to-user privileged -z "$(oc project -q)-fluentd"
-    # oc adm policy add-scc-to-user privileged -z default
-    # oc adm policy add-scc-to-user privileged -z mlf-deployment-api
-    # oc adm policy add-scc-to-user privileged -z vora-vflow-server
-    # oc adm policy add-scc-to-user privileged -z "vora-vsystem-$(oc project -q)"
-    # oc adm policy add-scc-to-user privileged -z "vora-vsystem-$(oc project -q)-vrep"
+    # change to the SDI_NAMESPACE project using: oc project "${SDI_NAMESPACE:-sdi}"
+    oc adm policy add-scc-to-group anyuid "system:serviceaccounts:$(oc project -q)"
+    oc adm policy add-scc-to-user privileged -z default
+    oc adm policy add-scc-to-user privileged -z mlf-deployment-api
+    oc adm policy add-scc-to-user privileged -z vora-vflow-server
+    oc adm policy add-scc-to-user privileged -z "vora-vsystem-$(oc project -q)"
+    oc adm policy add-scc-to-user privileged -z "vora-vsystem-$(oc project -q)-vrep"
+
+For the SDI 3.2 and prior versions:
+
+    oc adm policy add-scc-to-user privileged -z "$(oc project -q)-elasticsearch"
+    oc adm policy add-scc-to-user privileged -z "$(oc project -q)-fluentd"
+
+Start from SDI 3.3 version:
+
+    oc adm policy add-scc-to-user privileged -z "diagnostics-elasticsearch"
+    oc adm policy add-scc-to-user privileged -z "diagnostics-fluentd"
 
 Red Hat is aware that the changes do not comply with best practices and substantially decrease cluster's security. Therefor it is not recommended to share the Data Intelligence nodes with other workloads. As stated [earlier](#ftnt-security-disclaimer), please consult SAP directly if you wish for an improvement.
 
@@ -1242,6 +1250,7 @@ The following steps must be performed in the given order. Unless an OpenShift up
 2. *(ocp-upgrade)* Make yourself familiar with the [OpenShift's upgrade guide (4.6 ⇒ 4.7)](https://docs.openshift.com/container-platform/4.7/release_notes/ocp-4-7-release-notes.html#ocp-4-7-installation-and-upgrade) / [(4.7 ⇒ 4.8)](https://docs.openshift.com/container-platform/4.8/release_notes/ocp-4-8-release-notes.html#ocp-4-8-installation-and-upgrade).
 3. Plan for a downtime.
 4. Make sure to [re-configure SDI compute nodes](#ocp-post-node-preparation).
+5. 
 
 #### 7.1.1. Execute SDI's Pre-Upgrade Procedures {#up-sdi-pre}
 
