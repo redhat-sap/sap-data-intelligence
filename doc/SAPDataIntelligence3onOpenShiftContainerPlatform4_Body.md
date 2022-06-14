@@ -1004,7 +1004,7 @@ For the SDI 3.2 and prior versions:
     oc adm policy add-scc-to-user privileged -z "$(oc project -q)-elasticsearch"
     oc adm policy add-scc-to-user privileged -z "$(oc project -q)-fluentd"
 
-Start from SDI 3.3 version:
+Starting from SDI 3.3 version, the two monitoring service accounts above are renamed. And the following congifuration needs to be done instead:
 
     oc adm policy add-scc-to-user privileged -z "diagnostics-elasticsearch"
     oc adm policy add-scc-to-user privileged -z "diagnostics-fluentd"
