@@ -1,7 +1,5 @@
 # GPU enablement for SDI on OCP
 
-**Work in progress!!**
-
 ## Prerequisites
 
 - OCP 4.10
