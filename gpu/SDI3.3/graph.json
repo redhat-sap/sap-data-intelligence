@@ -1,0 +1,692 @@
+{
+    "properties": {},
+    "description": "GPU usage test",
+    "processes": {
+        "toblobconverter1": {
+            "component": "com.sap.util.toBlobConverter",
+            "metadata": {
+                "label": "ToBlob Converter",
+                "x": 636.9999961853027,
+                "y": 280,
+                "height": 50,
+                "width": 50,
+                "config": {}
+            }
+        },
+        "artifactproducer1": {
+            "component": "com.sap.ml.artifact.producer",
+            "metadata": {
+                "label": "Artifact Producer",
+                "x": 751.9999952316284,
+                "y": 280,
+                "height": 80,
+                "width": 120,
+                "extensible": true,
+                "config": {
+                    "artifactName": "mnist_train_labels",
+                    "suffix": ".gz"
+                }
+            }
+        },
+        "toblobconverter2": {
+            "component": "com.sap.util.toBlobConverter",
+            "metadata": {
+                "label": "ToBlob Converter",
+                "x": 636.9999961853027,
+                "y": 100,
+                "height": 50,
+                "width": 50,
+                "config": {}
+            }
+        },
+        "artifactproducer2": {
+            "component": "com.sap.ml.artifact.producer",
+            "metadata": {
+                "label": "Artifact Producer",
+                "x": 751.9999952316284,
+                "y": 40,
+                "height": 80,
+                "width": 120,
+                "extensible": true,
+                "config": {
+                    "artifactName": "mnist_train_images",
+                    "suffix": ".gz"
+                }
+            }
+        },
+        "toblobconverter3": {
+            "component": "com.sap.util.toBlobConverter",
+            "metadata": {
+                "label": "ToBlob Converter",
+                "x": 636.9999961853027,
+                "y": 190,
+                "height": 50,
+                "width": 50,
+                "config": {}
+            }
+        },
+        "artifactproducer3": {
+            "component": "com.sap.ml.artifact.producer",
+            "metadata": {
+                "label": "Artifact Producer",
+                "x": 751.9999952316284,
+                "y": 160,
+                "height": 80,
+                "width": 120,
+                "extensible": true,
+                "config": {
+                    "suffix": ".gz",
+                    "artifactName": "mnist_test_images"
+                }
+            }
+        },
+        "toblobconverter4": {
+            "component": "com.sap.util.toBlobConverter",
+            "metadata": {
+                "label": "ToBlob Converter",
+                "x": 636.9999961853027,
+                "y": 370,
+                "height": 50,
+                "width": 50,
+                "config": {}
+            }
+        },
+        "artifactproducer4": {
+            "component": "com.sap.ml.artifact.producer",
+            "metadata": {
+                "label": "Artifact Producer",
+                "x": 751.9999952316284,
+                "y": 400,
+                "height": 80,
+                "width": 120,
+                "extensible": true,
+                "config": {
+                    "artifactName": "mnist_test_labels",
+                    "suffix": ".gz"
+                }
+            }
+        },
+        "readfile53": {
+            "component": "com.sap.file.read",
+            "metadata": {
+                "label": "Read File",
+                "x": 451.99999713897705,
+                "y": 40,
+                "height": 80,
+                "width": 120,
+                "config": {
+                    "dynamicConnection": {
+                        "configurationType": "System Management Files (\"/files/\")",
+                        "vrepRoot": "/"
+                    }
+                }
+            },
+            "name": "readfile5"
+        },
+        "readfile52": {
+            "component": "com.sap.file.read",
+            "metadata": {
+                "label": "Read File",
+                "x": 451.99999713897705,
+                "y": 160,
+                "height": 80,
+                "width": 120,
+                "config": {
+                    "dynamicConnection": {
+                        "configurationType": "System Management Files (\"/files/\")",
+                        "vrepRoot": "/"
+                    }
+                }
+            },
+            "name": "readfile5"
+        },
+        "readfile5": {
+            "component": "com.sap.file.read",
+            "metadata": {
+                "label": "Read File",
+                "x": 451.99999713897705,
+                "y": 280,
+                "height": 80,
+                "width": 120,
+                "config": {
+                    "dynamicConnection": {
+                        "configurationType": "System Management Files (\"/files/\")",
+                        "vrepRoot": "/"
+                    }
+                }
+            }
+        },
+        "readfile51": {
+            "component": "com.sap.file.read",
+            "metadata": {
+                "label": "Read File",
+                "x": 451.99999713897705,
+                "y": 400,
+                "height": 80,
+                "width": 120,
+                "config": {
+                    "dynamicConnection": {
+                        "configurationType": "System Management Files (\"/files/\")",
+                        "vrepRoot": "/"
+                    }
+                }
+            },
+            "name": "readfile5"
+        },
+        "python3operator1": {
+            "component": "com.sap.system.python3Operator",
+            "metadata": {
+                "label": "Metrics Extractor",
+                "x": 1414.9999914169312,
+                "y": 212,
+                "height": 80,
+                "width": 120,
+                "extensible": true,
+                "config": {
+                    "script": "import re\n\ndef create_json(message):\n    expression = r\"{'accuracy': (?P<Accuracy>.*), 'loss': (?P<Loss>.*), 'global_step': (?P<Steps>.*)}\"\n    out = None\n\n    match = re.search(expression,message)\n    if match is not None:\n        out = match.groupdict()\n        \n    return out\n\ndef on_input(data):\n    message = data\n    \n    res = create_json(message)\n    \n    if res is not None:\n        api.send(\"metrics\", api.Message(res))\n\napi.set_port_callback(\"logs\", on_input)\n"
+                },
+                "additionalinports": [
+                    {
+                        "name": "logs",
+                        "type": "string"
+                    }
+                ],
+                "additionaloutports": [
+                    {
+                        "name": "metrics",
+                        "type": "message"
+                    }
+                ]
+            }
+        },
+        "wiretap1": {
+            "component": "com.sap.util.wiretap",
+            "metadata": {
+                "label": "Wiretap",
+                "x": 1229.9999923706055,
+                "y": 152,
+                "height": 80,
+                "width": 120,
+                "ui": "dynpath",
+                "config": {}
+            }
+        },
+        "submitmetrics1": {
+            "component": "com.sap.ml.submitMetrics",
+            "metadata": {
+                "label": "Submit Metrics",
+                "x": 1583.9999914169312,
+                "y": 212,
+                "height": 80,
+                "width": 120,
+                "extensible": false,
+                "config": {}
+            }
+        },
+        "training1": {
+            "component": "com.sap.ml.training",
+            "metadata": {
+                "label": "Training",
+                "x": 1044.9999933242798,
+                "y": 211,
+                "height": 82,
+                "width": 120,
+                "extensible": false,
+                "config": {
+                    "script": "from __future__ import absolute_import\nfrom __future__ import division\nfrom __future__ import print_function\n\nimport os\nimport gzip\nimport json\nimport shutil\nfrom collections import namedtuple\n\nimport numpy as np\nimport tensorflow as tf\nfrom tensorflow.python.framework import dtypes, random_seed\n\nimport sapdi\nfrom sapdi.artifact import ArtifactKind, ArtifactFileType\nfrom sapdi.serving.tfmodel.exporter import TfExporter\n\nprint('Testing gpu')\nwith tf.device('/gpu:0'):\n    a = tf.constant([1.0, 2.0, 3.0, 4.0, 5.0, 6.0], shape=[2, 3], name='a')\n    b = tf.constant([1.0, 2.0, 3.0, 4.0, 5.0, 6.0], shape=[3, 2], name='b')\n    c = tf.matmul(a, b)\nprint(\"Calculation COmplete\")\nprint(c)\nprint(\"Is TF built with CUDA?\")\nprint(tf.test.is_built_with_cuda())\n\nout_artifact = sapdi.create_artifact(\n    \"MNISTMODEL\", \n    file_type=ArtifactFileType.FILE,\n    file_name=\"nonexisting_filename\",\n    description=\"Best mnist model ever\", \n    artifact_name=\"MNIST\",\n    artifact_kind=ArtifactKind.MODEL\n )\n\nprint(\"Testing complete\")\n",
+                    "resourcePlan": "standard",
+                    "image": "com.sap.mlf/tyom-suse-tf-1.15-py36-gpu:1.1.52"
+                },
+                "additionalinports": [
+                    {
+                        "name": "trainLabels",
+                        "type": "message.artifact"
+                    },
+                    {
+                        "name": "trainImages",
+                        "type": "message.artifact"
+                    },
+                    {
+                        "name": "testImages",
+                        "type": "message.artifact"
+                    },
+                    {
+                        "name": "testLabels",
+                        "type": "message.artifact"
+                    }
+                ],
+                "additionaloutports": [
+                    {
+                        "name": "MNISTMODEL",
+                        "type": "message.artifact"
+                    }
+                ]
+            }
+        },
+        "python3operator2": {
+            "component": "com.sap.system.python3Operator",
+            "metadata": {
+                "label": "Python3 Operator",
+                "x": 12,
+                "y": 211,
+                "height": 82,
+                "width": 120,
+                "extensible": true,
+                "config": {
+                    "script": "import os\nimport logging\nfrom enum import Enum, auto\nfrom os.path import join\nfrom urllib.request import urlretrieve\n\nlogging.basicConfig(level=logging.INFO)\n\n# Constants\nVREP_PREFIX = \"/vrep/vflow/\"\nMNIST_DATA_URL = \"http://yann.lecun.com/exdb/mnist\"\n\n_MNIST_URL = \"https://storage.googleapis.com/cvdf-datasets/mnist\"\n_MNIST_TRAIN_DATA_FILENAME = \"train-images-idx3-ubyte.gz\"\n_MNIST_TRAIN_LABELS_FILENAME = \"train-labels-idx1-ubyte.gz\"\n_MNIST_TEST_DATA_FILENAME = \"t10k-images-idx3-ubyte.gz\"\n_MNIST_TEST_LABELS_FILENAME = \"t10k-labels-idx1-ubyte.gz\"\n\n\nclass MNISTDATA(Enum):\n    TRAIN_IMAGES = auto()\n    TRAIN_LABElS = auto()\n    TEST_IMAGES = auto()\n    TEST_LABELS = auto()\n\n\nDATA_FILE_NAMES = {\n    MNISTDATA.TRAIN_IMAGES: _MNIST_TRAIN_DATA_FILENAME,\n    MNISTDATA.TRAIN_LABElS: _MNIST_TRAIN_LABELS_FILENAME,\n    MNISTDATA.TEST_IMAGES: _MNIST_TEST_DATA_FILENAME,\n    MNISTDATA.TEST_LABELS: _MNIST_TEST_LABELS_FILENAME,\n}\n\n\nOUTPORT_NAMES = {\n    MNISTDATA.TRAIN_IMAGES: \"trainImages\",\n    MNISTDATA.TRAIN_LABElS: \"trainLabels\",\n    MNISTDATA.TEST_IMAGES: \"testImages\",\n    MNISTDATA.TEST_LABELS: \"testLabels\",\n}\n\n\ndef download_data(name: MNISTDATA, local_dir: str):\n    data_file_name = DATA_FILE_NAMES.get(name)\n    url_of_data = \"{}/{}\".format(_MNIST_URL, data_file_name)\n    local_path = join(local_dir, data_file_name)\n    urlretrieve(url_of_data, filename=local_path)\n    return local_path\n\n\ndef download_mnist_dataset():\n    # Create directory for keeping the data\n    mnist_data_temp_dir = join(VREP_PREFIX, \"tmp/mnist_data\")\n    os.makedirs(mnist_data_temp_dir, exist_ok=True)\n\n    messages_to_send = dict()\n    for name in DATA_FILE_NAMES:\n        path_of_data = download_data(name, mnist_data_temp_dir)\n        logging.warning(\"Downloaded data for %s\", name)\n        messages_to_send[OUTPORT_NAMES.get(name)] = api.Message(body=path_of_data)\n    \n    for port, msg in messages_to_send.items():\n        api.send(port, msg)\n\n\ndownload_mnist_dataset()\n"
+                },
+                "additionaloutports": [
+                    {
+                        "name": "trainLabels",
+                        "type": "message"
+                    },
+                    {
+                        "name": "trainImages",
+                        "type": "message"
+                    },
+                    {
+                        "name": "testImages",
+                        "type": "message"
+                    },
+                    {
+                        "name": "testLabels",
+                        "type": "message"
+                    }
+                ]
+            }
+        },
+        "tofile1": {
+            "component": "com.sap.file.toFile",
+            "metadata": {
+                "label": "To File",
+                "x": 228.99999904632568,
+                "y": 92,
+                "height": 50,
+                "width": 50,
+                "config": {}
+            }
+        },
+        "tofile2": {
+            "component": "com.sap.file.toFile",
+            "metadata": {
+                "label": "To File",
+                "x": 228.99999904632568,
+                "y": 182,
+                "height": 50,
+                "width": 50,
+                "config": {}
+            }
+        },
+        "tofile3": {
+            "component": "com.sap.file.toFile",
+            "metadata": {
+                "label": "To File",
+                "x": 228.99999904632568,
+                "y": 272,
+                "height": 50,
+                "width": 50,
+                "config": {}
+            }
+        },
+        "tofile4": {
+            "component": "com.sap.file.toFile",
+            "metadata": {
+                "label": "To File",
+                "x": 228.99999904632568,
+                "y": 362,
+                "height": 50,
+                "width": 50,
+                "config": {}
+            }
+        },
+        "workflowterminator1": {
+            "component": "com.sap.dh.terminator",
+            "metadata": {
+                "label": "Workflow Terminator",
+                "x": 1230,
+                "y": 272,
+                "height": 80,
+                "width": 120,
+                "config": {}
+            }
+        }
+    },
+    "groups": [
+        {
+            "name": "group1",
+            "nodes": [
+                "toblobconverter1",
+                "artifactproducer1",
+                "toblobconverter2",
+                "artifactproducer2",
+                "toblobconverter3",
+                "artifactproducer3",
+                "toblobconverter4",
+                "artifactproducer4",
+                "readfile53",
+                "readfile52",
+                "readfile5",
+                "readfile51"
+            ],
+            "metadata": {
+                "description": "Group"
+            }
+        }
+    ],
+    "connections": [
+        {
+            "metadata": {
+                "points": "1353.9999923706055,192 1381.9999918937683,192 1381.9999918937683,252 1409.9999914169312,252"
+            },
+            "src": {
+                "port": "out",
+                "process": "wiretap1"
+            },
+            "tgt": {
+                "port": "logs",
+                "process": "python3operator1"
+            }
+        },
+        {
+            "metadata": {
+                "points": "1168.9999933242798,243 1196.9999928474426,243 1196.9999928474426,192 1224.9999923706055,192"
+            },
+            "src": {
+                "port": "logs",
+                "process": "training1"
+            },
+            "tgt": {
+                "port": "in",
+                "process": "wiretap1"
+            }
+        },
+        {
+            "metadata": {
+                "points": "1538.9999914169312,252 1578.9999914169312,252"
+            },
+            "src": {
+                "port": "metrics",
+                "process": "python3operator1"
+            },
+            "tgt": {
+                "port": "metrics",
+                "process": "submitmetrics1"
+            }
+        },
+        {
+            "metadata": {
+                "points": "690.9999961853027,305 718.9999957084656,305 718.9999957084656,311 746.9999952316284,311"
+            },
+            "src": {
+                "port": "outbytearray",
+                "process": "toblobconverter1"
+            },
+            "tgt": {
+                "port": "inArtifact",
+                "process": "artifactproducer1"
+            }
+        },
+        {
+            "metadata": {
+                "points": "690.9999961853027,125 718.9999957084656,125 718.9999957084656,71 746.9999952316284,71"
+            },
+            "src": {
+                "port": "outbytearray",
+                "process": "toblobconverter2"
+            },
+            "tgt": {
+                "port": "inArtifact",
+                "process": "artifactproducer2"
+            }
+        },
+        {
+            "metadata": {
+                "points": "690.9999961853027,215 718.9999957084656,215 718.9999957084656,191 746.9999952316284,191"
+            },
+            "src": {
+                "port": "outbytearray",
+                "process": "toblobconverter3"
+            },
+            "tgt": {
+                "port": "inArtifact",
+                "process": "artifactproducer3"
+            }
+        },
+        {
+            "metadata": {
+                "points": "690.9999961853027,395 718.9999957084656,395 718.9999957084656,431 746.9999952316284,431"
+            },
+            "src": {
+                "port": "outbytearray",
+                "process": "toblobconverter4"
+            },
+            "tgt": {
+                "port": "inArtifact",
+                "process": "artifactproducer4"
+            }
+        },
+        {
+            "metadata": {
+                "points": "875.9999952316284,71 919.9999947547913,71 919.9999947547913,243.5 1011.999993801117,243.5 1011.999993801117,243 1039.9999933242798,243"
+            },
+            "src": {
+                "port": "outArtifact",
+                "process": "artifactproducer2"
+            },
+            "tgt": {
+                "port": "trainImages",
+                "process": "training1"
+            }
+        },
+        {
+            "metadata": {
+                "points": "875.9999952316284,191 903.9999947547913,191 903.9999947547913,254.5 1011.999993801117,254.5 1011.999993801117,261 1039.9999933242798,261"
+            },
+            "src": {
+                "port": "outArtifact",
+                "process": "artifactproducer3"
+            },
+            "tgt": {
+                "port": "testImages",
+                "process": "training1"
+            }
+        },
+        {
+            "metadata": {
+                "points": "875.9999952316284,311 903.9999947547913,311 903.9999947547913,265.5 995.999993801117,265.5 995.999993801117,225 1039.9999933242798,225"
+            },
+            "src": {
+                "port": "outArtifact",
+                "process": "artifactproducer1"
+            },
+            "tgt": {
+                "port": "trainLabels",
+                "process": "training1"
+            }
+        },
+        {
+            "metadata": {
+                "points": "875.9999952316284,431 919.9999947547913,431 919.9999947547913,276.5 995.999993801117,276.5 995.999993801117,279 1039.9999933242798,279"
+            },
+            "src": {
+                "port": "outArtifact",
+                "process": "artifactproducer4"
+            },
+            "tgt": {
+                "port": "testLabels",
+                "process": "training1"
+            }
+        },
+        {
+            "metadata": {
+                "points": "575.999997138977,71 603.9999966621399,71 603.9999966621399,125 631.9999961853027,125"
+            },
+            "src": {
+                "port": "file",
+                "process": "readfile53"
+            },
+            "tgt": {
+                "port": "ininterface",
+                "process": "toblobconverter2"
+            }
+        },
+        {
+            "metadata": {
+                "points": "575.999997138977,191 603.9999966621399,191 603.9999966621399,215 631.9999961853027,215"
+            },
+            "src": {
+                "port": "file",
+                "process": "readfile52"
+            },
+            "tgt": {
+                "port": "ininterface",
+                "process": "toblobconverter3"
+            }
+        },
+        {
+            "metadata": {
+                "points": "575.999997138977,311 603.9999966621399,311 603.9999966621399,305 631.9999961853027,305"
+            },
+            "src": {
+                "port": "file",
+                "process": "readfile5"
+            },
+            "tgt": {
+                "port": "ininterface",
+                "process": "toblobconverter1"
+            }
+        },
+        {
+            "metadata": {
+                "points": "575.999997138977,431 603.9999966621399,431 603.9999966621399,395 631.9999961853027,395"
+            },
+            "src": {
+                "port": "file",
+                "process": "readfile51"
+            },
+            "tgt": {
+                "port": "ininterface",
+                "process": "toblobconverter4"
+            }
+        },
+        {
+            "metadata": {
+                "points": "282.9999990463257,117 326.9999985694885,117 326.9999985694885,243.5 402.9999976158142,243.5 402.9999976158142,80 446.99999713897705,80"
+            },
+            "src": {
+                "port": "file",
+                "process": "tofile1"
+            },
+            "tgt": {
+                "port": "ref",
+                "process": "readfile53"
+            }
+        },
+        {
+            "metadata": {
+                "points": "282.9999990463257,207 310.9999985694885,207 310.9999985694885,254.5 418.9999976158142,254.5 418.9999976158142,200 446.99999713897705,200"
+            },
+            "src": {
+                "port": "file",
+                "process": "tofile2"
+            },
+            "tgt": {
+                "port": "ref",
+                "process": "readfile52"
+            }
+        },
+        {
+            "metadata": {
+                "points": "282.9999990463257,297 310.9999985694885,297 310.9999985694885,265.5 418.9999976158142,265.5 418.9999976158142,320 446.99999713897705,320"
+            },
+            "src": {
+                "port": "file",
+                "process": "tofile3"
+            },
+            "tgt": {
+                "port": "ref",
+                "process": "readfile5"
+            }
+        },
+        {
+            "metadata": {
+                "points": "136,279 163.99999952316284,279 163.99999952316284,378 223.99999904632568,378"
+            },
+            "src": {
+                "port": "testLabels",
+                "process": "python3operator2"
+            },
+            "tgt": {
+                "port": "path",
+                "process": "tofile4"
+            }
+        },
+        {
+            "metadata": {
+                "points": "282.9999990463257,387 326.9999985694885,387 326.9999985694885,276.5 402.9999976158142,276.5 402.9999976158142,440 446.99999713897705,440"
+            },
+            "src": {
+                "port": "file",
+                "process": "tofile4"
+            },
+            "tgt": {
+                "port": "ref",
+                "process": "readfile51"
+            }
+        },
+        {
+            "metadata": {
+                "points": "136,225 195.99999952316284,225 195.99999952316284,288 223.99999904632568,288"
+            },
+            "src": {
+                "port": "trainLabels",
+                "process": "python3operator2"
+            },
+            "tgt": {
+                "port": "path",
+                "process": "tofile3"
+            }
+        },
+        {
+            "metadata": {
+                "points": "136,261 179.99999952316284,261 179.99999952316284,198 223.99999904632568,198"
+            },
+            "src": {
+                "port": "testImages",
+                "process": "python3operator2"
+            },
+            "tgt": {
+                "port": "path",
+                "process": "tofile2"
+            }
+        },
+        {
+            "metadata": {
+                "points": "136,243 163.99999952316284,243 163.99999952316284,108 223.99999904632568,108"
+            },
+            "src": {
+                "port": "trainImages",
+                "process": "python3operator2"
+            },
+            "tgt": {
+                "port": "path",
+                "process": "tofile1"
+            }
+        },
+        {
+            "metadata": {
+                "points": "1168.9999933242798,261 1197,261 1197,312 1225,312"
+            },
+            "src": {
+                "port": "MNISTMODEL",
+                "process": "training1"
+            },
+            "tgt": {
+                "port": "stop",
+                "process": "workflowterminator1"
+            }
+        }
+    ],
+    "inports": {},
+    "outports": {}
+}

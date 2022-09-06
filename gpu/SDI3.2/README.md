@@ -126,27 +126,27 @@ This examples assumes the commands are executed on a Linux managegement host whe
 
 ## Verify the GPU unit with an example pipeline
 
-1. Please download the [./graph.json](./graph.json) file.
-2. Open Data Intelligence Modeler and click on the Import Graph icon ![import icon](./images/import-icon.png). A new tab called "GPU usage test" will open.
+1. Please download the [./graph.json](graph.json) file.
+2. Open Data Intelligence Modeler and click on the Import Graph icon ![import icon](images/import-icon.png). A new tab called "GPU usage test" will open.
 3. Click on the "Training" operator and choose "Open Configuration".
 
-    ![training operator](./images/training-operator.png "Training operator")
+    ![training operator](images/training-operator.png "Training operator")
 
     The "Open Configuration" icon: ![configuration](images/operator-configuration-icon.png "Open Configuration")
 
 4. Choose your configured resource plan in the "Resource Plan" combobox.
 
-    ![resource plan combobox](./images/resource-plan-box.png "Resource Plan combobox")
+    ![resource plan combobox](images/resource-plan-box.png "Resource Plan combobox")
 
 5. Click "Save". In this example it is assumed the graph is named "GPU usage".
 6. Open ML Scenario Manager, create or open a scenario.
 7. In there, create a new pipeline from the "Blank" Template. And click on the created pipeline. It will open in the Modeler.
 
-    ![Open Pipeline](./images/open-gpu-pipeline.png "Open Pipeline")
+    ![Open Pipeline](images/open-gpu-pipeline.png "Open Pipeline")
 
 8. Back in the modeler, open the imported "GPU usage" graph in another tab and switch to JSON view.
 
-    ![JSON view](./images/json-view.png "JSON view")
+    ![JSON view](images/json-view.png "JSON view")
 
 9. Select the whole JSON content and copy it.
 10. Still in the modeler, return to the blank template tab opened from the Scenario Manager, switch to JSON view and paste the JSON content.
@@ -157,13 +157,13 @@ This examples assumes the commands are executed on a Linux managegement host whe
 
 1. Click on the Training operator and open its configuration.
 
-    ![Training Operator Configuration](./images/training-open-config.png "Training Operator Configuration")
+    ![Training Operator Configuration](images/training-open-config.png "Training Operator Configuration")
 
 2. Copy the "Training Image" name and verify it can be pulled from the local registry.
 
     1. If you don't know the image registry name, locate it in the Application Configuration in the System Management:
 
-        ![Registry Name](./images/registry-url.png "Registry Name")
+        ![Registry Name](images/registry-url.png "Registry Name")
 
     2. Inspect the pull spec:
 
@@ -186,7 +186,7 @@ This examples assumes the commands are executed on a Linux managegement host whe
 
     5. Take the latest tag available and update the Trainig Image field with it.
 
-        ![Training Image Pull Spec](./images/training-image-pullspec.png "Training Image Pull Spec")
+        ![Training Image Pull Spec](images/training-image-pullspec.png "Training Image Pull Spec")
         
 3. Save the graph.
 
@@ -196,11 +196,11 @@ This examples assumes the commands are executed on a Linux managegement host whe
 
 2. Wait until graph becomes Running and Click on it.
 
-    ![Graph Running](./images/graph-running.png "Graph Running")
+    ![Graph Running](images/graph-running.png "Graph Running")
 
 3. Open the wiretap of the running graph.
 
-    ![Open Wiretap](./images/wiretap-open.png "Open Wiretap")
+    ![Open Wiretap](images/wiretap-open.png "Open Wiretap")
 
 4. Verify that the pipeline succeeds, in the Wiretap, you should be able to see output like this:
 
