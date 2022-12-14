@@ -200,6 +200,7 @@
             'installers.datahub.sap.com',
           ],
           resources: [
+            'voraclusters'
             'datahubs',
           ],
         },

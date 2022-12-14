@@ -91,6 +91,7 @@ rules:
   - installers.datahub.sap.com
   resources:
   - datahubs
+  - voraclusters
   verbs:
   - get
   - list
