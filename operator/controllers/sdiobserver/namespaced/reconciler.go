@@ -152,7 +152,7 @@ func (r *reconciler) doReconcileObs(
 
 	owner := obs
 	if removeManagedObjects {
-		owner.Spec.VSystemRoute = sdiv1alpha1.SDIObserverSpecRoute{
+		owner.Spec.VSystemRoute = sdiv1alpha1.ManagedRouteSpec{
 			ManagementState: sdiv1alpha1.RouteManagementStateRemoved,
 		}
 	}

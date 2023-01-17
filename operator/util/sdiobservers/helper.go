@@ -111,7 +111,7 @@ func SetBackupAndUpdate(
 	})
 }
 
-func IsRouteInCondition(routeStatus sdiv1alpha1.SDIObserverRouteStatus, condType string) bool {
+func IsRouteInCondition(routeStatus sdiv1alpha1.ManagedRouteStatus, condType string) bool {
 	c := meta.FindStatusCondition(routeStatus.Conditions, condType)
 	if c == nil {
 		return false
@@ -119,7 +119,7 @@ func IsRouteInCondition(routeStatus sdiv1alpha1.SDIObserverRouteStatus, condType
 	return c.Status == metav1.ConditionTrue
 }
 
-func IsRouteConditionKnown(routeStatus sdiv1alpha1.SDIObserverRouteStatus, condType string) bool {
+func IsRouteConditionKnown(routeStatus sdiv1alpha1.ManagedRouteStatus, condType string) bool {
 	c := meta.FindStatusCondition(routeStatus.Conditions, condType)
 	if c == nil {
 		return false

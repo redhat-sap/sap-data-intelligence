@@ -44,7 +44,7 @@ const (
 
 func setConditions(
 	owner *sdiv1alpha1.SDIObserver,
-	status *sdiv1alpha1.SDIObserverRouteStatus,
+	status *sdiv1alpha1.ManagedRouteStatus,
 	exposed, degraded metav1.ConditionStatus,
 	reason, msg string,
 ) {
