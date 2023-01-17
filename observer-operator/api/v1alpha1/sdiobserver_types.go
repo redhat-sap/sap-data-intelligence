@@ -1,5 +1,5 @@
 /*
-Copyright 2022.
+Copyright 2023.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -46,30 +46,6 @@ type ManagedRouteSpec struct {
 	Hostname string `json:"hostname,omitempty"`
 }
 
-// SDIObserverSpec defines the desired state of SDIObserver
-type SDIObserverSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
-	// Foo is an example field of SDIObserver. Edit sdiobserver_types.go to remove/update
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:MinLength=2
-	// +kubebuilder:validation:MaxLength=63
-	// +kubebuilder:validation:Pattern="[[:alnum:]]+(-[[:alnum:]]+)*"
-	SDINamespace string `json:"sdiNamespace,omitempty"`
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:MinLength=2
-	// +kubebuilder:validation:MaxLength=63
-	// +kubebuilder:validation:Pattern="[[:alnum:]]+(-[[:alnum:]]+)*"
-	SLCBNamespace string `json:"slcbNamespace,omitempty"`
-
-	VSystemRoute ManagedRouteSpec `json:"vsystemRoute"`
-	SLCBRoute    ManagedRouteSpec `json:"slcbRoute"`
-
-	// TODO: add
-	//nodeSelector map[string]string
-}
-
 const (
 	ConditionRouteNotAdmitted = "NotAdmitted"
 )
@@ -105,6 +81,30 @@ const (
 	ConditionReasonBackup = "Backup"
 )
 
+// SDIObserverSpec defines the desired state of SDIObserver
+type SDIObserverSpec struct {
+	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
+	// Important: Run "make" to regenerate code after modifying this file
+
+	// Foo is an example field of SDIObserver. Edit sdiobserver_types.go to remove/update
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=2
+	// +kubebuilder:validation:MaxLength=63
+	// +kubebuilder:validation:Pattern="[[:alnum:]]+(-[[:alnum:]]+)*"
+	SDINamespace string `json:"sdiNamespace,omitempty"`
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=2
+	// +kubebuilder:validation:MaxLength=63
+	// +kubebuilder:validation:Pattern="[[:alnum:]]+(-[[:alnum:]]+)*"
+	SLCBNamespace string `json:"slcbNamespace,omitempty"`
+
+	VSystemRoute ManagedRouteSpec `json:"vsystemRoute"`
+	SLCBRoute    ManagedRouteSpec `json:"slcbRoute"`
+
+	// TODO: add
+	//nodeSelector map[string]string
+}
+
 // SDIObserverStatus defines the observed state of SDIObserver.
 type SDIObserverStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
@@ -130,7 +130,7 @@ type SDIObserverStatus struct {
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 
-// SDIObserver is the Schema for the sdiobservers API.
+// SDIObserver is the Schema for the sdiobservers API
 type SDIObserver struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

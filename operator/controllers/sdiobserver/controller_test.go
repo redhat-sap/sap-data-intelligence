@@ -31,7 +31,7 @@ var _ = Describe("SDIObserver controller", func() {
 			},
 			Spec: sdiv1alpha1.SDIObserverSpec{
 				SDINamespace: "sdi",
-				VSystemRoute: sdiv1alpha1.SDIObserverSpecRoute{
+				VSystemRoute: sdiv1alpha1.ManagedRouteSpec{
 					ManagementState: sdiv1alpha1.RouteManagementStateManaged,
 				},
 			},
@@ -136,7 +136,7 @@ var _ = Describe("SDIObserver controller", func() {
 				},
 				Spec: sdiv1alpha1.SDIObserverSpec{
 					SDINamespace: "sdi",
-					VSystemRoute: sdiv1alpha1.SDIObserverSpecRoute{
+					VSystemRoute: sdiv1alpha1.ManagedRouteSpec{
 						ManagementState: sdiv1alpha1.RouteManagementStateManaged,
 					},
 				},

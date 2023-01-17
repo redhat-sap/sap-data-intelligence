@@ -1,0 +1,19 @@
+domain: sap-redhat.io
+layout:
+- go.kubebuilder.io/v3
+plugins:
+  manifests.sdk.operatorframework.io/v2: {}
+  scorecard.sdk.operatorframework.io/v2: {}
+projectName: observer-operator
+repo: github.com/redhat-sap/sap-data-intelligence/observer-operator
+resources:
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: sap-redhat.io
+  group: sdi
+  kind: SDIObserver
+  path: github.com/redhat-sap/sap-data-intelligence/observer-operator/api/v1alpha1
+  version: v1alpha1
+version: "3"

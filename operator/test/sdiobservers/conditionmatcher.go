@@ -50,12 +50,12 @@ func getConditions(actual interface{}) ([]metav1.Condition, error) {
 		conditions = t.Status.Conditions
 	case *sdiv1alpha1.SDIObserver:
 		conditions = t.Status.Conditions
-	case sdiv1alpha1.SDIObserverRouteStatus:
+	case sdiv1alpha1.ManagedRouteStatus:
 		conditions = t.Conditions
-	case *sdiv1alpha1.SDIObserverRouteStatus:
+	case *sdiv1alpha1.ManagedRouteStatus:
 		conditions = t.Conditions
 	default:
-		return nil, fmt.Errorf("conditionMatcher expects SDIObserver or SDIObserverRouteStatus, not %T", t)
+		return nil, fmt.Errorf("conditionMatcher expects SDIObserver or ManagedRouteStatus, not %T", t)
 	}
 	return conditions, nil
 }
