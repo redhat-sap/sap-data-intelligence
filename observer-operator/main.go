@@ -18,7 +18,6 @@ package main
 
 import (
 	"flag"
-	routev1 "github.com/openshift/api/route/v1"
 	"os"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
@@ -44,8 +43,6 @@ var (
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-
-	utilruntime.Must(routev1.AddToScheme(scheme))
 
 	utilruntime.Must(sdiv1alpha1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
@@ -86,8 +83,6 @@ func main() {
 		// if you are doing or is intended to do any operation such as perform cleanups
 		// after the manager stops then its usage might be unsafe.
 		// LeaderElectionReleaseOnCancel: true,
-
-		Namespace: "sdi-observer",
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
