@@ -1,0 +1,33 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
+  name: manager-role
+rules:
+- apiGroups:
+  - sdi.sap-redhat.io
+  resources:
+  - sdiobservers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - sdi.sap-redhat.io
+  resources:
+  - sdiobservers/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - sdi.sap-redhat.io
+  resources:
+  - sdiobservers/status
+  verbs:
+  - get
+  - patch
+  - update
