@@ -15,7 +15,7 @@ type Actioner interface {
 	AdjustNetwork(s *Adjuster) error
 	AdjustStorage(s *Adjuster) error
 	AdjustSDIConfig(s *Adjuster) error
-	AdjustedStatus() runtime.Object
+	AdjustedStatus() client.Object
 }
 
 type Adjuster struct {
@@ -50,16 +50,16 @@ func New(
 
 func (a *Adjuster) Adjust(ctx context.Context, c Actioner) error {
 	if err := c.AdjustNodes(a); err != nil {
-		return fmt.Errorf("Adjusting of dependencies failed: %v", err)
+		return fmt.Errorf("Adjustment of dependencies failed: %v", err)
 	}
 	if err := c.AdjustNetwork(a); err != nil {
-		return fmt.Errorf("Adjusting of network config failed: %v", err)
+		return fmt.Errorf("Adjustment of network config failed: %v", err)
 	}
 	if err := c.AdjustStorage(a); err != nil {
-		return fmt.Errorf("Adjusting of storage failed: %v", err)
+		return fmt.Errorf("Adjustment of storage failed: %v", err)
 	}
 	if err := c.AdjustSDIConfig(a); err != nil {
-		return fmt.Errorf("Adjusting of SDI config failed: %v", err)
+		return fmt.Errorf("Adjustment of SDI config failed: %v", err)
 	}
 	a.UpdateStatus(c.AdjustedStatus())
 	return nil
@@ -69,7 +69,7 @@ func (a *Adjuster) Logger() logr.Logger {
 	return a.logger
 }
 
-func (a *Adjuster) UpdateStatus(obj runtime.Object) {
+func (a *Adjuster) UpdateStatus(obj client.Object) {
 	err := a.client.Status().Update(context.Background(), obj)
 	if err != nil {
 		a.logger.V(1).Info(err.Error())
