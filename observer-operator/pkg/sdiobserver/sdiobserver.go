@@ -3,7 +3,7 @@ package sdiobserver
 import (
 	sdiv1alpha1 "github.com/redhat-sap/sap-data-intelligence/observer-operator/api/v1alpha1"
 	"github.com/redhat-sap/sap-data-intelligence/observer-operator/pkg/adjuster"
-	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"time"
 )
 
@@ -26,11 +26,6 @@ func (so *SDIObserver) AdjustSDIConfig(s *adjuster.Adjuster) error {
 	return nil
 }
 
-func (so *SDIObserver) AdjustedStatus() runtime.Object {
-	//TODO implement me
-	return nil
-}
-
 func New(obs *sdiv1alpha1.SDIObserver) *SDIObserver {
 	return &SDIObserver{
 		obs: obs,
@@ -40,16 +35,20 @@ func New(obs *sdiv1alpha1.SDIObserver) *SDIObserver {
 func (so *SDIObserver) AdjustNetwork(a *adjuster.Adjuster) error {
 
 	a.Logger().V(0).Info("Trying to adjust the network")
-	so.updateStatus(a, sdiv1alpha1.SyncStatusState, "adjusting network")
-	err := a.AdjustSDIRoute(so.obs)
+	so.updateStatus(a, sdiv1alpha1.SyncStatusState, "adjusting SDI route")
+	err := a.AdjustRoute(so.obs.Spec.SDIRoute.Namespace,
+		so.obs.Spec.SDIRoute.TargetedService,
+		so.obs.Spec.SDIRoute.Hostname)
 	if err != nil {
 		a.Logger().V(1).Info(err.Error())
 		so.updateStatus(a, sdiv1alpha1.ErrorStatusState, err.Error())
 		return err
 	}
 
-	so.updateStatus(a, sdiv1alpha1.SyncStatusState, "adjusting network")
-	err = a.AdjustSLCBRoute(so.obs)
+	so.updateStatus(a, sdiv1alpha1.SyncStatusState, "adjusting SLC Bridge route")
+	err = a.AdjustRoute(so.obs.Spec.SLCBRoute.Namespace,
+		so.obs.Spec.SLCBRoute.TargetedService,
+		so.obs.Spec.SLCBRoute.Hostname)
 	if err != nil {
 		a.Logger().V(1).Info(err.Error())
 		so.updateStatus(a, sdiv1alpha1.ErrorStatusState, err.Error())
@@ -59,10 +58,10 @@ func (so *SDIObserver) AdjustNetwork(a *adjuster.Adjuster) error {
 	return nil
 }
 
-func (so *SDIObserver) SyncedStatus() runtime.Object {
+func (so *SDIObserver) AdjustedStatus() client.Object {
 	so.obs.Status.LastSyncAttempt = time.Now().Format(time.RFC1123)
 	so.obs.Status.State = sdiv1alpha1.OkStatusState
-	so.obs.Status.Message = "sync done successfully"
+	so.obs.Status.Message = "adjustment done successfully"
 	return so.obs
 }
 
