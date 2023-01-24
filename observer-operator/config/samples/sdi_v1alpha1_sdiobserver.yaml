@@ -8,5 +8,13 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/created-by: observer-operator
   name: sdiobserver-sample
+  # namespace: sdi-observer
 spec:
   # TODO(user): Add fields here
+  sdiRoute:
+    namespace: sdi
+    targetedService: vsystem
+  slcbRoute:
+    namespace: sap-slcbridge
+    targetedService: slcbridgebase-service
+
