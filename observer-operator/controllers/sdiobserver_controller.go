@@ -56,22 +56,22 @@ func (r *SDIObserverReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	log := log.FromContext(ctx).WithValues("sdiobserver", req.NamespacedName)
 	// TODO(user): your logic here
 
-	var obs sdiv1alpha1.SDIObserver
-	if err := r.Get(ctx, req.NamespacedName, &obs); err != nil {
+	obs := &sdiv1alpha1.SDIObserver{}
+	if err := r.Get(ctx, req.NamespacedName, obs); err != nil {
 		log.Error(err, "Unable to fetch SDIObserver", "name", req.NamespacedName)
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	obsGVK, err := apiutil.GVKForObject(&obs, r.Scheme)
+	obsGVK, err := apiutil.GVKForObject(obs, r.Scheme)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("unable to get GVK:  '%s'", req.NamespacedName)
 	}
 
-	sdiObserver := sdiobserver.New(&obs)
+	sdiObserver := sdiobserver.New(obs)
 
 	sdiAdjuster := adjuster.New(
-		obs.Name,
-		obs.Namespace,
+		obs.GetName(),
+		obs.GetNamespace(),
 		r.Client,
 		r.Scheme,
 		metav1.OwnerReference{

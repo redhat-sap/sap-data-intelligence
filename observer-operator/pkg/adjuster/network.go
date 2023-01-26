@@ -32,6 +32,10 @@ func (a *Adjuster) AdjustRoute(ns, ts, h string) error {
 		if len(h) > 0 {
 			route.Spec.Host = h
 		}
+		route.Spec.TLS = &routev1.TLSConfig{
+			Termination:                   routev1.TLSTerminationReencrypt,
+			InsecureEdgeTerminationPolicy: routev1.InsecureEdgeTerminationPolicyRedirect,
+		}
 		return nil
 	}
 

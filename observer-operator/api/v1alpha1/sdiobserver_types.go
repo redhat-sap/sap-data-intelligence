@@ -41,7 +41,7 @@ type SDIRouteSpec struct {
 	// +kubebuilder:validation:MinLength=2
 	// +kubebuilder:validation:MaxLength=63
 	// +kubebuilder:validation:Pattern="[[:alnum:]]+(-[[:alnum:]]+)*"
-	Namespace string `json:"namespace,omitempty"`
+	SDINamespace string `json:"sdiNamespace,omitempty"`
 
 	// +kubebuilder:default="vsystem"
 	TargetedService string `json:"targetedService,omitempty"`
@@ -57,7 +57,7 @@ type SLCBRouteSpec struct {
 	// +kubebuilder:validation:MinLength=2
 	// +kubebuilder:validation:MaxLength=63
 	// +kubebuilder:validation:Pattern="[[:alnum:]]+(-[[:alnum:]]+)*"
-	Namespace string `json:"namespace,omitempty"`
+	SLCBNamespace string `json:"slcbNamespace,omitempty"`
 
 	// +kubebuilder:default="slcbridgebase-service"
 	TargetedService string `json:"targetedService,omitempty"`
@@ -92,10 +92,10 @@ const (
 	ConditionReasonIngressBlocked = "IngressBlocked"
 	ConditionReasonIngress        = "Ingress"
 	// ConditionReasonAlreadyManaged indicates that another SDIObserver instance is currently managing the
-	// target SDI Namespace.
+	// target SDI SLCBNamespace.
 	ConditionReasonAlreadyManaged = "AlreadyManaged"
 	// ConditionReasonActive indicates that the managed SDIObserver instance is active in controlling the
-	// target SDI Namespace.
+	// target SDI SLCBNamespace.
 	ConditionReasonActive = "Active"
 	// ConditionReasonBackup indicates that the desired spec is not being worked on because the there is
 	// another active instance managing the SDI namespace.

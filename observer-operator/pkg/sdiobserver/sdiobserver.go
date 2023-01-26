@@ -36,7 +36,7 @@ func (so *SDIObserver) AdjustNetwork(a *adjuster.Adjuster) error {
 
 	a.Logger().V(0).Info("Trying to adjust the network")
 	so.updateStatus(a, sdiv1alpha1.SyncStatusState, "adjusting SDI route")
-	err := a.AdjustRoute(so.obs.Spec.SDIRoute.Namespace,
+	err := a.AdjustRoute(so.obs.Spec.SDIRoute.SDINamespace,
 		so.obs.Spec.SDIRoute.TargetedService,
 		so.obs.Spec.SDIRoute.Hostname)
 	if err != nil {
@@ -46,7 +46,7 @@ func (so *SDIObserver) AdjustNetwork(a *adjuster.Adjuster) error {
 	}
 
 	so.updateStatus(a, sdiv1alpha1.SyncStatusState, "adjusting SLC Bridge route")
-	err = a.AdjustRoute(so.obs.Spec.SLCBRoute.Namespace,
+	err = a.AdjustRoute(so.obs.Spec.SLCBRoute.SLCBNamespace,
 		so.obs.Spec.SLCBRoute.TargetedService,
 		so.obs.Spec.SLCBRoute.Hostname)
 	if err != nil {
