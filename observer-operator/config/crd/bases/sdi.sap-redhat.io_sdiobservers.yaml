@@ -43,7 +43,7 @@ spec:
                   hostname:
                     pattern: '[[:alnum:]]+(-[[:alnum:]]+)*(\.[[:alnum:]]+(-[[:alnum:]]+)*)*'
                     type: string
-                  namespace:
+                  sdiNamespace:
                     default: sdi
                     maxLength: 63
                     minLength: 2
@@ -61,7 +61,7 @@ spec:
                   hostname:
                     pattern: '[[:alnum:]]+(-[[:alnum:]]+)*(\.[[:alnum:]]+(-[[:alnum:]]+)*)*'
                     type: string
-                  namespace:
+                  slcbNamespace:
                     default: sap-slcbridge
                     maxLength: 63
                     minLength: 2
