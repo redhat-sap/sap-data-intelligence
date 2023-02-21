@@ -17,7 +17,6 @@ limitations under the License.
 package v1alpha1
 
 import (
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -36,11 +35,33 @@ const (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-// ManagedRouteSpec allows to control route management for an SDI service.
-type ManagedRouteSpec struct {
-	// +kubebuilder:default="Managed"
-	// +kubebuilder:validation:Enum=Managed;Unmanaged;Removed
-	ManagementState string `json:"managementState,omitempty"`
+// SDIRouteSpec allows to control route management for an SDI service.
+type SDIRouteSpec struct {
+	// +kubebuilder:default="sdi"
+	// +kubebuilder:validation:MinLength=2
+	// +kubebuilder:validation:MaxLength=63
+	// +kubebuilder:validation:Pattern="[[:alnum:]]+(-[[:alnum:]]+)*"
+	SDINamespace string `json:"sdiNamespace,omitempty"`
+
+	// +kubebuilder:default="vsystem"
+	TargetedService string `json:"targetedService,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern="[[:alnum:]]+(-[[:alnum:]]+)*(\\.[[:alnum:]]+(-[[:alnum:]]+)*)*"
+	Hostname string `json:"hostname,omitempty"`
+}
+
+// SLCBRouteSpec allows to control route management for an SLCB service.
+type SLCBRouteSpec struct {
+	// +kubebuilder:default="sap-slcbridge"
+	// +kubebuilder:validation:MinLength=2
+	// +kubebuilder:validation:MaxLength=63
+	// +kubebuilder:validation:Pattern="[[:alnum:]]+(-[[:alnum:]]+)*"
+	SLCBNamespace string `json:"slcbNamespace,omitempty"`
+
+	// +kubebuilder:default="slcbridgebase-service"
+	TargetedService string `json:"targetedService,omitempty"`
+
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Pattern="[[:alnum:]]+(-[[:alnum:]]+)*(\\.[[:alnum:]]+(-[[:alnum:]]+)*)*"
 	Hostname string `json:"hostname,omitempty"`
@@ -71,10 +92,10 @@ const (
 	ConditionReasonIngressBlocked = "IngressBlocked"
 	ConditionReasonIngress        = "Ingress"
 	// ConditionReasonAlreadyManaged indicates that another SDIObserver instance is currently managing the
-	// target SDI Namespace.
+	// target SDI SLCBNamespace.
 	ConditionReasonAlreadyManaged = "AlreadyManaged"
 	// ConditionReasonActive indicates that the managed SDIObserver instance is active in controlling the
-	// target SDI Namespace.
+	// target SDI SLCBNamespace.
 	ConditionReasonActive = "Active"
 	// ConditionReasonBackup indicates that the desired spec is not being worked on because the there is
 	// another active instance managing the SDI namespace.
@@ -86,24 +107,25 @@ type SDIObserverSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// Foo is an example field of SDIObserver. Edit sdiobserver_types.go to remove/update
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:MinLength=2
-	// +kubebuilder:validation:MaxLength=63
-	// +kubebuilder:validation:Pattern="[[:alnum:]]+(-[[:alnum:]]+)*"
-	SDINamespace string `json:"sdiNamespace,omitempty"`
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:MinLength=2
-	// +kubebuilder:validation:MaxLength=63
-	// +kubebuilder:validation:Pattern="[[:alnum:]]+(-[[:alnum:]]+)*"
-	SLCBNamespace string `json:"slcbNamespace,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +nullable
+	SDIRoute SDIRouteSpec `json:"sdiRoute"`
 
-	VSystemRoute ManagedRouteSpec `json:"vsystemRoute"`
-	SLCBRoute    ManagedRouteSpec `json:"slcbRoute"`
+	// +kubebuilder:validation:Optional
+	// +nullable
+	SLCBRoute SLCBRouteSpec `json:"slcbRoute"`
 
 	// TODO: add
 	//nodeSelector map[string]string
 }
+
+type StatusState string
+
+const (
+	SyncStatusState  StatusState = "SYNC"
+	OkStatusState    StatusState = "OK"
+	ErrorStatusState StatusState = "ERROR"
+)
 
 // SDIObserverStatus defines the observed state of SDIObserver.
 type SDIObserverStatus struct {
@@ -118,13 +140,22 @@ type SDIObserverStatus struct {
 	// +patchMergeKey=type
 	// +patchStrategy=merge
 	Conditions []metav1.Condition `json:"conditions"`
-	// Reference to the DataHub resource found in the configured SDINamespace. It is left unset if the
-	// resource does not exist or another instance is managing it.
-	ManagedDataHubRef *corev1.ObjectReference `json:"managedDataHubs,omitempty"`
-	// Status of the vsystem route. Conditions will be empty when not managed.
-	VSystemRoute ManagedRouteStatus `json:"vsystemRoute,omitempty"`
+	// Status of the SDI vsystem route. Conditions will be empty when not managed.
+	SDIRoute ManagedRouteStatus `json:"sdiRoute,omitempty"`
 	// Status of the slcb route. Conditions will be empty when not managed.
 	SLCBRoute ManagedRouteStatus `json:"slcbRoute,omitempty"`
+
+	// Message holds the current/last status message from the operator.
+	// +optional
+	Message string `json:"message"`
+
+	// State holds the current/last resource state (SYNC, OK, ERROR).
+	// +optional
+	State StatusState `json:"state"`
+
+	// LastSyncTime holds the timestamp of the last sync attempt
+	// +optional
+	LastSyncAttempt string `json:"lastSyncAttempt"`
 }
 
 //+kubebuilder:object:root=true

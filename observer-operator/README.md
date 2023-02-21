@@ -16,11 +16,13 @@ The Operator is supposed to replace SDI Observer once it reaches the same functi
 
 Implemented SDI Observer features:
 - [x] vsystem route management
-- [] slcb route management
+- [x] slcb route management
 - [] configure NFS exports for vsystem-vrep
 - [] configre host path mount for diagnostic pods
 - [] create cmcertificates secret for image registry
 - [] configure node selector on namespace
+- [] configure the bucket of ODF
+- [] configure the sdi worker node kernal modules
 
 Missing generic functionality:
 - [] SDIObserver status updates
