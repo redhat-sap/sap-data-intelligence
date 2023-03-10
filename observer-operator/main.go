@@ -18,8 +18,10 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	routev1 "github.com/openshift/api/route/v1"
 	"os"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -42,6 +44,12 @@ var (
 	setupLog = ctrl.Log.WithName("setup")
 )
 
+const (
+	namespaceEnvVar     = "OPERATOR_NAMESPACE"
+	sdiNamespaceEnvVar  = "SDI_NAMESPACE"
+	slcbNamespaceEnvVar = "SLCB_NAMESPACE"
+)
+
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
@@ -51,22 +59,46 @@ func init() {
 	//+kubebuilder:scaffold:scheme
 }
 
+func mkOverride(varName string) string {
+	return fmt.Sprintf("Overrides %s environment variable.", varName)
+}
+
 func main() {
 	var metricsAddr string
 	var enableLeaderElection bool
 	var probeAddr string
+	var namespace, sdiNamespace, slcbNamespace string
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
+	flag.StringVar(&namespace, "namespace", os.Getenv(namespaceEnvVar),
+		"The k8s namespace where the operator runs. "+mkOverride(namespaceEnvVar))
+	flag.StringVar(&sdiNamespace, "sdi-namespace", os.Getenv(sdiNamespaceEnvVar),
+		"SAP DI namespace to monitor. Unless specified, all namespaces will be watched. "+
+			mkOverride(sdiNamespaceEnvVar))
+	flag.StringVar(&slcbNamespace, "slcb-namespace", os.Getenv(slcbNamespaceEnvVar),
+		"K8s namespace where SAP Software Lifecycle Container Bridge runs."+
+			" Unless specified, all namespaces will be watched. "+mkOverride(slcbNamespaceEnvVar))
 	opts := zap.Options{
 		Development: true,
 	}
+
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+
+	if len(namespace) == 0 {
+		setupLog.Error(fmt.Errorf("missing namespace argument, please set at least the NAMESPACE variable"), "fatal")
+		os.Exit(1)
+	}
+
+	var mgrCache cache.NewCacheFunc
+	if len(sdiNamespace) == 0 || len(slcbNamespace) == 0 {
+		mgrCache = cache.MultiNamespacedCacheBuilder([]string{namespace, sdiNamespace, slcbNamespace})
+	}
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
@@ -86,6 +118,8 @@ func main() {
 		// if you are doing or is intended to do any operation such as perform cleanups
 		// after the manager stops then its usage might be unsafe.
 		// LeaderElectionReleaseOnCancel: true,
+
+		NewCache: mgrCache,
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
@@ -93,8 +127,11 @@ func main() {
 	}
 
 	if err = (&controllers.SDIObserverReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:            mgr.GetClient(),
+		Scheme:            mgr.GetScheme(),
+		SdiNamespace:      sdiNamespace,
+		SlcbNamespace:     slcbNamespace,
+		ObserverNamespace: namespace,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "SDIObserver")
 		os.Exit(1)

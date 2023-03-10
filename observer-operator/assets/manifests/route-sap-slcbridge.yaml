@@ -1,0 +1,14 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: sap-slcbridge
+  namespace: sap-slcbridge
+spec:
+  tls:
+    insecureEdgeTerminationPolicy: Redirect
+    termination: passthrough
+  to:
+    kind: Service
+    name: slcbridgebase-service
+    weight: 100
+  wildcardPolicy: None

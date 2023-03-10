@@ -19,7 +19,6 @@ Implemented SDI Observer features:
 - [] slcb route management
 - [] configure NFS exports for vsystem-vrep
 - [] configre host path mount for diagnostic pods
-- [] create cmcertificates secret for image registry
 - [] configure node selector on namespace
 
 Missing generic functionality:
