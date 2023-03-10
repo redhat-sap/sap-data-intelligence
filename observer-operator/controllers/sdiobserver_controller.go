@@ -91,7 +91,10 @@ func (r *SDIObserverReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	sdiAdjuster := adjuster.New(
 		operatorCR.Name,
 		operatorCR.Namespace,
-		r,
+		r.Client,
+		r.Scheme,
+		r.SdiNamespace,
+		r.SlcbNamespace,
 		logger,
 	)
 
