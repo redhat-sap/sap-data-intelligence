@@ -33,6 +33,21 @@ const (
 	RouteManagementStateRemoved = "Removed"
 )
 
+const (
+	ReasonCRNotAvailable     = "OperatorResourceNotAvailable"
+	ReasonRouteNotAvailable  = "OperandRouteNotAvailable"
+	ReasonOperandRouteFailed = "OperandRouteFailed"
+	ReasonSucceeded          = "OperatorSucceeded"
+)
+
+type StatusState string
+
+const (
+	SyncStatusState  StatusState = "SYNC"
+	OkStatusState    StatusState = "OK"
+	ErrorStatusState StatusState = "ERROR"
+)
+
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
@@ -86,20 +101,8 @@ type SDIObserverSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// Foo is an example field of SDIObserver. Edit sdiobserver_types.go to remove/update
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:MinLength=2
-	// +kubebuilder:validation:MaxLength=63
-	// +kubebuilder:validation:Pattern="[[:alnum:]]+(-[[:alnum:]]+)*"
-	SDINamespace string `json:"sdiNamespace,omitempty"`
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:MinLength=2
-	// +kubebuilder:validation:MaxLength=63
-	// +kubebuilder:validation:Pattern="[[:alnum:]]+(-[[:alnum:]]+)*"
-	SLCBNamespace string `json:"slcbNamespace,omitempty"`
-
-	VSystemRoute ManagedRouteSpec `json:"vsystemRoute"`
-	SLCBRoute    ManagedRouteSpec `json:"slcbRoute"`
+	SDIVSystemRoute ManagedRouteSpec `json:"sdiVSystemRoute"`
+	SLCBRoute       ManagedRouteSpec `json:"slcbRoute"`
 
 	// TODO: add
 	//nodeSelector map[string]string
@@ -125,6 +128,18 @@ type SDIObserverStatus struct {
 	VSystemRoute ManagedRouteStatus `json:"vsystemRoute,omitempty"`
 	// Status of the slcb route. Conditions will be empty when not managed.
 	SLCBRoute ManagedRouteStatus `json:"slcbRoute,omitempty"`
+
+	// State holds the current/last resource state (SYNC, OK, ERROR).
+	// +optional
+	State StatusState `json:"state"`
+
+	// Message holds the current/last status message from the operator.
+	// +optional
+	Message string `json:"message"`
+
+	// LastSyncTime holds the timestamp of the last sync attempt
+	// +optional
+	LastSyncAttempt string `json:"lastSyncAttempt"`
 }
 
 //+kubebuilder:object:root=true
