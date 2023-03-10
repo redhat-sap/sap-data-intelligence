@@ -29,7 +29,7 @@ func (a *Adjuster) AdjustSDIVsystemRoute(ns string, obs *sdiv1alpha1.SDIObserver
 
 	create := false
 
-	err := a.Reconciler.Get(ctx, client.ObjectKey{Name: name, Namespace: ns}, route)
+	err := a.Client.Get(ctx, client.ObjectKey{Name: name, Namespace: ns}, route)
 
 	if err != nil && errors.IsNotFound(err) {
 		create = true
@@ -43,15 +43,15 @@ func (a *Adjuster) AdjustSDIVsystemRoute(ns string, obs *sdiv1alpha1.SDIObserver
 			LastTransitionTime: metav1.NewTime(time.Now()),
 			Message:            fmt.Sprintf("unable to get operand route: %s", err.Error()),
 		})
-		return utilerrors.NewAggregate([]error{err, a.Reconciler.Status().Update(ctx, obs)})
+		return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
 	}
 
-	ctrl.SetControllerReference(obs, route, a.Reconciler.Scheme)
+	ctrl.SetControllerReference(obs, route, a.Scheme)
 
 	if create {
-		err = a.Reconciler.Create(ctx, route)
+		err = a.Client.Create(ctx, route)
 	} else {
-		err = a.Reconciler.Update(ctx, route)
+		err = a.Client.Update(ctx, route)
 	}
 
 	if err != nil {
@@ -62,7 +62,7 @@ func (a *Adjuster) AdjustSDIVsystemRoute(ns string, obs *sdiv1alpha1.SDIObserver
 			LastTransitionTime: metav1.NewTime(time.Now()),
 			Message:            fmt.Sprintf("unable to update operand route: %s", err.Error()),
 		})
-		return utilerrors.NewAggregate([]error{err, a.Reconciler.Status().Update(ctx, obs)})
+		return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
 	}
 
 	meta.SetStatusCondition(&obs.Status.Conditions, metav1.Condition{
@@ -72,9 +72,9 @@ func (a *Adjuster) AdjustSDIVsystemRoute(ns string, obs *sdiv1alpha1.SDIObserver
 		LastTransitionTime: metav1.NewTime(time.Now()),
 		Message:            "operator successfully reconciling",
 	})
-	a.Reconciler.Status().Update(ctx, obs)
+	a.Client.Status().Update(ctx, obs)
 
-	condition, err := conditions.InClusterFactory{Client: a.Reconciler.Client}.
+	condition, err := conditions.InClusterFactory{Client: a.Client}.
 		NewCondition(apiv2.ConditionType(apiv2.Upgradeable))
 
 	if err != nil {
@@ -88,7 +88,7 @@ func (a *Adjuster) AdjustSDIVsystemRoute(ns string, obs *sdiv1alpha1.SDIObserver
 		return err
 	}
 
-	return utilerrors.NewAggregate([]error{err, a.Reconciler.Status().Update(ctx, obs)})
+	return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
 }
 
 func (a *Adjuster) AdjustSLCBRoute(ns string, obs *sdiv1alpha1.SDIObserver, ctx context.Context) error {
@@ -103,7 +103,7 @@ func (a *Adjuster) AdjustSLCBRoute(ns string, obs *sdiv1alpha1.SDIObserver, ctx 
 
 	create := false
 
-	err := a.Reconciler.Get(ctx, client.ObjectKey{Name: name, Namespace: ns}, route)
+	err := a.Client.Get(ctx, client.ObjectKey{Name: name, Namespace: ns}, route)
 
 	if err != nil && errors.IsNotFound(err) {
 		create = true
@@ -117,15 +117,15 @@ func (a *Adjuster) AdjustSLCBRoute(ns string, obs *sdiv1alpha1.SDIObserver, ctx 
 			LastTransitionTime: metav1.NewTime(time.Now()),
 			Message:            fmt.Sprintf("unable to get operand deployment: %s", err.Error()),
 		})
-		return utilerrors.NewAggregate([]error{err, a.Reconciler.Status().Update(ctx, obs)})
+		return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
 	}
 
-	ctrl.SetControllerReference(obs, route, a.Reconciler.Scheme)
+	ctrl.SetControllerReference(obs, route, a.Scheme)
 
 	if create {
-		err = a.Reconciler.Create(ctx, route)
+		err = a.Client.Create(ctx, route)
 	} else {
-		err = a.Reconciler.Update(ctx, route)
+		err = a.Client.Update(ctx, route)
 	}
 
 	meta.SetStatusCondition(&obs.Status.Conditions, metav1.Condition{
@@ -135,9 +135,9 @@ func (a *Adjuster) AdjustSLCBRoute(ns string, obs *sdiv1alpha1.SDIObserver, ctx 
 		LastTransitionTime: metav1.NewTime(time.Now()),
 		Message:            "operator successfully reconciling",
 	})
-	a.Reconciler.Status().Update(ctx, obs)
+	a.Client.Status().Update(ctx, obs)
 
-	condition, err := conditions.InClusterFactory{Client: a.Reconciler.Client}.
+	condition, err := conditions.InClusterFactory{Client: a.Client}.
 		NewCondition(apiv2.ConditionType(apiv2.Upgradeable))
 
 	if err != nil {
@@ -151,5 +151,5 @@ func (a *Adjuster) AdjustSLCBRoute(ns string, obs *sdiv1alpha1.SDIObserver, ctx 
 		return err
 	}
 
-	return utilerrors.NewAggregate([]error{err, a.Reconciler.Status().Update(ctx, obs)})
+	return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
 }

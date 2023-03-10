@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 	"github.com/go-logr/logr"
-	"github.com/redhat-sap/sap-data-intelligence/observer-operator/controllers"
-	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 type Actioner interface {
@@ -16,25 +16,33 @@ type Actioner interface {
 }
 
 type Adjuster struct {
-	name               string
-	Namespace          string
-	Reconciler         *controllers.SDIObserverReconciler
-	environmentVars    []corev1.EnvVar
-	environmentSources []corev1.EnvFromSource
-	resourceVars       []corev1.EnvVar
-	logger             logr.Logger
+	name          string
+	Namespace     string
+	Client        client.Client
+	Scheme        *runtime.Scheme
+	SdiNamespace  string
+	SlcbNamespace string
+	logger        logr.Logger
 }
 
 // New creates a new Adjuster.
 func New(
-	name, namespace string,
-	r *controllers.SDIObserverReconciler,
-	logger logr.Logger,
+	n string,
+	ns string,
+	c client.Client,
+	s *runtime.Scheme,
+	sdins string,
+	slcbns string,
+	l logr.Logger,
 ) *Adjuster {
 	return &Adjuster{
-		name:       name,
-		Namespace:  namespace,
-		Reconciler: r,
+		name:          n,
+		Namespace:     ns,
+		Client:        c,
+		Scheme:        s,
+		SdiNamespace:  sdins,
+		SlcbNamespace: slcbns,
+		logger:        l,
 	}
 }
 
