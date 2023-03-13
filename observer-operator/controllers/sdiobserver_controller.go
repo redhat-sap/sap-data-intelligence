@@ -19,7 +19,6 @@ package controllers
 import (
 	"context"
 	"fmt"
-	routev1 "github.com/openshift/api/route/v1"
 	"github.com/redhat-sap/sap-data-intelligence/observer-operator/pkg/adjuster"
 	"github.com/redhat-sap/sap-data-intelligence/observer-operator/pkg/sdiobserver"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -43,6 +42,7 @@ type SDIObserverReconciler struct {
 	SdiNamespace      string
 	SlcbNamespace     string
 	ObserverNamespace string
+	Interval          time.Duration
 }
 
 //+kubebuilder:rbac:groups=sdi.sap-redhat.io,resources=sdiobservers,verbs=get;list;watch;create;update;patch;delete
@@ -106,14 +106,14 @@ func (r *SDIObserverReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		}
 	}
 
-	return ctrl.Result{}, nil
+	logger.Info(fmt.Sprintf("Reconciled Successfully. Requeueing in %s", time.Now().Add(r.Interval).Format(time.Stamp)))
+	return ctrl.Result{RequeueAfter: r.Interval}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *SDIObserverReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&sdiv1alpha1.SDIObserver{}).
-		Owns(&routev1.Route{}).
 		Complete(r)
 }
 

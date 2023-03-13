@@ -22,6 +22,7 @@ import (
 	routev1 "github.com/openshift/api/route/v1"
 	"os"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"time"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -68,6 +69,8 @@ func main() {
 	var enableLeaderElection bool
 	var probeAddr string
 	var namespace, sdiNamespace, slcbNamespace string
+	var requeueInterval time.Duration
+
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
@@ -81,6 +84,8 @@ func main() {
 	flag.StringVar(&slcbNamespace, "slcb-namespace", os.Getenv(slcbNamespaceEnvVar),
 		"K8s namespace where SAP Software Lifecycle Container Bridge runs."+
 			" Unless specified, all namespaces will be watched. "+mkOverride(slcbNamespaceEnvVar))
+	flag.DurationVar(&requeueInterval, "requeue-interval", 2*time.Minute, "The duration until the next untriggered reconciliation run")
+
 	opts := zap.Options{
 		Development: true,
 	}
@@ -132,6 +137,7 @@ func main() {
 		SdiNamespace:      sdiNamespace,
 		SlcbNamespace:     slcbNamespace,
 		ObserverNamespace: namespace,
+		Interval:          requeueInterval,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "SDIObserver")
 		os.Exit(1)

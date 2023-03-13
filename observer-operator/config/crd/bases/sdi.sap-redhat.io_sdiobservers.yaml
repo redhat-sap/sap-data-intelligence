@@ -39,30 +39,34 @@ spec:
                 description: ManagedRouteSpec allows to control route management for
                   an SDI service.
                 properties:
-                  hostname:
-                    pattern: '[[:alnum:]]+(-[[:alnum:]]+)*(\.[[:alnum:]]+(-[[:alnum:]]+)*)*'
-                    type: string
                   managementState:
                     default: Managed
                     enum:
                     - Managed
                     - Unmanaged
                     - Removed
+                    type: string
+                  routeNamespace:
+                    maxLength: 63
+                    minLength: 2
+                    pattern: '[[:alnum:]]+(-[[:alnum:]]+)*'
                     type: string
                 type: object
               slcbRoute:
                 description: ManagedRouteSpec allows to control route management for
                   an SDI service.
                 properties:
-                  hostname:
-                    pattern: '[[:alnum:]]+(-[[:alnum:]]+)*(\.[[:alnum:]]+(-[[:alnum:]]+)*)*'
-                    type: string
                   managementState:
                     default: Managed
                     enum:
                     - Managed
                     - Unmanaged
                     - Removed
+                    type: string
+                  routeNamespace:
+                    maxLength: 63
+                    minLength: 2
+                    pattern: '[[:alnum:]]+(-[[:alnum:]]+)*'
                     type: string
                 type: object
             required:

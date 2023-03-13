@@ -4,15 +4,12 @@ import (
 	"context"
 	"fmt"
 	routev1 "github.com/openshift/api/route/v1"
-	apiv2 "github.com/operator-framework/api/pkg/operators/v2"
-	"github.com/operator-framework/operator-lib/conditions"
 	sdiv1alpha1 "github.com/redhat-sap/sap-data-intelligence/observer-operator/api/v1alpha1"
 	"github.com/redhat-sap/sap-data-intelligence/observer-operator/assets"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
-	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"time"
 )
@@ -46,8 +43,6 @@ func (a *Adjuster) AdjustSDIVsystemRoute(ns string, obs *sdiv1alpha1.SDIObserver
 		return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
 	}
 
-	ctrl.SetControllerReference(obs, route, a.Scheme)
-
 	if create {
 		err = a.Client.Create(ctx, route)
 	} else {
@@ -74,19 +69,17 @@ func (a *Adjuster) AdjustSDIVsystemRoute(ns string, obs *sdiv1alpha1.SDIObserver
 	})
 	a.Client.Status().Update(ctx, obs)
 
-	condition, err := conditions.InClusterFactory{Client: a.Client}.
-		NewCondition(apiv2.ConditionType(apiv2.Upgradeable))
-
-	if err != nil {
-		return err
-	}
-
-	err = condition.Set(ctx, metav1.ConditionTrue,
-		conditions.WithReason("OperatorUpgradeable"),
-		conditions.WithMessage("The operator is currently upgradeable"))
-	if err != nil {
-		return err
-	}
+	//condition, err := conditions.InClusterFactory{Client: a.Client}.
+	//	NewCondition(apiv2.ConditionType(apiv2.Upgradeable))
+	//if err != nil {
+	//	return err
+	//}
+	//err = condition.Set(ctx, metav1.ConditionTrue,
+	//	conditions.WithReason("OperatorUpgradeable"),
+	//	conditions.WithMessage("The operator is currently upgradeable"))
+	//if err != nil {
+	//	return err
+	//}
 
 	return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
 }
@@ -120,8 +113,6 @@ func (a *Adjuster) AdjustSLCBRoute(ns string, obs *sdiv1alpha1.SDIObserver, ctx 
 		return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
 	}
 
-	ctrl.SetControllerReference(obs, route, a.Scheme)
-
 	if create {
 		err = a.Client.Create(ctx, route)
 	} else {
@@ -137,19 +128,19 @@ func (a *Adjuster) AdjustSLCBRoute(ns string, obs *sdiv1alpha1.SDIObserver, ctx 
 	})
 	a.Client.Status().Update(ctx, obs)
 
-	condition, err := conditions.InClusterFactory{Client: a.Client}.
-		NewCondition(apiv2.ConditionType(apiv2.Upgradeable))
-
-	if err != nil {
-		return err
-	}
-
-	err = condition.Set(ctx, metav1.ConditionTrue,
-		conditions.WithReason("OperatorUpgradeable"),
-		conditions.WithMessage("The operator is currently upgradeable"))
-	if err != nil {
-		return err
-	}
+	//condition, err := conditions.InClusterFactory{Client: a.Client}.
+	//	NewCondition(apiv2.ConditionType(apiv2.Upgradeable))
+	//
+	//if err != nil {
+	//	return err
+	//}
+	//
+	//err = condition.Set(ctx, metav1.ConditionTrue,
+	//	conditions.WithReason("OperatorUpgradeable"),
+	//	conditions.WithMessage("The operator is currently upgradeable"))
+	//if err != nil {
+	//	return err
+	//}
 
 	return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
 }

@@ -53,12 +53,14 @@ const (
 
 // ManagedRouteSpec allows to control route management for an SDI service.
 type ManagedRouteSpec struct {
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=2
+	// +kubebuilder:validation:MaxLength=63
+	// +kubebuilder:validation:Pattern="[[:alnum:]]+(-[[:alnum:]]+)*"
+	RouteNamespace string `json:"routeNamespace,omitempty"`
 	// +kubebuilder:default="Managed"
 	// +kubebuilder:validation:Enum=Managed;Unmanaged;Removed
 	ManagementState string `json:"managementState,omitempty"`
-	// +kubebuilder:validation:Optional
-	// +kubebuilder:validation:Pattern="[[:alnum:]]+(-[[:alnum:]]+)*(\\.[[:alnum:]]+(-[[:alnum:]]+)*)*"
-	Hostname string `json:"hostname,omitempty"`
 }
 
 const (
