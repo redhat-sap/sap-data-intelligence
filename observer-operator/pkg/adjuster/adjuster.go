@@ -60,7 +60,7 @@ func (a *Adjuster) Adjust(ac Actioner, ctx context.Context) error {
 	if err := ac.AdjustSDIConfig(a, ctx); err != nil {
 		return fmt.Errorf("Adjustment of SDI config failed: %v", err)
 	}
-	a.UpdateStatus(ac.SyncedStatus(), ctx)
+	// a.UpdateStatus(ac.SyncedStatus(), ctx)
 	return nil
 }
 

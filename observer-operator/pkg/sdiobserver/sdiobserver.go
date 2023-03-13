@@ -36,18 +36,18 @@ func New(obs *sdiv1alpha1.SDIObserver) *SDIObserver {
 func (so *SDIObserver) AdjustNetwork(a *adjuster.Adjuster, ctx context.Context) error {
 
 	a.Logger().V(0).Info("Trying to adjust the network")
-	so.updateStatus(a, sdiv1alpha1.SyncStatusState, "adjust SDI VSystem Route", ctx)
+	// so.updateStatus(a, sdiv1alpha1.SyncStatusState, "adjust SDI VSystem Route", ctx)
 	err := a.AdjustSDIVsystemRoute(a.SdiNamespace, so.obs, ctx)
 	if err != nil {
 		a.Logger().V(1).Info(err.Error())
-		so.updateStatus(a, sdiv1alpha1.ErrorStatusState, err.Error(), ctx)
+		// so.updateStatus(a, sdiv1alpha1.ErrorStatusState, err.Error(), ctx)
 		return err
 	}
 
 	err = a.AdjustSLCBRoute(a.SlcbNamespace, so.obs, ctx)
 	if err != nil {
 		a.Logger().V(1).Info(err.Error())
-		so.updateStatus(a, sdiv1alpha1.ErrorStatusState, err.Error(), ctx)
+		// so.updateStatus(a, sdiv1alpha1.ErrorStatusState, err.Error(), ctx)
 		return err
 	}
 
