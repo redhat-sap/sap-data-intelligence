@@ -12,7 +12,7 @@ metadata:
 spec:
   # TODO(user): Add fields here
   sdiVSystemRoute:
-    routeNamespace: sdi
+    managementState: Managed
   slcbRoute:
-    routeNamespace: sap-slcbridge
+    managementState: Managed
 

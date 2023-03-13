@@ -46,11 +46,6 @@ spec:
                     - Unmanaged
                     - Removed
                     type: string
-                  routeNamespace:
-                    maxLength: 63
-                    minLength: 2
-                    pattern: '[[:alnum:]]+(-[[:alnum:]]+)*'
-                    type: string
                 type: object
               slcbRoute:
                 description: ManagedRouteSpec allows to control route management for
@@ -62,11 +57,6 @@ spec:
                     - Managed
                     - Unmanaged
                     - Removed
-                    type: string
-                  routeNamespace:
-                    maxLength: 63
-                    minLength: 2
-                    pattern: '[[:alnum:]]+(-[[:alnum:]]+)*'
                     type: string
                 type: object
             required:

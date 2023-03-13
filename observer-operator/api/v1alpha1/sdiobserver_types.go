@@ -34,10 +34,11 @@ const (
 )
 
 const (
-	ReasonCRNotAvailable     = "OperatorResourceNotAvailable"
-	ReasonRouteNotAvailable  = "OperandRouteNotAvailable"
-	ReasonOperandRouteFailed = "OperandRouteFailed"
-	ReasonSucceeded          = "OperatorSucceeded"
+	ReasonCRNotAvailable                  = "OperatorResourceNotAvailable"
+	ReasonRouteNotAvailable               = "OperandRouteNotAvailable"
+	ReasonOperandRouteFailed              = "OperandRouteFailed"
+	ReasonSucceeded                       = "OperatorSucceeded"
+	ReasonRouteManagementStateUnsupported = "RouteManagementStateUnsupported"
 )
 
 type StatusState string
@@ -48,16 +49,19 @@ const (
 	ErrorStatusState StatusState = "ERROR"
 )
 
+type RouteManagementState string
+
+const (
+	RouteManagedState                     RouteManagementState = "Managed"
+	RouteUnmanagedState                   RouteManagementState = "Unmanaged"
+	RouteRemovedStateRouteManagementState RouteManagementState = "Removed"
+)
+
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
 // ManagedRouteSpec allows to control route management for an SDI service.
 type ManagedRouteSpec struct {
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:MinLength=2
-	// +kubebuilder:validation:MaxLength=63
-	// +kubebuilder:validation:Pattern="[[:alnum:]]+(-[[:alnum:]]+)*"
-	RouteNamespace string `json:"routeNamespace,omitempty"`
 	// +kubebuilder:default="Managed"
 	// +kubebuilder:validation:Enum=Managed;Unmanaged;Removed
 	ManagementState string `json:"managementState,omitempty"`

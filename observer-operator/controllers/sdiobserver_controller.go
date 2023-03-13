@@ -106,7 +106,7 @@ func (r *SDIObserverReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		}
 	}
 
-	logger.Info(fmt.Sprintf("Reconciled Successfully. Requeueing in %s", time.Now().Add(r.Interval).Format(time.Stamp)))
+	logger.Info(fmt.Sprintf("Reconciled Successfully. Requeueing at %s", time.Now().Add(r.Interval).Format(time.Stamp)))
 	return ctrl.Result{RequeueAfter: r.Interval}, nil
 }
 
