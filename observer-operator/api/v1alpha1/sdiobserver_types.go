@@ -130,18 +130,6 @@ type SDIObserverStatus struct {
 	VSystemRoute ManagedRouteStatus `json:"vsystemRoute,omitempty"`
 	// Status of the slcb route. Conditions will be empty when not managed.
 	SLCBRoute ManagedRouteStatus `json:"slcbRoute,omitempty"`
-
-	// State holds the current/last resource state (SYNC, OK, ERROR).
-	// +optional
-	State StatusState `json:"state"`
-
-	// Message holds the current/last status message from the operator.
-	// +optional
-	Message string `json:"message"`
-
-	// LastSyncTime holds the timestamp of the last sync attempt
-	// +optional
-	LastSyncAttempt string `json:"lastSyncAttempt"`
 }
 
 //+kubebuilder:object:root=true

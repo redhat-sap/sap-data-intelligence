@@ -13,7 +13,6 @@ type Actioner interface {
 	AdjustNetwork(s *Adjuster, c context.Context) error
 	AdjustStorage(s *Adjuster, c context.Context) error
 	AdjustSDIConfig(s *Adjuster, c context.Context) error
-	SyncedStatus() client.Object
 }
 
 type Adjuster struct {
@@ -60,17 +59,9 @@ func (a *Adjuster) Adjust(ac Actioner, ctx context.Context) error {
 	if err := ac.AdjustSDIConfig(a, ctx); err != nil {
 		return fmt.Errorf("Adjustment of SDI config failed: %v", err)
 	}
-	// a.UpdateStatus(ac.SyncedStatus(), ctx)
 	return nil
 }
 
 func (a *Adjuster) Logger() logr.Logger {
 	return a.logger
-}
-
-func (a *Adjuster) UpdateStatus(obj client.Object, ctx context.Context) {
-	err := a.Client.Status().Update(ctx, obj)
-	if err != nil {
-		a.logger.V(1).Info(err.Error())
-	}
 }
