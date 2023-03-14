@@ -69,7 +69,6 @@ func (a *Adjuster) AdjustSDIVsystemRoute(ns string, obs *sdiv1alpha1.SDIObserver
 			LastTransitionTime: metav1.NewTime(time.Now()),
 			Message:            "operator successfully reconciling",
 		})
-		a.Client.Status().Update(ctx, obs)
 
 		//condition, err := conditions.InClusterFactory{Client: a.Client}.
 		//	NewCondition(apiv2.ConditionType(apiv2.Upgradeable))
@@ -212,7 +211,6 @@ func (a *Adjuster) AdjustSLCBRoute(ns string, obs *sdiv1alpha1.SDIObserver, ctx 
 			LastTransitionTime: metav1.NewTime(time.Now()),
 			Message:            "operator successfully reconciling",
 		})
-		a.Client.Status().Update(ctx, obs)
 
 		//condition, err := conditions.InClusterFactory{Client: a.Client}.
 		//	NewCondition(apiv2.ConditionType(apiv2.Upgradeable))
