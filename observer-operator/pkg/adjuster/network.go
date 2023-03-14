@@ -159,7 +159,7 @@ func (a *Adjuster) AdjustSDIVsystemRoute(ns string, obs *sdiv1alpha1.SDIObserver
 			LastTransitionTime: metav1.NewTime(time.Now()),
 			Message:            fmt.Sprintf("SDI Vsystem Route Management State is unsupported: %s", obs.Spec.SDIVSystemRoute.ManagementState),
 		})
-		return utilerrors.NewAggregate([]error{fmt.Errorf("unsupported route management status"), a.Client.Status().Update(ctx, obs)})
+		return utilerrors.NewAggregate([]error{fmt.Errorf("unsupported route management state: %s", obs.Spec.SDIVSystemRoute.ManagementState), a.Client.Status().Update(ctx, obs)})
 	}
 }
 
@@ -173,12 +173,10 @@ func (a *Adjuster) AdjustSLCBRoute(ns string, obs *sdiv1alpha1.SDIObserver, ctx 
 		},
 	}
 
-	create := false
-
-	err := a.Client.Get(ctx, client.ObjectKey{Name: name, Namespace: ns}, route)
-
-	switch obs.Spec.SDIVSystemRoute.ManagementState {
+	switch obs.Spec.SLCBRoute.ManagementState {
 	case sdiv1alpha1.RouteManagementStateManaged:
+		err := a.Client.Get(ctx, client.ObjectKey{Name: name, Namespace: ns}, route)
+		create := false
 		if err != nil && errors.IsNotFound(err) {
 			meta.SetStatusCondition(&obs.Status.Conditions, metav1.Condition{
 				Type:               "OperatorDegraded",
@@ -241,6 +239,7 @@ func (a *Adjuster) AdjustSLCBRoute(ns string, obs *sdiv1alpha1.SDIObserver, ctx 
 		})
 		return a.Client.Status().Update(ctx, obs)
 	case sdiv1alpha1.RouteManagementStateRemoved:
+		err := a.Client.Get(ctx, client.ObjectKey{Name: name, Namespace: ns}, route)
 		if err != nil && errors.IsNotFound(err) {
 			meta.SetStatusCondition(&obs.Status.Conditions, metav1.Condition{
 				Type:               "OperatorDegraded",
@@ -306,6 +305,6 @@ func (a *Adjuster) AdjustSLCBRoute(ns string, obs *sdiv1alpha1.SDIObserver, ctx 
 			LastTransitionTime: metav1.NewTime(time.Now()),
 			Message:            fmt.Sprintf("SLC Bridge Route Management State is unsupported: %s", obs.Spec.SLCBRoute.ManagementState),
 		})
-		return utilerrors.NewAggregate([]error{fmt.Errorf("unsupported route management status"), a.Client.Status().Update(ctx, obs)})
+		return utilerrors.NewAggregate([]error{fmt.Errorf("unsupported route management status: %s", obs.Spec.SLCBRoute.ManagementState), a.Client.Status().Update(ctx, obs)})
 	}
 }
