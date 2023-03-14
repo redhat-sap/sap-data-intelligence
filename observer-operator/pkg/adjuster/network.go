@@ -177,15 +177,8 @@ func (a *Adjuster) AdjustSLCBRoute(ns string, obs *sdiv1alpha1.SDIObserver, ctx 
 		err := a.Client.Get(ctx, client.ObjectKey{Name: name, Namespace: ns}, route)
 		create := false
 		if err != nil && errors.IsNotFound(err) {
-			meta.SetStatusCondition(&obs.Status.Conditions, metav1.Condition{
-				Type:               "OperatorDegraded",
-				Status:             metav1.ConditionFalse,
-				Reason:             sdiv1alpha1.ReasonRouteNotAvailable,
-				LastTransitionTime: metav1.NewTime(time.Now()),
-				Message:            fmt.Sprintf("operand route does not exist: %s", err.Error()),
-			})
-
-			return a.Client.Status().Update(ctx, obs)
+			create = true
+			route = assets.GetRouteFromFile("manifests/route-sap-slcbridge.yaml")
 		} else if err != nil {
 			a.logger.Error(err, "Error getting existing sap-slcbridge route.")
 			meta.SetStatusCondition(&obs.Status.Conditions, metav1.Condition{
