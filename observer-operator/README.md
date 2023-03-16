@@ -16,7 +16,7 @@ The Operator is supposed to replace SDI Observer once it reaches the same functi
 
 Implemented SDI Observer features:
 - [x] vsystem route management
-- [] slcb route management
+- [x] slcb route management
 - [] configure NFS exports for vsystem-vrep
 - [] configre host path mount for diagnostic pods
 - [] configure node selector on namespace

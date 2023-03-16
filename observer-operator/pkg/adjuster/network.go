@@ -6,17 +6,26 @@ import (
 	routev1 "github.com/openshift/api/route/v1"
 	sdiv1alpha1 "github.com/redhat-sap/sap-data-intelligence/observer-operator/api/v1alpha1"
 	"github.com/redhat-sap/sap-data-intelligence/observer-operator/assets"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"strings"
 	"time"
+)
+
+const (
+	vsystemCaBundleSecretName = "ca-bundle.pem"
+	vsystemCaBundleSecretKey  = "ca-bundle.pem"
 )
 
 func (a *Adjuster) AdjustSDIVsystemRoute(ns string, obs *sdiv1alpha1.SDIObserver, ctx context.Context) error {
 
 	name := "vsystem"
+
 	route := &routev1.Route{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -33,6 +42,39 @@ func (a *Adjuster) AdjustSDIVsystemRoute(ns string, obs *sdiv1alpha1.SDIObserver
 		if err != nil && errors.IsNotFound(err) {
 			create = true
 			route = assets.GetRouteFromFile("manifests/route-vsystem.yaml")
+
+			svc := &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      name,
+					Namespace: ns,
+				},
+			}
+
+			err = a.Client.Get(ctx, types.NamespacedName{
+				Namespace: ns,
+				Name:      name,
+			}, svc)
+
+			if err != nil && !errors.IsNotFound(err) {
+
+				return err
+			}
+
+			caBundleSecret := &corev1.Secret{}
+			err = a.Client.Get(ctx, types.NamespacedName{
+				Namespace: ns,
+				Name:      vsystemCaBundleSecretName,
+			}, caBundleSecret)
+			if err != nil {
+				return err
+			}
+
+			caBundle, err := getCertFromCaBundleSecret(caBundleSecret)
+			if err != nil {
+				return err
+			}
+
+			route.Spec.TLS.DestinationCACertificate = caBundle
 		} else if err != nil {
 			a.logger.Error(err, "Error getting existing sdi vsystem route.")
 			meta.SetStatusCondition(&obs.Status.Conditions, metav1.Condition{
@@ -298,4 +340,12 @@ func (a *Adjuster) AdjustSLCBRoute(ns string, obs *sdiv1alpha1.SDIObserver, ctx 
 		})
 		return utilerrors.NewAggregate([]error{fmt.Errorf("unsupported route management status: %s", obs.Spec.SLCBRoute.ManagementState), a.Client.Status().Update(ctx, obs)})
 	}
+}
+
+func getCertFromCaBundleSecret(secret *corev1.Secret) (string, error) {
+	value, ok := secret.Data[vsystemCaBundleSecretKey]
+	if !ok {
+		return "", fmt.Errorf("failed to find key \"%s\" in \"%s\" secret", vsystemCaBundleSecretKey, secret.ObjectMeta.Name)
+	}
+	return strings.TrimSpace(string(value[:])), nil
 }
