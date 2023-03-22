@@ -10,18 +10,20 @@ type SDIObserver struct {
 	obs *sdiv1alpha1.SDIObserver
 }
 
-func (so *SDIObserver) AdjustNodes(s *adjuster.Adjuster, c context.Context) error {
+func (so *SDIObserver) AdjustNodes(a *adjuster.Adjuster, c context.Context) error {
 	//TODO implement me
 	return nil
 }
 
-func (so *SDIObserver) AdjustStorage(s *adjuster.Adjuster, c context.Context) error {
+func (so *SDIObserver) AdjustStorage(a *adjuster.Adjuster, c context.Context) error {
 	//TODO implement me
 	return nil
 }
 
-func (so *SDIObserver) AdjustSDIConfig(s *adjuster.Adjuster, c context.Context) error {
+func (so *SDIObserver) AdjustSDIConfig(a *adjuster.Adjuster, c context.Context) error {
 	//TODO implement me
+	a.Logger().V(0).Info("Trying to adjust the SDI config")
+
 	return nil
 }
 
