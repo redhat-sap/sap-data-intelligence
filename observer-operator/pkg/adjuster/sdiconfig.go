@@ -7,6 +7,8 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"strings"
@@ -18,6 +20,38 @@ func (a *Adjuster) AdjustSDIConfig(ns string, obs *sdiv1alpha1.SDIObserver, ctx 
 
 	return nil
 
+}
+func (a *Adjuster) AdjustSDIDataHub(ns string, obs *sdiv1alpha1.SDIObserver, ctx context.Context) error {
+	obj := &unstructured.Unstructured{}
+	obj.SetName("default")
+	obj.SetNamespace(ns)
+	gvr := schema.GroupVersionKind{
+		Group:   "installers.datahub.sap.com",
+		Version: "v1alpha1",
+		Kind:    "DataHub",
+	}
+	obj.SetGroupVersionKind(gvr)
+
+	err := a.Client.Get(context.Background(), client.ObjectKeyFromObject(obj), obj)
+	if err != nil {
+		panic(err)
+	}
+
+	spec := obj.Object["spec"].(map[string]interface{})
+	vsystem := spec["vsystem"].(map[string]interface{})
+	vRep := vsystem["vRep"].(map[string]interface{})
+
+	if len(vRep) == 0 {
+		a.logger.Info("patch DataHub vRep by setting exportsMask to true")
+		vRep["exportsMask"] = true
+		err = a.Client.Update(ctx, obj)
+		if err != nil {
+			return err
+		}
+	} else {
+		a.logger.Info("DataHub vRep is already patched")
+	}
+	return nil
 }
 
 func (a *Adjuster) AdjustSDIDaemonsets(ns string, obs *sdiv1alpha1.SDIObserver, ctx context.Context) error {
