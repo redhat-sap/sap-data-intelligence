@@ -36,7 +36,6 @@ func (a *Adjuster) AdjustSDIVsystemRoute(ns string, obs *sdiv1alpha1.SDIObserver
 	switch obs.Spec.SDIVSystemRoute.ManagementState {
 	case sdiv1alpha1.RouteManagementStateManaged:
 		create := false
-
 		err := a.Client.Get(ctx, client.ObjectKey{Name: name, Namespace: ns}, route)
 
 		if err != nil && errors.IsNotFound(err) {
@@ -56,7 +55,6 @@ func (a *Adjuster) AdjustSDIVsystemRoute(ns string, obs *sdiv1alpha1.SDIObserver
 			}, svc)
 
 			if err != nil && !errors.IsNotFound(err) {
-
 				return err
 			}
 
@@ -73,7 +71,6 @@ func (a *Adjuster) AdjustSDIVsystemRoute(ns string, obs *sdiv1alpha1.SDIObserver
 			if err != nil {
 				return err
 			}
-
 			route.Spec.TLS.DestinationCACertificate = caBundle
 		} else if err != nil {
 			a.logger.Error(err, "Error getting existing sdi vsystem route.")
@@ -85,8 +82,27 @@ func (a *Adjuster) AdjustSDIVsystemRoute(ns string, obs *sdiv1alpha1.SDIObserver
 				Message:            fmt.Sprintf("unable to get operand route: %s", err.Error()),
 			})
 			return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
-		}
+		} else {
+			caBundleSecret := &corev1.Secret{}
+			err = a.Client.Get(ctx, types.NamespacedName{
+				Namespace: ns,
+				Name:      vsystemCaBundleSecretName,
+			}, caBundleSecret)
+			if err != nil {
+				return err
+			}
 
+			caBundle, err := getCertFromCaBundleSecret(caBundleSecret)
+			if err != nil {
+				return err
+			}
+			if route.Spec.TLS.DestinationCACertificate == caBundle {
+				a.logger.Info(fmt.Sprintf("Route destination CA certificate is unchanged"))
+				return nil
+			} else {
+				route.Spec.TLS.DestinationCACertificate = caBundle
+			}
+		}
 		if create {
 			err = a.Client.Create(ctx, route)
 		} else {
@@ -231,6 +247,17 @@ func (a *Adjuster) AdjustSLCBRoute(ns string, obs *sdiv1alpha1.SDIObserver, ctx 
 				Message:            fmt.Sprintf("unable to get operand route: %s", err.Error()),
 			})
 			return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
+		} else {
+			if route.Spec.To.Name == "slcbridgebase-service" {
+				a.logger.Info(fmt.Sprintf("Route configuration %s is unchanged", name))
+				return nil
+			} else {
+				return fmt.Errorf(
+					"Route %s configuration of  is changed. Current route is pointing to service %s",
+					name,
+					route.Spec.To.Name,
+				)
+			}
 		}
 
 		if create {
