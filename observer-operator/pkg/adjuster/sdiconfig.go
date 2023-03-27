@@ -327,7 +327,7 @@ func (a *Adjuster) adjustNamespaceAnnotation(ns string, ctx context.Context) err
 		if err != nil {
 			return err
 		}
-		a.logger.Info(fmt.Sprintf("Annotation '%s' created for namespace '%s'\n", annotationKey, namespace))
+		a.logger.Info(fmt.Sprintf("Annotation '%s' created for namespace '%s'\n", annotationKey, ns))
 	}
 	return nil
 }
