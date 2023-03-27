@@ -282,7 +282,7 @@ func (a *Adjuster) AdjustSDIRoles(ns string, obs *sdiv1alpha1.SDIObserver, ctx c
 }
 
 func (a *Adjuster) AdjustNamespacesNodeSelectorAnnotation(obs *sdiv1alpha1.SDIObserver, ctx context.Context) error {
-	for _, n := range []string{a.Namespace, a.SdiNamespace, a.SlcbNamespace, "datahub-system"} {
+	for _, n := range []string{a.Namespace, obs.Spec.SDINamespace, obs.Spec.SLCBNamespace, "datahub-system"} {
 		err := a.adjustNamespaceAnnotation(n, ctx)
 		if err != nil {
 			return err

@@ -16,13 +16,11 @@ type Actioner interface {
 }
 
 type Adjuster struct {
-	name          string
-	Namespace     string
-	Client        client.Client
-	Scheme        *runtime.Scheme
-	SdiNamespace  string
-	SlcbNamespace string
-	logger        logr.Logger
+	name      string
+	Namespace string
+	Client    client.Client
+	Scheme    *runtime.Scheme
+	logger    logr.Logger
 }
 
 // New creates a new Adjuster.
@@ -31,18 +29,14 @@ func New(
 	ns string,
 	c client.Client,
 	s *runtime.Scheme,
-	sdins string,
-	slcbns string,
 	l logr.Logger,
 ) *Adjuster {
 	return &Adjuster{
-		name:          n,
-		Namespace:     ns,
-		Client:        c,
-		Scheme:        s,
-		SdiNamespace:  sdins,
-		SlcbNamespace: slcbns,
-		logger:        l,
+		name:      n,
+		Namespace: ns,
+		Client:    c,
+		Scheme:    s,
+		logger:    l,
 	}
 }
 

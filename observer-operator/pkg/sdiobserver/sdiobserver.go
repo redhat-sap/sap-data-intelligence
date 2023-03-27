@@ -22,13 +22,13 @@ func (so *SDIObserver) AdjustStorage(a *adjuster.Adjuster, c context.Context) er
 
 func (so *SDIObserver) AdjustSDIConfig(a *adjuster.Adjuster, c context.Context) error {
 	a.Logger().V(0).Info("Trying to adjust the SDIConfig")
-	err := a.AdjustSDIDiagnosticsFluentdDaemonsetContainerPrivilege(a.SdiNamespace, so.obs, c)
+	err := a.AdjustSDIDiagnosticsFluentdDaemonsetContainerPrivilege(so.obs.Spec.SDINamespace, so.obs, c)
 	if err != nil {
 		a.Logger().V(1).Info(err.Error())
 		return err
 	}
 
-	err = a.AdjustSDIVSystemVerpStatefulSets(a.SdiNamespace, so.obs, c)
+	err = a.AdjustSDIVSystemVerpStatefulSets(so.obs.Spec.SDINamespace, so.obs, c)
 	if err != nil {
 		a.Logger().V(1).Info(err.Error())
 		return err
@@ -51,13 +51,13 @@ func New(obs *sdiv1alpha1.SDIObserver) *SDIObserver {
 func (so *SDIObserver) AdjustNetwork(a *adjuster.Adjuster, ctx context.Context) error {
 
 	a.Logger().V(0).Info("Trying to adjust the network")
-	err := a.AdjustSDIVsystemRoute(a.SdiNamespace, so.obs, ctx)
+	err := a.AdjustSDIVsystemRoute(so.obs.Spec.SDINamespace, so.obs, ctx)
 	if err != nil {
 		a.Logger().V(1).Info(err.Error())
 		return err
 	}
 
-	err = a.AdjustSLCBRoute(a.SlcbNamespace, so.obs, ctx)
+	err = a.AdjustSLCBRoute(so.obs.Spec.SLCBNamespace, so.obs, ctx)
 	if err != nil {
 		a.Logger().V(1).Info(err.Error())
 		return err
