@@ -51,6 +51,12 @@ const (
 
 type RouteManagementState string
 
+const (
+	RouteManagedState                     RouteManagementState = "Managed"
+	RouteUnmanagedState                   RouteManagementState = "Unmanaged"
+	RouteRemovedStateRouteManagementState RouteManagementState = "Removed"
+)
+
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
@@ -100,9 +106,6 @@ const (
 type SDIObserverSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
-
-	SDINamespace  string `json:"sdiNamespace"`
-	SLCBNamespace string `json:"slcbNamespace"`
 
 	SDIVSystemRoute ManagedRouteSpec `json:"sdiVSystemRoute"`
 	SLCBRoute       ManagedRouteSpec `json:"slcbRoute"`

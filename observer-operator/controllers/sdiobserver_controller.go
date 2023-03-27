@@ -39,6 +39,8 @@ import (
 type SDIObserverReconciler struct {
 	client.Client
 	Scheme            *runtime.Scheme
+	SdiNamespace      string
+	SlcbNamespace     string
 	ObserverNamespace string
 	Interval          time.Duration
 }
@@ -91,6 +93,8 @@ func (r *SDIObserverReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		operatorCR.Namespace,
 		r.Client,
 		r.Scheme,
+		r.SdiNamespace,
+		r.SlcbNamespace,
 		logger,
 	)
 
