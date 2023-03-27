@@ -231,8 +231,10 @@ func (a *Adjuster) pruneStateFullSetOldRevision(ns string, obs *sdiv1alpha1.SDIO
 
 	err = a.Client.List(ctx, updateRevisionPodList,
 		client.InNamespace(namespace),
-		client.MatchingLabelsSelector{updateRevisionSelector},
-		client.MatchingLabels(ss.Spec.Selector.MatchLabels))
+		client.MatchingLabelsSelector{
+			Selector: updateRevisionSelector,
+		},
+	)
 	if err != nil {
 		return err
 	}
