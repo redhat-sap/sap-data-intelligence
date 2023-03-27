@@ -262,7 +262,7 @@ func (a *Adjuster) AdjustSLCBRoute(ns string, obs *sdiv1alpha1.SDIObserver, ctx 
 					Status:             metav1.ConditionFalse,
 					Reason:             sdiv1alpha1.ReasonSucceeded,
 					LastTransitionTime: metav1.NewTime(time.Now()),
-					Message:            fmt.Sprintf("unable to get operand route: %s", err.Error()),
+					Message:            fmt.Sprintf("Route configuration %s is unchanged", name),
 				})
 				return nil
 			} else {
