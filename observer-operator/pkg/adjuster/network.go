@@ -97,7 +97,14 @@ func (a *Adjuster) AdjustSDIVsystemRoute(ns string, obs *sdiv1alpha1.SDIObserver
 				return err
 			}
 			if route.Spec.TLS.DestinationCACertificate == caBundle {
-				a.logger.Info(fmt.Sprintf("Route destination CA certificate is unchanged"))
+				a.logger.Info(fmt.Sprintf("Route %s destination CA certificate is unchanged", name))
+				meta.SetStatusCondition(&obs.Status.VSystemRoute.Conditions, metav1.Condition{
+					Type:               "OperatorDegraded",
+					Status:             metav1.ConditionFalse,
+					Reason:             sdiv1alpha1.ReasonSucceeded,
+					LastTransitionTime: metav1.NewTime(time.Now()),
+					Message:            "Route destination CA certificate is unchanged",
+				})
 				return nil
 			} else {
 				route.Spec.TLS.DestinationCACertificate = caBundle
@@ -250,6 +257,13 @@ func (a *Adjuster) AdjustSLCBRoute(ns string, obs *sdiv1alpha1.SDIObserver, ctx 
 		} else {
 			if route.Spec.To.Name == "slcbridgebase-service" {
 				a.logger.Info(fmt.Sprintf("Route configuration %s is unchanged", name))
+				meta.SetStatusCondition(&obs.Status.SLCBRoute.Conditions, metav1.Condition{
+					Type:               "OperatorDegraded",
+					Status:             metav1.ConditionFalse,
+					Reason:             sdiv1alpha1.ReasonSucceeded,
+					LastTransitionTime: metav1.NewTime(time.Now()),
+					Message:            fmt.Sprintf("unable to get operand route: %s", err.Error()),
+				})
 				return nil
 			} else {
 				return fmt.Errorf(
