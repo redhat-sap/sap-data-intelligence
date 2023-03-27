@@ -18,12 +18,7 @@ import (
 
 var fluentdDockerVolumeName = "varlibdockercontainers"
 
-func (a *Adjuster) AdjustSDIConfig(ns string, obs *sdiv1alpha1.SDIObserver, ctx context.Context) error {
-
-	return nil
-
-}
-func (a *Adjuster) AdjustSDIDataHub(ns string, obs *sdiv1alpha1.SDIObserver, ctx context.Context) error {
+func (a *Adjuster) adjustSDIDataHub(ns string, obs *sdiv1alpha1.SDIObserver, ctx context.Context) error {
 	obj := &unstructured.Unstructured{}
 	obj.SetName("default")
 	obj.SetNamespace(ns)
@@ -56,7 +51,7 @@ func (a *Adjuster) AdjustSDIDataHub(ns string, obs *sdiv1alpha1.SDIObserver, ctx
 	return nil
 }
 
-func (a *Adjuster) AdjustSDIDaemonsets(ns string, obs *sdiv1alpha1.SDIObserver, ctx context.Context) error {
+func (a *Adjuster) AdjustSDIDiagnosticsFluentdDaemonsetContainerPrivilege(ns string, obs *sdiv1alpha1.SDIObserver, ctx context.Context) error {
 
 	//dsList := &appsv1.DaemonSetList{}
 	//
@@ -87,39 +82,43 @@ func (a *Adjuster) AdjustSDIDaemonsets(ns string, obs *sdiv1alpha1.SDIObserver, 
 
 	err := a.Client.Get(ctx, client.ObjectKey{Name: diagnosticFluentdName, Namespace: ns}, ds)
 
+	if err != nil {
+		return err
+	}
+
 	for _, c := range ds.Spec.Template.Spec.Containers {
 		if c.Name == diagnosticFluentdName && *(c.SecurityContext.Privileged) != true {
 			c.SecurityContext.Privileged = pointer.Bool(true)
 		}
 	}
 
-	var newVolumes []corev1.Volume
-	for _, v := range ds.Spec.Template.Spec.Volumes {
-		if strings.Contains(v.HostPath.Path, "/var/lib/docker") {
-			for _, c := range ds.Spec.Template.Spec.Containers {
-				var newVolumeMounts []corev1.VolumeMount
-				for _, vm := range c.VolumeMounts {
-					if vm.Name != v.Name {
-						newVolumeMounts = append(newVolumeMounts, vm)
-					}
-				}
-				c.VolumeMounts = newVolumeMounts
-			}
-			for _, c := range ds.Spec.Template.Spec.InitContainers {
-				var newVolumeMounts []corev1.VolumeMount
-				for _, vm := range c.VolumeMounts {
-					if vm.Name != v.Name {
-						newVolumeMounts = append(newVolumeMounts, vm)
-					}
-				}
-				c.VolumeMounts = newVolumeMounts
-			}
-
-		} else {
-			newVolumes = append(newVolumes, v)
-		}
-	}
-	ds.Spec.Template.Spec.Volumes = newVolumes
+	//var newVolumes []corev1.Volume
+	//for _, v := range ds.Spec.Template.Spec.Volumes {
+	//	if strings.Contains(v.HostPath.Path, "/var/lib/docker") {
+	//		for _, c := range ds.Spec.Template.Spec.Containers {
+	//			var newVolumeMounts []corev1.VolumeMount
+	//			for _, vm := range c.VolumeMounts {
+	//				if vm.Name != v.Name {
+	//					newVolumeMounts = append(newVolumeMounts, vm)
+	//				}
+	//			}
+	//			c.VolumeMounts = newVolumeMounts
+	//		}
+	//		for _, c := range ds.Spec.Template.Spec.InitContainers {
+	//			var newVolumeMounts []corev1.VolumeMount
+	//			for _, vm := range c.VolumeMounts {
+	//				if vm.Name != v.Name {
+	//					newVolumeMounts = append(newVolumeMounts, vm)
+	//				}
+	//			}
+	//			c.VolumeMounts = newVolumeMounts
+	//		}
+	//
+	//	} else {
+	//		newVolumes = append(newVolumes, v)
+	//	}
+	//}
+	//ds.Spec.Template.Spec.Volumes = newVolumes
 
 	a.logger.Info(fmt.Sprintf("Patching daemonset/%s", diagnosticFluentdName))
 	err = a.Client.Update(ctx, ds)
@@ -131,9 +130,9 @@ func (a *Adjuster) AdjustSDIDaemonsets(ns string, obs *sdiv1alpha1.SDIObserver, 
 
 }
 
-func (a *Adjuster) AdjustSDIStatefulSets(ns string, obs *sdiv1alpha1.SDIObserver, ctx context.Context) error {
+func (a *Adjuster) AdjustSDIVSystemVerpStatefulSets(ns string, obs *sdiv1alpha1.SDIObserver, ctx context.Context) error {
 
-	stsName := "vsystem-verp"
+	stsName := "vsystem-vrep"
 	ss := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      stsName,
@@ -192,6 +191,11 @@ func (a *Adjuster) AdjustSDIStatefulSets(ns string, obs *sdiv1alpha1.SDIObserver
 
 			c.VolumeMounts = append(c.VolumeMounts, emptyDirVolumeMount)
 		}
+	}
+
+	err = a.adjustSDIDataHub(ns, obs, ctx)
+	if err != nil {
+		return err
 	}
 
 	err = a.pruneStateFullSetOldRevision(ns, obs, ctx)
@@ -277,8 +281,8 @@ func (a *Adjuster) AdjustSDIRoles(ns string, obs *sdiv1alpha1.SDIObserver, ctx c
 
 }
 
-func (a *Adjuster) AdjustSDINamespace(ns string, obs *sdiv1alpha1.SDIObserver, ctx context.Context) error {
-	for _, n := range []string{ns, a.SdiNamespace, a.SlcbNamespace, "datahub-system"} {
+func (a *Adjuster) AdjustNamespacesNodeSelectorAnnotation(obs *sdiv1alpha1.SDIObserver, ctx context.Context) error {
+	for _, n := range []string{a.Namespace, a.SdiNamespace, a.SlcbNamespace, "datahub-system"} {
 		err := a.adjustNamespaceAnnotation(n, ctx)
 		if err != nil {
 			return err

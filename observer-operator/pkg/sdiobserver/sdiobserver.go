@@ -21,9 +21,24 @@ func (so *SDIObserver) AdjustStorage(a *adjuster.Adjuster, c context.Context) er
 }
 
 func (so *SDIObserver) AdjustSDIConfig(a *adjuster.Adjuster, c context.Context) error {
-	//TODO implement me
-	a.Logger().V(0).Info("Trying to adjust the SDI config")
+	a.Logger().V(0).Info("Trying to adjust the SDIConfig")
+	err := a.AdjustSDIDiagnosticsFluentdDaemonsetContainerPrivilege(a.SdiNamespace, so.obs, c)
+	if err != nil {
+		a.Logger().V(1).Info(err.Error())
+		return err
+	}
 
+	err = a.AdjustSDIVSystemVerpStatefulSets(a.SdiNamespace, so.obs, c)
+	if err != nil {
+		a.Logger().V(1).Info(err.Error())
+		return err
+	}
+
+	err = a.AdjustNamespacesNodeSelectorAnnotation(so.obs, c)
+	if err != nil {
+		a.Logger().V(1).Info(err.Error())
+		return err
+	}
 	return nil
 }
 
