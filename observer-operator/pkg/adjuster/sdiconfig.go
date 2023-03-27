@@ -87,8 +87,19 @@ func (a *Adjuster) AdjustSDIDiagnosticsFluentdDaemonsetContainerPrivilege(ns str
 	}
 
 	for _, c := range ds.Spec.Template.Spec.Containers {
-		if c.Name == diagnosticFluentdName && *(c.SecurityContext.Privileged) != true {
-			c.SecurityContext.Privileged = pointer.Bool(true)
+		if c.Name == diagnosticFluentdName {
+			if c.Name == diagnosticFluentdName {
+				if c.SecurityContext.Privileged == nil {
+					c.SecurityContext.Privileged = pointer.Bool(true)
+				} else {
+					if *c.SecurityContext.Privileged == true {
+						a.logger.Info(fmt.Sprintf("Container of daemonset/%s is already privileged", diagnosticFluentdName))
+						return nil
+					} else {
+						c.SecurityContext.Privileged = pointer.Bool(true)
+					}
+				}
+			}
 		}
 	}
 
