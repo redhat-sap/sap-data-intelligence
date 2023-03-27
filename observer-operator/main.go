@@ -84,7 +84,7 @@ func main() {
 	flag.StringVar(&slcbNamespace, "slcb-namespace", os.Getenv(slcbNamespaceEnvVar),
 		"K8s namespace where SAP Software Lifecycle Container Bridge runs."+
 			" Unless specified, all namespaces will be watched. "+mkOverride(slcbNamespaceEnvVar))
-	flag.DurationVar(&requeueInterval, "requeue-interval", 1*time.Minute, "The duration until the next untriggered reconciliation run")
+	flag.DurationVar(&requeueInterval, "requeue-interval", 2*time.Minute, "The duration until the next untriggered reconciliation run")
 
 	opts := zap.Options{
 		Development: true,

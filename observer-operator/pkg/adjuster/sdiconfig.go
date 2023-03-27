@@ -13,7 +13,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"strings"
 )
 
 var fluentdDockerVolumeName = "varlibdockercontainers"
@@ -52,26 +51,6 @@ func (a *Adjuster) adjustSDIDataHub(ns string, obs *sdiv1alpha1.SDIObserver, ctx
 }
 
 func (a *Adjuster) AdjustSDIDiagnosticsFluentdDaemonsetContainerPrivilege(ns string, obs *sdiv1alpha1.SDIObserver, ctx context.Context) error {
-
-	//dsList := &appsv1.DaemonSetList{}
-	//
-	//err := a.Client.List(ctx, dsList, &client.ListOptions{Namespace: ns})
-	//if err != nil {
-	//	a.logger.Error(err, "failed to list DaemonSets")
-	//	meta.SetStatusCondition(&obs.Status.Conditions, metav1.Condition{
-	//		Type:               "OperatorDegraded",
-	//		Status:             metav1.ConditionTrue,
-	//		Reason:             sdiv1alpha1.ReasonRouteNotAvailable,
-	//		LastTransitionTime: metav1.NewTime(time.Now()),
-	//		Message:            fmt.Sprintf("unable to get Daemonsets: %s", err.Error()),
-	//	})
-	//	return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
-	//}
-	//
-	//for _, ds := range dsList.Items {
-	//
-	//}
-
 	diagnosticFluentdName := "diagnostics-fluentd"
 	ds := &appsv1.DaemonSet{
 		ObjectMeta: metav1.ObjectMeta{
@@ -102,34 +81,6 @@ func (a *Adjuster) AdjustSDIDiagnosticsFluentdDaemonsetContainerPrivilege(ns str
 			}
 		}
 	}
-
-	//var newVolumes []corev1.Volume
-	//for _, v := range ds.Spec.Template.Spec.Volumes {
-	//	if strings.Contains(v.HostPath.Path, "/var/lib/docker") {
-	//		for _, c := range ds.Spec.Template.Spec.Containers {
-	//			var newVolumeMounts []corev1.VolumeMount
-	//			for _, vm := range c.VolumeMounts {
-	//				if vm.Name != v.Name {
-	//					newVolumeMounts = append(newVolumeMounts, vm)
-	//				}
-	//			}
-	//			c.VolumeMounts = newVolumeMounts
-	//		}
-	//		for _, c := range ds.Spec.Template.Spec.InitContainers {
-	//			var newVolumeMounts []corev1.VolumeMount
-	//			for _, vm := range c.VolumeMounts {
-	//				if vm.Name != v.Name {
-	//					newVolumeMounts = append(newVolumeMounts, vm)
-	//				}
-	//			}
-	//			c.VolumeMounts = newVolumeMounts
-	//		}
-	//
-	//	} else {
-	//		newVolumes = append(newVolumes, v)
-	//	}
-	//}
-	//ds.Spec.Template.Spec.Volumes = newVolumes
 
 	a.logger.Info(fmt.Sprintf("Patching daemonset/%s", diagnosticFluentdName))
 	err = a.Client.Update(ctx, ds)
@@ -285,18 +236,6 @@ func (a *Adjuster) pruneStateFullSetOldRevision(ns string, obs *sdiv1alpha1.SDIO
 
 }
 
-func (a *Adjuster) AdjustSDIConfigMaps(ns string, obs *sdiv1alpha1.SDIObserver, ctx context.Context) error {
-
-	return nil
-
-}
-
-func (a *Adjuster) AdjustSDIRoles(ns string, obs *sdiv1alpha1.SDIObserver, ctx context.Context) error {
-
-	return nil
-
-}
-
 func (a *Adjuster) AdjustNamespacesNodeSelectorAnnotation(obs *sdiv1alpha1.SDIObserver, ctx context.Context) error {
 	for _, n := range []string{a.Namespace, a.SdiNamespace, a.SlcbNamespace, "datahub-system"} {
 		err := a.adjustNamespaceAnnotation(n, ctx)
@@ -346,30 +285,4 @@ func (a *Adjuster) adjustNamespaceAnnotation(ns string, ctx context.Context) err
 		a.logger.Info(fmt.Sprintf("Annotation '%s' created for namespace '%s'\n", annotationKey, ns))
 	}
 	return nil
-}
-
-func removeDSDockerVolume(ds *appsv1.DaemonSet) bool {
-	for _, c := range ds.Spec.Template.Spec.Containers {
-		for _, vm := range c.VolumeMounts {
-			if strings.Contains(vm.Name, fluentdDockerVolumeName) {
-				return true
-			}
-		}
-	}
-
-	for _, c := range ds.Spec.Template.Spec.InitContainers {
-		for _, vm := range c.VolumeMounts {
-			if strings.Contains(vm.Name, fluentdDockerVolumeName) {
-				return true
-			}
-		}
-	}
-
-	for _, v := range ds.Spec.Template.Spec.Volumes {
-		if strings.Contains(v.Name, fluentdDockerVolumeName) || strings.Contains(v.HostPath.Path, "/var/lib/docker") {
-			return true
-		}
-	}
-	return false
-
 }
