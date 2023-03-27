@@ -41,6 +41,8 @@ func (a *Adjuster) AdjustSDIVsystemRoute(ns string, obs *sdiv1alpha1.SDIObserver
 		if err != nil && errors.IsNotFound(err) {
 			create = true
 			route = assets.GetRouteFromFile("manifests/route-vsystem.yaml")
+			route.Namespace = ns
+			route.Name = name
 
 			svc := &corev1.Service{
 				ObjectMeta: metav1.ObjectMeta{
@@ -244,6 +246,8 @@ func (a *Adjuster) AdjustSLCBRoute(ns string, obs *sdiv1alpha1.SDIObserver, ctx 
 		if err != nil && errors.IsNotFound(err) {
 			create = true
 			route = assets.GetRouteFromFile("manifests/route-sap-slcbridge.yaml")
+			route.Namespace = ns
+			route.Name = name
 		} else if err != nil {
 			a.logger.Error(err, "Error getting existing sap-slcbridge route.")
 			meta.SetStatusCondition(&obs.Status.SLCBRoute.Conditions, metav1.Condition{
