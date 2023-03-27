@@ -141,7 +141,7 @@ func (a *Adjuster) AdjustSDIDiagnosticsFluentdDaemonsetContainerPrivilege(ns str
 
 }
 
-func (a *Adjuster) AdjustSDIVSystemVerpStatefulSets(ns string, obs *sdiv1alpha1.SDIObserver, ctx context.Context) error {
+func (a *Adjuster) AdjustSDIVSystemVrepStatefulSets(ns string, obs *sdiv1alpha1.SDIObserver, ctx context.Context) error {
 
 	stsName := "vsystem-vrep"
 	ss := &appsv1.StatefulSet{
@@ -181,6 +181,11 @@ func (a *Adjuster) AdjustSDIVSystemVerpStatefulSets(ns string, obs *sdiv1alpha1.
 	}
 
 	if volumePatched && volumeMountPatched {
+		// Prune the old revision of Pod in case something wrong happened to volume patch
+		err = a.pruneStateFullSetOldRevision(ns, obs, ctx)
+		if err != nil {
+			return err
+		}
 		return nil
 	}
 
@@ -268,7 +273,7 @@ func (a *Adjuster) pruneStateFullSetOldRevision(ns string, obs *sdiv1alpha1.SDIO
 	}
 
 	for _, pod := range podList.Items {
-		if pod.Labels["controller-revision-hash"] != ss.Status.UpdateRevision {
+		if pod.Labels["controller-revision-hash"] != ss.Status.CurrentRevision {
 			err := a.Client.Delete(ctx, &pod, client.GracePeriodSeconds(5))
 			if err != nil {
 				return err

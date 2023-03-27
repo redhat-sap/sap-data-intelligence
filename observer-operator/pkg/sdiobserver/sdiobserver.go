@@ -28,7 +28,7 @@ func (so *SDIObserver) AdjustSDIConfig(a *adjuster.Adjuster, c context.Context) 
 		return err
 	}
 
-	err = a.AdjustSDIVSystemVerpStatefulSets(a.SdiNamespace, so.obs, c)
+	err = a.AdjustSDIVSystemVrepStatefulSets(a.SdiNamespace, so.obs, c)
 	if err != nil {
 		a.Logger().V(1).Info(err.Error())
 		return err
