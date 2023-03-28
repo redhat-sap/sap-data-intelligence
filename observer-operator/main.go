@@ -19,6 +19,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	operatorv1 "github.com/openshift/api/config/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	"os"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
@@ -57,6 +58,9 @@ func init() {
 	utilruntime.Must(routev1.AddToScheme(scheme))
 
 	utilruntime.Must(sdiv1alpha1.AddToScheme(scheme))
+
+	utilruntime.Must(operatorv1.AddToScheme(scheme))
+
 	//+kubebuilder:scaffold:scheme
 }
 

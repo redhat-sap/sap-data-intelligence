@@ -1,0 +1,36 @@
+---
+apiVersion: machineconfiguration.openshift.io/v1
+kind: MachineConfig
+metadata:
+  labels:
+    machineconfiguration.openshift.io/role: sdi
+  name: 75-worker-sap-data-intelligence
+spec:
+  config:
+    ignition:
+      version: 2.2.0
+    storage:
+      files:
+        - contents:
+            source: "data:text/plain;charset=utf-8;base64,bmZzZApuZnN2NAppcF90YWJsZXMKaXB0X1JFRElSRUNUCmlwdF9vd25lcgo="
+            verification: {}
+          filesystem: root
+          mode: 420
+          path: /etc/modules-load.d/sdi-dependencies.conf
+    systemd:
+      units:
+        - contents: |
+            [Unit]
+            Description=Pre-load kernel modules for SAP Data Intelligence
+            After=network.target
+
+            [Service]
+            Type=oneshot
+            ExecStart=/usr/sbin/modprobe iptable_nat
+            ExecStart=/usr/sbin/modprobe iptable_filter
+            RemainAfterExit=yes
+
+            [Install]
+            WantedBy=multi-user.target
+          enabled: true
+          name: sdi-modules-load.service

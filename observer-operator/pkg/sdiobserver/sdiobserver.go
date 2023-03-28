@@ -11,7 +11,11 @@ type SDIObserver struct {
 }
 
 func (so *SDIObserver) AdjustNodes(a *adjuster.Adjuster, c context.Context) error {
-	//TODO implement me
+	a.Logger().V(0).Info("Trying to adjust the SDI nodes")
+	err := a.AdjustSDINodes(so.obs, c)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
