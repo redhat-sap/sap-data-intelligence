@@ -42,7 +42,7 @@ func New(
 
 func (a *Adjuster) Adjust(ac Actioner, ctx context.Context) error {
 	if err := ac.AdjustNodes(a, ctx); err != nil {
-		return fmt.Errorf("Adjustment of dependencies failed: %v", err)
+		return fmt.Errorf("Adjustment of nodes failed: %v", err)
 	}
 	if err := ac.AdjustNetwork(a, ctx); err != nil {
 		return fmt.Errorf("Adjustment of network config failed: %v", err)

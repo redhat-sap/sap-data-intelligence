@@ -37,6 +37,8 @@ import (
 
 	sdiv1alpha1 "github.com/redhat-sap/sap-data-intelligence/observer-operator/api/v1alpha1"
 	"github.com/redhat-sap/sap-data-intelligence/observer-operator/controllers"
+
+	configv1 "github.com/openshift/machine-config-operator/pkg/apis/machineconfiguration.openshift.io/v1"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -58,6 +60,7 @@ func init() {
 
 	utilruntime.Must(operatorv1.AddToScheme(scheme))
 
+	utilruntime.Must(configv1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 
