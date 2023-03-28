@@ -47,9 +47,7 @@ var (
 )
 
 const (
-	namespaceEnvVar     = "OPERATOR_NAMESPACE"
-	sdiNamespaceEnvVar  = "SDI_NAMESPACE"
-	slcbNamespaceEnvVar = "SLCB_NAMESPACE"
+	namespaceEnvVar = "OPERATOR_NAMESPACE"
 )
 
 func init() {
@@ -72,7 +70,7 @@ func main() {
 	var metricsAddr string
 	var enableLeaderElection bool
 	var probeAddr string
-	var namespace, sdiNamespace, slcbNamespace string
+	var namespace string
 	var requeueInterval time.Duration
 
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
@@ -82,13 +80,7 @@ func main() {
 			"Enabling this will ensure there is only one active controller manager.")
 	flag.StringVar(&namespace, "namespace", os.Getenv(namespaceEnvVar),
 		"The k8s namespace where the operator runs. "+mkOverride(namespaceEnvVar))
-	flag.StringVar(&sdiNamespace, "sdi-namespace", os.Getenv(sdiNamespaceEnvVar),
-		"SAP DI namespace to monitor. Unless specified, all namespaces will be watched. "+
-			mkOverride(sdiNamespaceEnvVar))
-	flag.StringVar(&slcbNamespace, "slcb-namespace", os.Getenv(slcbNamespaceEnvVar),
-		"K8s namespace where SAP Software Lifecycle Container Bridge runs."+
-			" Unless specified, all namespaces will be watched. "+mkOverride(slcbNamespaceEnvVar))
-	flag.DurationVar(&requeueInterval, "requeue-interval", 2*time.Minute, "The duration until the next untriggered reconciliation run")
+	flag.DurationVar(&requeueInterval, "requeue-interval", 1*time.Minute, "The duration until the next untriggered reconciliation run")
 
 	opts := zap.Options{
 		Development: true,
@@ -105,9 +97,8 @@ func main() {
 	}
 
 	var mgrCache cache.NewCacheFunc
-	if len(sdiNamespace) == 0 || len(slcbNamespace) == 0 {
-		mgrCache = cache.MultiNamespacedCacheBuilder([]string{namespace, sdiNamespace, slcbNamespace})
-	}
+
+	mgrCache = cache.MultiNamespacedCacheBuilder([]string{namespace})
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
@@ -138,8 +129,6 @@ func main() {
 	if err = (&controllers.SDIObserverReconciler{
 		Client:            mgr.GetClient(),
 		Scheme:            mgr.GetScheme(),
-		SdiNamespace:      sdiNamespace,
-		SlcbNamespace:     slcbNamespace,
 		ObserverNamespace: namespace,
 		Interval:          requeueInterval,
 	}).SetupWithManager(mgr); err != nil {
