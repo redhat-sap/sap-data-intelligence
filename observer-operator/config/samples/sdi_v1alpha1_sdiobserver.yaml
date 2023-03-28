@@ -11,6 +11,8 @@ metadata:
   # namespace: sdi-observer
 spec:
   # TODO(user): Add fields here
+  sdiNamespace: "sdi"
+  slcbNamespace: "sap-slcbridge"
   sdiVSystemRoute:
     managementState: Managed
   slcbRoute:

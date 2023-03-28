@@ -35,6 +35,8 @@ spec:
           spec:
             description: SDIObserverSpec defines the desired state of SDIObserver
             properties:
+              sdiNamespace:
+                type: string
               sdiVSystemRoute:
                 description: ManagedRouteSpec allows to control route management for
                   an SDI service.
@@ -47,6 +49,8 @@ spec:
                     - Removed
                     type: string
                 type: object
+              slcbNamespace:
+                type: string
               slcbRoute:
                 description: ManagedRouteSpec allows to control route management for
                   an SDI service.
@@ -60,7 +64,9 @@ spec:
                     type: string
                 type: object
             required:
+            - sdiNamespace
             - sdiVSystemRoute
+            - slcbNamespace
             - slcbRoute
             type: object
           status:

@@ -174,7 +174,7 @@ func (a *Adjuster) AdjustSDIVSystemVrepStatefulSets(ns string, obs *sdiv1alpha1.
 
 func (a *Adjuster) pruneStateFullSetOldRevision(ns string, obs *sdiv1alpha1.SDIObserver, ctx context.Context) error {
 
-	stsName := "vsystem-verp"
+	stsName := "vsystem-vrep"
 	namespace := ns
 
 	ss := &appsv1.StatefulSet{

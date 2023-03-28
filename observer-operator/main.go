@@ -22,7 +22,6 @@ import (
 	operatorv1 "github.com/openshift/api/config/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	"os"
-	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"time"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
@@ -96,10 +95,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	var mgrCache cache.NewCacheFunc
-
-	mgrCache = cache.MultiNamespacedCacheBuilder([]string{namespace})
-
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
 		MetricsBindAddress:     metricsAddr,
@@ -119,7 +114,6 @@ func main() {
 		// after the manager stops then its usage might be unsafe.
 		// LeaderElectionReleaseOnCancel: true,
 
-		NewCache: mgrCache,
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
