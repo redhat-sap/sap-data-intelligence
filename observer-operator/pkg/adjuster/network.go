@@ -40,7 +40,7 @@ func (a *Adjuster) AdjustSDIVsystemRoute(ns string, obs *sdiv1alpha1.SDIObserver
 
 		if err != nil && errors.IsNotFound(err) {
 			create = true
-			route = assets.GetRouteFromFile("manifests/route-vsystem.yaml")
+			route = assets.GetRouteFromFile("manifests/route-management/route-vsystem.yaml")
 			route.Namespace = ns
 			route.Name = name
 
@@ -245,7 +245,7 @@ func (a *Adjuster) AdjustSLCBRoute(ns string, obs *sdiv1alpha1.SDIObserver, ctx 
 		create := false
 		if err != nil && errors.IsNotFound(err) {
 			create = true
-			route = assets.GetRouteFromFile("manifests/route-sap-slcbridge.yaml")
+			route = assets.GetRouteFromFile("manifests/route-management/route-sap-slcbridge.yaml")
 			route.Namespace = ns
 			route.Name = name
 		} else if err != nil {
