@@ -11,6 +11,12 @@ type SDIObserver struct {
 }
 
 func (so *SDIObserver) AdjustNodes(a *adjuster.Adjuster, c context.Context) error {
+
+	if !so.obs.Spec.ManageSDINodeConfig {
+		a.Logger().V(0).Info("Node config is unmanaged. Skip...")
+		return nil
+	}
+
 	a.Logger().V(0).Info("Trying to adjust the SDI nodes")
 	err := a.AdjustSDINodes(so.obs, c)
 	if err != nil {

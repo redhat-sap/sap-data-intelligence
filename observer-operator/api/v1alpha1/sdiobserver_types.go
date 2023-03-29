@@ -101,11 +101,24 @@ type SDIObserverSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	SDINamespace  string `json:"sdiNamespace"`
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=2
+	// +kubebuilder:validation:MaxLength=63
+	// +kubebuilder:validation:Pattern="[[:alnum:]]+(-[[:alnum:]]+)*"
+	SDINamespace string `json:"sdiNamespace"`
+
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=2
+	// +kubebuilder:validation:MaxLength=63
+	// +kubebuilder:validation:Pattern="[[:alnum:]]+(-[[:alnum:]]+)*"
 	SLCBNamespace string `json:"slcbNamespace"`
 
 	SDIVSystemRoute ManagedRouteSpec `json:"sdiVSystemRoute"`
 	SLCBRoute       ManagedRouteSpec `json:"slcbRoute"`
+
+	// +kubebuilder:validation:Required
+	// +kubebuilder:default:=true
+	ManageSDINodeConfig bool `json:"ManageSDINodeConfig"`
 
 	// TODO: add
 	//nodeSelector map[string]string
