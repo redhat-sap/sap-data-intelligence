@@ -118,7 +118,7 @@ type SDIObserverSpec struct {
 
 	// +kubebuilder:validation:Required
 	// +kubebuilder:default:=true
-	ManageSDINodeConfig bool `json:"ManageSDINodeConfig"`
+	ManageSDINodeConfig bool `json:"manageSDINodeConfig"`
 
 	// TODO: add
 	//nodeSelector map[string]string
