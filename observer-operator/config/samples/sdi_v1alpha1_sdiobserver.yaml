@@ -17,4 +17,5 @@ spec:
     managementState: Managed
   slcbRoute:
     managementState: Managed
+  manageSDINodeConfig: true
 
