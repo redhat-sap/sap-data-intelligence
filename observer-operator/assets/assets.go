@@ -22,7 +22,7 @@ var (
 )
 
 func init() {
-	if err := routev1.AddToScheme(appsScheme); err != nil {
+	if err := configv1.AddToScheme(appsScheme); err != nil {
 		panic(err)
 	}
 }

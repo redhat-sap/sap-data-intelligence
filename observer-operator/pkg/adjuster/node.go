@@ -104,7 +104,7 @@ func (a *Adjuster) AdjustSDINodes(obs *sdiv1alpha1.SDIObserver, ctx context.Cont
 
 	err = a.Client.Get(ctx, client.ObjectKey{Name: kubeletConfigAsset.Name}, kubeletConfig)
 	if err != nil && errors.IsNotFound(err) {
-		a.logger.Info(fmt.Sprintf("KubeletConfig %s does not exist", kubeletConfigAsset.Name))
+		a.logger.Info(fmt.Sprintf("KubeletConfig %s does not exist. Create it.", kubeletConfigAsset.Name))
 		if err := a.Client.Create(ctx, kubeletConfigAsset); err != nil {
 			return err
 		}
