@@ -17,7 +17,6 @@ limitations under the License.
 package v1alpha1
 
 import (
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -41,14 +40,6 @@ const (
 	ReasonRouteManagementStateUnsupported = "RouteManagementStateUnsupported"
 )
 
-type StatusState string
-
-const (
-	SyncStatusState  StatusState = "SYNC"
-	OkStatusState    StatusState = "OK"
-	ErrorStatusState StatusState = "ERROR"
-)
-
 type RouteManagementState string
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
@@ -61,40 +52,20 @@ type ManagedRouteSpec struct {
 	ManagementState string `json:"managementState,omitempty"`
 }
 
-const (
-	ConditionRouteNotAdmitted = "NotAdmitted"
-)
-
 // ManagedRouteStatus informs about status of a managed route for an SDI service.
 type ManagedRouteStatus struct {
-	// Condition types:
-	// - Exposed
-	//     True when route is exposed and admitted.
-	// - Degraded
-	//     True when the desired state cannot be achieved (route is not admitted with Managed or route cannot
-	//     be removed).
-	// +optional
-	// +patchMergeKey=type
-	// +patchStrategy=merge
 	Conditions []metav1.Condition `json:"conditions"`
 }
 
-const (
-	// ConditionReasonNotFound indicates that no DataHub instance exists in the configured SDINamespace.
-	ConditionReasonNotFound       = "NotFound"
-	ConditionReasonAsExpected     = "AsExpected"
-	ConditionReasonIngressBlocked = "IngressBlocked"
-	ConditionReasonIngress        = "Ingress"
-	// ConditionReasonAlreadyManaged indicates that another SDIObserver instance is currently managing the
-	// target SDI Namespace.
-	ConditionReasonAlreadyManaged = "AlreadyManaged"
-	// ConditionReasonActive indicates that the managed SDIObserver instance is active in controlling the
-	// target SDI Namespace.
-	ConditionReasonActive = "Active"
-	// ConditionReasonBackup indicates that the desired spec is not being worked on because the there is
-	// another active instance managing the SDI namespace.
-	ConditionReasonBackup = "Backup"
-)
+// SDIConfigStatus informs about status of SDI patching.
+type SDIConfigStatus struct {
+	Conditions []metav1.Condition `json:"conditions"`
+}
+
+// SDINodeConfigStatus informs about status of SDI node configuration.
+type SDINodeConfigStatus struct {
+	Conditions []metav1.Condition `json:"conditions"`
+}
 
 // SDIObserverSpec defines the desired state of SDIObserver
 type SDIObserverSpec struct {
@@ -120,30 +91,26 @@ type SDIObserverSpec struct {
 	// +kubebuilder:default:=true
 	ManageSDINodeConfig bool `json:"manageSDINodeConfig"`
 
-	// TODO: add
-	//nodeSelector map[string]string
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default:="node-role.kubernetes.io/sdi="
+	SDINodeLabel string `json:"SDINodeLabel"`
 }
 
 // SDIObserverStatus defines the observed state of SDIObserver.
 type SDIObserverStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-	// Used condition types:
-	// - Degraded - a consolidated failure condition giving a hint on the failed dependency
-	// - Progressing
-	// - Ready - a consolidated condition being true when all the dependencies are fulfilled
-	// - Backup - if true, there is another SDIObserver instance managing the target SDINamespace
-	// +optional
-	// +patchMergeKey=type
-	// +patchStrategy=merge
 	Conditions []metav1.Condition `json:"conditions"`
-	// Reference to the DataHub resource found in the configured SDINamespace. It is left unset if the
-	// resource does not exist or another instance is managing it.
-	ManagedDataHubRef *corev1.ObjectReference `json:"managedDataHubs,omitempty"`
+
 	// Status of the vsystem route. Conditions will be empty when not managed.
-	VSystemRoute ManagedRouteStatus `json:"vsystemRoute,omitempty"`
+	VSystemRouteStatus ManagedRouteStatus `json:"vsystemRouteStatus,omitempty"`
+
 	// Status of the slcb route. Conditions will be empty when not managed.
-	SLCBRoute ManagedRouteStatus `json:"slcbRoute,omitempty"`
+	SLCBRouteStatus ManagedRouteStatus `json:"slcbRouteStatus,omitempty"`
+
+	// Status of the SDI config. Conditions will be empty when not managed.
+	SDIConfigStatus SDIConfigStatus `json:"sdiConfigStatus,omitempty"`
+
+	// Status of the SDI node config. Conditions will be empty when not managed.
+	SDINodeConfigStatus SDINodeConfigStatus `json:"sdiNodeConfigStatus,omitempty"`
 }
 
 //+kubebuilder:object:root=true

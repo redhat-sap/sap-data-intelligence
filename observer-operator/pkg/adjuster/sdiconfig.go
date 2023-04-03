@@ -238,7 +238,7 @@ func (a *Adjuster) pruneStateFullSetOldRevision(ns string, obs *sdiv1alpha1.SDIO
 
 func (a *Adjuster) AdjustNamespacesNodeSelectorAnnotation(obs *sdiv1alpha1.SDIObserver, ctx context.Context) error {
 	for _, n := range []string{a.Namespace, obs.Spec.SDINamespace, obs.Spec.SLCBNamespace, "datahub-system"} {
-		err := a.adjustNamespaceAnnotation(n, ctx)
+		err := a.adjustNamespaceAnnotation(n, obs.Spec.SDINodeLabel, ctx)
 		if err != nil {
 			return err
 		}
@@ -246,9 +246,9 @@ func (a *Adjuster) AdjustNamespacesNodeSelectorAnnotation(obs *sdiv1alpha1.SDIOb
 	return nil
 }
 
-func (a *Adjuster) adjustNamespaceAnnotation(ns string, ctx context.Context) error {
+func (a *Adjuster) adjustNamespaceAnnotation(ns, s string, ctx context.Context) error {
 	annotationKey := "openshift.io/node-selector"
-	annotationValue := "node-role.kubernetes.io/sdi="
+	annotationValue := s
 
 	namespace := &corev1.Namespace{}
 	err := a.Client.Get(ctx, types.NamespacedName{Name: ns}, namespace)

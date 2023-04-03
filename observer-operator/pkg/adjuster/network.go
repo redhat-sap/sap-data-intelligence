@@ -76,7 +76,7 @@ func (a *Adjuster) AdjustSDIVsystemRoute(ns string, obs *sdiv1alpha1.SDIObserver
 			route.Spec.TLS.DestinationCACertificate = caBundle
 		} else if err != nil {
 			a.logger.Error(err, "Error getting existing sdi vsystem route.")
-			meta.SetStatusCondition(&obs.Status.VSystemRoute.Conditions, metav1.Condition{
+			meta.SetStatusCondition(&obs.Status.VSystemRouteStatus.Conditions, metav1.Condition{
 				Type:               "OperatorDegraded",
 				Status:             metav1.ConditionTrue,
 				Reason:             sdiv1alpha1.ReasonRouteNotAvailable,
@@ -100,7 +100,7 @@ func (a *Adjuster) AdjustSDIVsystemRoute(ns string, obs *sdiv1alpha1.SDIObserver
 			}
 			if route.Spec.TLS.DestinationCACertificate == caBundle {
 				a.logger.Info(fmt.Sprintf("Route %s destination CA certificate is unchanged", name))
-				meta.SetStatusCondition(&obs.Status.VSystemRoute.Conditions, metav1.Condition{
+				meta.SetStatusCondition(&obs.Status.VSystemRouteStatus.Conditions, metav1.Condition{
 					Type:               "OperatorDegraded",
 					Status:             metav1.ConditionFalse,
 					Reason:             sdiv1alpha1.ReasonSucceeded,
@@ -119,7 +119,7 @@ func (a *Adjuster) AdjustSDIVsystemRoute(ns string, obs *sdiv1alpha1.SDIObserver
 		}
 
 		if err != nil {
-			meta.SetStatusCondition(&obs.Status.VSystemRoute.Conditions, metav1.Condition{
+			meta.SetStatusCondition(&obs.Status.VSystemRouteStatus.Conditions, metav1.Condition{
 				Type:               "OperatorDegraded",
 				Status:             metav1.ConditionTrue,
 				Reason:             sdiv1alpha1.ReasonOperandRouteFailed,
@@ -129,7 +129,7 @@ func (a *Adjuster) AdjustSDIVsystemRoute(ns string, obs *sdiv1alpha1.SDIObserver
 			return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
 		}
 
-		meta.SetStatusCondition(&obs.Status.VSystemRoute.Conditions, metav1.Condition{
+		meta.SetStatusCondition(&obs.Status.VSystemRouteStatus.Conditions, metav1.Condition{
 			Type:               "OperatorDegraded",
 			Status:             metav1.ConditionFalse,
 			Reason:             sdiv1alpha1.ReasonSucceeded,
@@ -151,7 +151,7 @@ func (a *Adjuster) AdjustSDIVsystemRoute(ns string, obs *sdiv1alpha1.SDIObserver
 
 		return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
 	case sdiv1alpha1.RouteManagementStateUnmanaged:
-		meta.SetStatusCondition(&obs.Status.VSystemRoute.Conditions, metav1.Condition{
+		meta.SetStatusCondition(&obs.Status.VSystemRouteStatus.Conditions, metav1.Condition{
 			Type:               "OperatorDegraded",
 			Status:             metav1.ConditionFalse,
 			Reason:             sdiv1alpha1.ReasonSucceeded,
@@ -163,7 +163,7 @@ func (a *Adjuster) AdjustSDIVsystemRoute(ns string, obs *sdiv1alpha1.SDIObserver
 		err := a.Client.Get(ctx, client.ObjectKey{Name: name, Namespace: ns}, route)
 
 		if err != nil && errors.IsNotFound(err) {
-			meta.SetStatusCondition(&obs.Status.VSystemRoute.Conditions, metav1.Condition{
+			meta.SetStatusCondition(&obs.Status.VSystemRouteStatus.Conditions, metav1.Condition{
 				Type:               "OperatorDegraded",
 				Status:             metav1.ConditionFalse,
 				Reason:             sdiv1alpha1.ReasonRouteNotAvailable,
@@ -174,7 +174,7 @@ func (a *Adjuster) AdjustSDIVsystemRoute(ns string, obs *sdiv1alpha1.SDIObserver
 			return a.Client.Status().Update(ctx, obs)
 		} else if err != nil {
 			a.logger.Error(err, "Error getting existing sdi vsystem route.")
-			meta.SetStatusCondition(&obs.Status.VSystemRoute.Conditions, metav1.Condition{
+			meta.SetStatusCondition(&obs.Status.VSystemRouteStatus.Conditions, metav1.Condition{
 				Type:               "OperatorDegraded",
 				Status:             metav1.ConditionTrue,
 				Reason:             sdiv1alpha1.ReasonRouteNotAvailable,
@@ -187,7 +187,7 @@ func (a *Adjuster) AdjustSDIVsystemRoute(ns string, obs *sdiv1alpha1.SDIObserver
 		err = a.Client.Delete(ctx, route)
 
 		if err != nil {
-			meta.SetStatusCondition(&obs.Status.VSystemRoute.Conditions, metav1.Condition{
+			meta.SetStatusCondition(&obs.Status.VSystemRouteStatus.Conditions, metav1.Condition{
 				Type:               "OperatorDegraded",
 				Status:             metav1.ConditionTrue,
 				Reason:             sdiv1alpha1.ReasonOperandRouteFailed,
@@ -197,7 +197,7 @@ func (a *Adjuster) AdjustSDIVsystemRoute(ns string, obs *sdiv1alpha1.SDIObserver
 			return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
 		}
 
-		meta.SetStatusCondition(&obs.Status.VSystemRoute.Conditions, metav1.Condition{
+		meta.SetStatusCondition(&obs.Status.VSystemRouteStatus.Conditions, metav1.Condition{
 			Type:               "OperatorDegraded",
 			Status:             metav1.ConditionFalse,
 			Reason:             sdiv1alpha1.ReasonSucceeded,
@@ -218,7 +218,7 @@ func (a *Adjuster) AdjustSDIVsystemRoute(ns string, obs *sdiv1alpha1.SDIObserver
 		//}
 		return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
 	default:
-		meta.SetStatusCondition(&obs.Status.VSystemRoute.Conditions, metav1.Condition{
+		meta.SetStatusCondition(&obs.Status.VSystemRouteStatus.Conditions, metav1.Condition{
 			Type:               "OperatorDegraded",
 			Status:             metav1.ConditionTrue,
 			Reason:             sdiv1alpha1.ReasonRouteManagementStateUnsupported,
@@ -250,7 +250,7 @@ func (a *Adjuster) AdjustSLCBRoute(ns string, obs *sdiv1alpha1.SDIObserver, ctx 
 			route.Name = name
 		} else if err != nil {
 			a.logger.Error(err, "Error getting existing sap-slcbridge route.")
-			meta.SetStatusCondition(&obs.Status.SLCBRoute.Conditions, metav1.Condition{
+			meta.SetStatusCondition(&obs.Status.SLCBRouteStatus.Conditions, metav1.Condition{
 				Type:               "OperatorDegraded",
 				Status:             metav1.ConditionTrue,
 				Reason:             sdiv1alpha1.ReasonRouteNotAvailable,
@@ -261,7 +261,7 @@ func (a *Adjuster) AdjustSLCBRoute(ns string, obs *sdiv1alpha1.SDIObserver, ctx 
 		} else {
 			if route.Spec.To.Name == "slcbridgebase-service" {
 				a.logger.Info(fmt.Sprintf("Route configuration %s is unchanged", name))
-				meta.SetStatusCondition(&obs.Status.SLCBRoute.Conditions, metav1.Condition{
+				meta.SetStatusCondition(&obs.Status.SLCBRouteStatus.Conditions, metav1.Condition{
 					Type:               "OperatorDegraded",
 					Status:             metav1.ConditionFalse,
 					Reason:             sdiv1alpha1.ReasonSucceeded,
@@ -284,7 +284,7 @@ func (a *Adjuster) AdjustSLCBRoute(ns string, obs *sdiv1alpha1.SDIObserver, ctx 
 			err = a.Client.Update(ctx, route)
 		}
 
-		meta.SetStatusCondition(&obs.Status.SLCBRoute.Conditions, metav1.Condition{
+		meta.SetStatusCondition(&obs.Status.SLCBRouteStatus.Conditions, metav1.Condition{
 			Type:               "OperatorDegraded",
 			Status:             metav1.ConditionFalse,
 			Reason:             sdiv1alpha1.ReasonSucceeded,
@@ -308,7 +308,7 @@ func (a *Adjuster) AdjustSLCBRoute(ns string, obs *sdiv1alpha1.SDIObserver, ctx 
 
 		return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
 	case sdiv1alpha1.RouteManagementStateUnmanaged:
-		meta.SetStatusCondition(&obs.Status.SLCBRoute.Conditions, metav1.Condition{
+		meta.SetStatusCondition(&obs.Status.SLCBRouteStatus.Conditions, metav1.Condition{
 			Type:               "OperatorDegraded",
 			Status:             metav1.ConditionFalse,
 			Reason:             sdiv1alpha1.ReasonSucceeded,
@@ -319,7 +319,7 @@ func (a *Adjuster) AdjustSLCBRoute(ns string, obs *sdiv1alpha1.SDIObserver, ctx 
 	case sdiv1alpha1.RouteManagementStateRemoved:
 		err := a.Client.Get(ctx, client.ObjectKey{Name: name, Namespace: ns}, route)
 		if err != nil && errors.IsNotFound(err) {
-			meta.SetStatusCondition(&obs.Status.SLCBRoute.Conditions, metav1.Condition{
+			meta.SetStatusCondition(&obs.Status.SLCBRouteStatus.Conditions, metav1.Condition{
 				Type:               "OperatorDegraded",
 				Status:             metav1.ConditionFalse,
 				Reason:             sdiv1alpha1.ReasonRouteNotAvailable,
@@ -330,7 +330,7 @@ func (a *Adjuster) AdjustSLCBRoute(ns string, obs *sdiv1alpha1.SDIObserver, ctx 
 			return a.Client.Status().Update(ctx, obs)
 		} else if err != nil {
 			a.logger.Error(err, "Error getting existing sap-slcbridge route.")
-			meta.SetStatusCondition(&obs.Status.SLCBRoute.Conditions, metav1.Condition{
+			meta.SetStatusCondition(&obs.Status.SLCBRouteStatus.Conditions, metav1.Condition{
 				Type:               "OperatorDegraded",
 				Status:             metav1.ConditionTrue,
 				Reason:             sdiv1alpha1.ReasonRouteNotAvailable,
@@ -342,7 +342,7 @@ func (a *Adjuster) AdjustSLCBRoute(ns string, obs *sdiv1alpha1.SDIObserver, ctx 
 		err = a.Client.Delete(ctx, route)
 
 		if err != nil {
-			meta.SetStatusCondition(&obs.Status.SLCBRoute.Conditions, metav1.Condition{
+			meta.SetStatusCondition(&obs.Status.SLCBRouteStatus.Conditions, metav1.Condition{
 				Type:               "OperatorDegraded",
 				Status:             metav1.ConditionTrue,
 				Reason:             sdiv1alpha1.ReasonOperandRouteFailed,
@@ -352,7 +352,7 @@ func (a *Adjuster) AdjustSLCBRoute(ns string, obs *sdiv1alpha1.SDIObserver, ctx 
 			return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
 		}
 
-		meta.SetStatusCondition(&obs.Status.SLCBRoute.Conditions, metav1.Condition{
+		meta.SetStatusCondition(&obs.Status.SLCBRouteStatus.Conditions, metav1.Condition{
 			Type:               "OperatorDegraded",
 			Status:             metav1.ConditionFalse,
 			Reason:             sdiv1alpha1.ReasonSucceeded,
@@ -376,7 +376,7 @@ func (a *Adjuster) AdjustSLCBRoute(ns string, obs *sdiv1alpha1.SDIObserver, ctx 
 
 		return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
 	default:
-		meta.SetStatusCondition(&obs.Status.SLCBRoute.Conditions, metav1.Condition{
+		meta.SetStatusCondition(&obs.Status.SLCBRouteStatus.Conditions, metav1.Condition{
 			Type:               "OperatorDegraded",
 			Status:             metav1.ConditionTrue,
 			Reason:             sdiv1alpha1.ReasonRouteManagementStateUnsupported,
