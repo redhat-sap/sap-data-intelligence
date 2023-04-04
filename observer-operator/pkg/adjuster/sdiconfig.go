@@ -6,6 +6,7 @@ import (
 	sdiv1alpha1 "github.com/redhat-sap/sap-data-intelligence/observer-operator/api/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
@@ -13,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"time"
 )
 
 var fluentdDockerVolumeName = "varlibdockercontainers"
@@ -30,7 +32,14 @@ func (a *Adjuster) adjustSDIDataHub(ns string, obs *sdiv1alpha1.SDIObserver, ctx
 
 	err := a.Client.Get(context.Background(), client.ObjectKeyFromObject(obj), obj)
 	if err != nil {
-		panic(err)
+		meta.SetStatusCondition(&obs.Status.SDINodeConfigStatus.Conditions, metav1.Condition{
+			Type:               "OperatorDegraded",
+			Status:             metav1.ConditionTrue,
+			Reason:             sdiv1alpha1.ReasonResourceNotAvailable,
+			LastTransitionTime: metav1.NewTime(time.Now()),
+			Message:            fmt.Sprintf("unable to get operand SDI DataHub: %s", err.Error()),
+		})
+		return err
 	}
 
 	spec := obj.Object["spec"].(map[string]interface{})
@@ -42,6 +51,13 @@ func (a *Adjuster) adjustSDIDataHub(ns string, obs *sdiv1alpha1.SDIObserver, ctx
 		vRep["exportsMask"] = true
 		err = a.Client.Update(ctx, obj)
 		if err != nil {
+			meta.SetStatusCondition(&obs.Status.SDIConfigStatus.Conditions, metav1.Condition{
+				Type:               "OperatorDegraded",
+				Status:             metav1.ConditionTrue,
+				Reason:             sdiv1alpha1.ReasonOperandResourceFailed,
+				LastTransitionTime: metav1.NewTime(time.Now()),
+				Message:            fmt.Sprintf("unable to update operand DataHub vRep: %s", err.Error()),
+			})
 			return err
 		}
 	} else {
@@ -60,8 +76,14 @@ func (a *Adjuster) AdjustSDIDiagnosticsFluentdDaemonsetContainerPrivilege(ns str
 	}
 
 	err := a.Client.Get(ctx, client.ObjectKey{Name: diagnosticFluentdName, Namespace: ns}, ds)
-
 	if err != nil {
+		meta.SetStatusCondition(&obs.Status.SDINodeConfigStatus.Conditions, metav1.Condition{
+			Type:               "OperatorDegraded",
+			Status:             metav1.ConditionTrue,
+			Reason:             sdiv1alpha1.ReasonResourceNotAvailable,
+			LastTransitionTime: metav1.NewTime(time.Now()),
+			Message:            fmt.Sprintf("unable to get operand daemonset: %s", err.Error()),
+		})
 		return err
 	}
 
@@ -85,6 +107,13 @@ func (a *Adjuster) AdjustSDIDiagnosticsFluentdDaemonsetContainerPrivilege(ns str
 	a.logger.Info(fmt.Sprintf("Patching daemonset/%s", diagnosticFluentdName))
 	err = a.Client.Update(ctx, ds)
 	if err != nil {
+		meta.SetStatusCondition(&obs.Status.SDIConfigStatus.Conditions, metav1.Condition{
+			Type:               "OperatorDegraded",
+			Status:             metav1.ConditionTrue,
+			Reason:             sdiv1alpha1.ReasonOperandResourceFailed,
+			LastTransitionTime: metav1.NewTime(time.Now()),
+			Message:            fmt.Sprintf("unable to update operand daemonset: %s", err.Error()),
+		})
 		return err
 	}
 
@@ -95,15 +124,17 @@ func (a *Adjuster) AdjustSDIDiagnosticsFluentdDaemonsetContainerPrivilege(ns str
 func (a *Adjuster) AdjustSDIVSystemVrepStatefulSets(ns string, obs *sdiv1alpha1.SDIObserver, ctx context.Context) error {
 
 	stsName := "vsystem-vrep"
-	ss := &appsv1.StatefulSet{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      stsName,
-			Namespace: ns,
-		},
-	}
+	ss := &appsv1.StatefulSet{}
 
 	err := a.Client.Get(ctx, client.ObjectKey{Name: stsName, Namespace: ns}, ss)
 	if err != nil {
+		meta.SetStatusCondition(&obs.Status.SDINodeConfigStatus.Conditions, metav1.Condition{
+			Type:               "OperatorDegraded",
+			Status:             metav1.ConditionTrue,
+			Reason:             sdiv1alpha1.ReasonResourceNotAvailable,
+			LastTransitionTime: metav1.NewTime(time.Now()),
+			Message:            fmt.Sprintf("unable to get operand statefulset: %s", err.Error()),
+		})
 		return err
 	}
 
@@ -186,6 +217,13 @@ func (a *Adjuster) pruneStateFullSetOldRevision(ns string, obs *sdiv1alpha1.SDIO
 
 	err := a.Client.Get(ctx, client.ObjectKey{Name: stsName, Namespace: ns}, ss)
 	if err != nil {
+		meta.SetStatusCondition(&obs.Status.SDINodeConfigStatus.Conditions, metav1.Condition{
+			Type:               "OperatorDegraded",
+			Status:             metav1.ConditionTrue,
+			Reason:             sdiv1alpha1.ReasonResourceNotAvailable,
+			LastTransitionTime: metav1.NewTime(time.Now()),
+			Message:            fmt.Sprintf("unable to get operand statefulset: %s", err.Error()),
+		})
 		return err
 	}
 
@@ -207,6 +245,13 @@ func (a *Adjuster) pruneStateFullSetOldRevision(ns string, obs *sdiv1alpha1.SDIO
 		},
 	)
 	if err != nil {
+		meta.SetStatusCondition(&obs.Status.SDINodeConfigStatus.Conditions, metav1.Condition{
+			Type:               "OperatorDegraded",
+			Status:             metav1.ConditionTrue,
+			Reason:             sdiv1alpha1.ReasonResourceNotAvailable,
+			LastTransitionTime: metav1.NewTime(time.Now()),
+			Message:            fmt.Sprintf("unable to get operand pod list: %s", err.Error()),
+		})
 		return err
 	}
 
@@ -220,6 +265,13 @@ func (a *Adjuster) pruneStateFullSetOldRevision(ns string, obs *sdiv1alpha1.SDIO
 		client.InNamespace(namespace),
 		client.MatchingLabels(ss.Spec.Selector.MatchLabels))
 	if err != nil {
+		meta.SetStatusCondition(&obs.Status.SDINodeConfigStatus.Conditions, metav1.Condition{
+			Type:               "OperatorDegraded",
+			Status:             metav1.ConditionTrue,
+			Reason:             sdiv1alpha1.ReasonResourceNotAvailable,
+			LastTransitionTime: metav1.NewTime(time.Now()),
+			Message:            fmt.Sprintf("unable to get operand pod list: %s", err.Error()),
+		})
 		return err
 	}
 
@@ -227,6 +279,13 @@ func (a *Adjuster) pruneStateFullSetOldRevision(ns string, obs *sdiv1alpha1.SDIO
 		if pod.Labels["controller-revision-hash"] != ss.Status.CurrentRevision {
 			err := a.Client.Delete(ctx, &pod, client.GracePeriodSeconds(5))
 			if err != nil {
+				meta.SetStatusCondition(&obs.Status.SDIConfigStatus.Conditions, metav1.Condition{
+					Type:               "OperatorDegraded",
+					Status:             metav1.ConditionTrue,
+					Reason:             sdiv1alpha1.ReasonOperandResourceFailed,
+					LastTransitionTime: metav1.NewTime(time.Now()),
+					Message:            fmt.Sprintf("unable to delete operand pod: %s", err.Error()),
+				})
 				return err
 			}
 		}
@@ -240,6 +299,16 @@ func (a *Adjuster) AdjustNamespacesNodeSelectorAnnotation(obs *sdiv1alpha1.SDIOb
 	for _, n := range []string{a.Namespace, obs.Spec.SDINamespace, obs.Spec.SLCBNamespace, "datahub-system"} {
 		err := a.adjustNamespaceAnnotation(n, obs.Spec.SDINodeLabel, ctx)
 		if err != nil {
+			meta.SetStatusCondition(&obs.Status.SDIConfigStatus.Conditions, metav1.Condition{
+				Type:               "OperatorDegraded",
+				Status:             metav1.ConditionTrue,
+				Reason:             sdiv1alpha1.ReasonOperandResourceFailed,
+				LastTransitionTime: metav1.NewTime(time.Now()),
+				Message: fmt.Sprintf(
+					"unable to adjust operand namespace node selector annotation: %s",
+					err.Error(),
+				),
+			})
 			return err
 		}
 	}
@@ -266,7 +335,6 @@ func (a *Adjuster) adjustNamespaceAnnotation(ns, s string, ctx context.Context) 
 			a.logger.Info(fmt.Sprintf("Annotation '%s' is unchanged for namespace '%s'\n", annotationKey, ns))
 			return nil
 		}
-
 		annotations[annotationKey] = annotationValue
 		namespace.SetAnnotations(annotations)
 		err = a.Client.Update(context.Background(), namespace)

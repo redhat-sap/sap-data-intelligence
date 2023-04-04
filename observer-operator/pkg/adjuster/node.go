@@ -4,155 +4,236 @@ import (
 	"context"
 	"fmt"
 	operatorv1 "github.com/openshift/api/config/v1"
+	openshiftv1 "github.com/openshift/api/image/v1"
 	configv1 "github.com/openshift/machine-config-operator/pkg/apis/machineconfiguration.openshift.io/v1"
 	sdiv1alpha1 "github.com/redhat-sap/sap-data-intelligence/observer-operator/api/v1alpha1"
 	"github.com/redhat-sap/sap-data-intelligence/observer-operator/assets"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"time"
 )
 
 func (a *Adjuster) AdjustSDINodes(obs *sdiv1alpha1.SDIObserver, ctx context.Context) error {
 	machineConfigClusterOperatorName := "machine-config"
+	mcOperator := &operatorv1.ClusterOperator{}
 
-	mcOperator := &operatorv1.ClusterOperator{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "machineConfigClusterOperatorName",
-		},
-	}
 	err := a.Client.Get(ctx, client.ObjectKey{Name: machineConfigClusterOperatorName}, mcOperator)
-
 	if err != nil && errors.IsNotFound(err) {
 		a.logger.Info(fmt.Sprintf(
 			"ClusterOperator %s does not exist. Use daemonset for the node configuration",
 			machineConfigClusterOperatorName,
 		))
 
-		serviceAccountAsset := assets.GetServiceAccountFromFile("manifests/node-configurator/serviceaccount.yaml")
-
-		err = a.Client.Get(ctx, client.ObjectKey{Name: serviceAccountAsset.Name}, serviceAccountAsset)
+		serviceAccountName := "sdi-node-configurator"
+		serviceAccount := &corev1.ServiceAccount{}
+		err = a.Client.Get(ctx, client.ObjectKey{Name: serviceAccountName, Namespace: obs.Namespace}, serviceAccount)
 		if err != nil && errors.IsNotFound(err) {
+			serviceAccountAsset := assets.GetServiceAccountFromFile("manifests/node-configurator/serviceaccount.yaml")
+			serviceAccountAsset.Namespace = obs.Namespace
 			if err := a.Client.Create(ctx, serviceAccountAsset); err != nil {
+				meta.SetStatusCondition(&obs.Status.SDINodeConfigStatus.Conditions, metav1.Condition{
+					Type:               "OperatorDegraded",
+					Status:             metav1.ConditionTrue,
+					Reason:             sdiv1alpha1.ReasonOperandResourceFailed,
+					LastTransitionTime: metav1.NewTime(time.Now()),
+					Message:            fmt.Sprintf("unable to create operand service account: %s", err.Error()),
+				})
 				return err
 			}
 			ctrl.SetControllerReference(obs, serviceAccountAsset, a.Scheme)
 		} else if err != nil {
+			meta.SetStatusCondition(&obs.Status.SDINodeConfigStatus.Conditions, metav1.Condition{
+				Type:               "OperatorDegraded",
+				Status:             metav1.ConditionTrue,
+				Reason:             sdiv1alpha1.ReasonResourceNotAvailable,
+				LastTransitionTime: metav1.NewTime(time.Now()),
+				Message:            fmt.Sprintf("unable to get operand service account: %s", err.Error()),
+			})
 			return err
 		}
 
-		imageStreamAsset := assets.GetImageStreamFromFile("manifests/node-configurator/imagestream.yaml")
-
-		err = a.Client.Get(ctx, client.ObjectKey{Name: imageStreamAsset.Name}, imageStreamAsset)
+		imageStream := &openshiftv1.ImageStream{}
+		imageStreamName := "ocp-tools"
+		err = a.Client.Get(ctx, client.ObjectKey{Name: imageStreamName, Namespace: obs.Namespace}, imageStream)
 		if err != nil && errors.IsNotFound(err) {
+			imageStreamAsset := assets.GetImageStreamFromFile("manifests/node-configurator/imagestream.yaml")
+			imageStreamAsset.Namespace = obs.Namespace
 			if err := a.Client.Create(ctx, imageStreamAsset); err != nil {
+				meta.SetStatusCondition(&obs.Status.SDINodeConfigStatus.Conditions, metav1.Condition{
+					Type:               "OperatorDegraded",
+					Status:             metav1.ConditionTrue,
+					Reason:             sdiv1alpha1.ReasonOperandResourceFailed,
+					LastTransitionTime: metav1.NewTime(time.Now()),
+					Message:            fmt.Sprintf("unable to create operand image stream: %s", err.Error()),
+				})
 				return err
 			}
 			ctrl.SetControllerReference(obs, imageStreamAsset, a.Scheme)
 		} else if err != nil {
+			meta.SetStatusCondition(&obs.Status.SDINodeConfigStatus.Conditions, metav1.Condition{
+				Type:               "OperatorDegraded",
+				Status:             metav1.ConditionTrue,
+				Reason:             sdiv1alpha1.ReasonResourceNotAvailable,
+				LastTransitionTime: metav1.NewTime(time.Now()),
+				Message:            fmt.Sprintf("unable to get operand image stream: %s", err.Error()),
+			})
 			return err
 		}
 
-		daemonsetAsset := assets.GetDaemonSetFromFile("manifests/node-configurator/daemonset.yaml")
-
-		err = a.Client.Get(ctx, client.ObjectKey{Name: daemonsetAsset.Name}, daemonsetAsset)
+		daemonset := &appsv1.DaemonSet{}
+		daemonsetName := "sdi-node-configurator"
+		err = a.Client.Get(ctx, client.ObjectKey{Name: daemonsetName}, daemonset)
 		if err != nil && errors.IsNotFound(err) {
+			daemonsetAsset := assets.GetDaemonSetFromFile("manifests/node-configurator/daemonset.yaml")
+			daemonsetAsset.Namespace = obs.Namespace
 			if err := a.Client.Create(ctx, daemonsetAsset); err != nil {
+				meta.SetStatusCondition(&obs.Status.SDINodeConfigStatus.Conditions, metav1.Condition{
+					Type:               "OperatorDegraded",
+					Status:             metav1.ConditionTrue,
+					Reason:             sdiv1alpha1.ReasonOperandResourceFailed,
+					LastTransitionTime: metav1.NewTime(time.Now()),
+					Message:            fmt.Sprintf("unable to get operand daemonset: %s", err.Error()),
+				})
 				return err
 			}
 			ctrl.SetControllerReference(obs, daemonsetAsset, a.Scheme)
 		} else if err != nil {
+			meta.SetStatusCondition(&obs.Status.SDINodeConfigStatus.Conditions, metav1.Condition{
+				Type:               "OperatorDegraded",
+				Status:             metav1.ConditionTrue,
+				Reason:             sdiv1alpha1.ReasonResourceNotAvailable,
+				LastTransitionTime: metav1.NewTime(time.Now()),
+				Message:            fmt.Sprintf("unable to get operand image stream: %s", err.Error()),
+			})
 			return err
 		}
 
 	} else if err != nil {
-		return err
-	}
-
-	a.logger.Info(fmt.Sprintf(
-		"ClusterOperator %s exists. Use machineConfig and ContainerRuntimeConfig for the node configuration",
-		machineConfigClusterOperatorName,
-	))
-
-	kernalModuleLoadMachineConfigAsset := assets.GetMachineConfigFromFile("manifests/machineconfiguration/machineconfig-sdi-load-kernal-modules.yaml")
-
-	kernalModuleLoadMachineConfig := &configv1.MachineConfig{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: kernalModuleLoadMachineConfigAsset.Name,
-		},
-	}
-
-	err = a.Client.Get(ctx, client.ObjectKey{Name: kernalModuleLoadMachineConfigAsset.Name}, kernalModuleLoadMachineConfig)
-	if err != nil && errors.IsNotFound(err) {
-		a.logger.Info(fmt.Sprintf("MachineConfig %s does not exist", kernalModuleLoadMachineConfigAsset.Name))
-		if err := a.Client.Create(ctx, kernalModuleLoadMachineConfigAsset); err != nil {
-			return err
-		}
-	} else if err != nil {
+		meta.SetStatusCondition(&obs.Status.SDINodeConfigStatus.Conditions, metav1.Condition{
+			Type:               "OperatorDegraded",
+			Status:             metav1.ConditionTrue,
+			Reason:             sdiv1alpha1.ReasonResourceNotAvailable,
+			LastTransitionTime: metav1.NewTime(time.Now()),
+			Message:            fmt.Sprintf("unable to get operand machine config cluster operator: %s", err.Error()),
+		})
 		return err
 	} else {
-		a.logger.Info(fmt.Sprintf("MachineConfig %s already exists. Do nothing", kernalModuleLoadMachineConfigAsset.Name))
-	}
 
-	kubeletConfigAsset := assets.GetKubeletConfigFromFile("manifests/machineconfiguration/kubeletconfig-sdi-pid-limit.yaml")
+		a.logger.Info(fmt.Sprintf(
+			"ClusterOperator %s exists. Use machineConfig and ContainerRuntimeConfig for the node configuration",
+			machineConfigClusterOperatorName,
+		))
 
-	kubeletConfig := &configv1.KubeletConfig{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: kubeletConfigAsset.Name,
-		},
-	}
+		kernalModuleLoadMachineConfig := &configv1.MachineConfig{}
 
-	err = a.Client.Get(ctx, client.ObjectKey{Name: kubeletConfigAsset.Name}, kubeletConfig)
-	if err != nil && errors.IsNotFound(err) {
-		a.logger.Info(fmt.Sprintf("KubeletConfig %s does not exist. Create it.", kubeletConfigAsset.Name))
-		if err := a.Client.Create(ctx, kubeletConfigAsset); err != nil {
+		machineConfigName := "75-worker-sap-data-intelligence"
+		err = a.Client.Get(ctx, client.ObjectKey{Name: machineConfigName}, kernalModuleLoadMachineConfig)
+		if err != nil && errors.IsNotFound(err) {
+			kernalModuleLoadMachineConfigAsset := assets.GetMachineConfigFromFile("manifests/machineconfiguration/machineconfig-sdi-load-kernal-modules.yaml")
+			a.logger.Info(fmt.Sprintf("MachineConfig %s does not exist", kernalModuleLoadMachineConfigAsset.Name))
+			if err := a.Client.Create(ctx, kernalModuleLoadMachineConfigAsset); err != nil {
+				meta.SetStatusCondition(&obs.Status.SDINodeConfigStatus.Conditions, metav1.Condition{
+					Type:               "OperatorDegraded",
+					Status:             metav1.ConditionTrue,
+					Reason:             sdiv1alpha1.ReasonOperandResourceFailed,
+					LastTransitionTime: metav1.NewTime(time.Now()),
+					Message:            fmt.Sprintf("unable to get operand machine config: %s", err.Error()),
+				})
+				return err
+			}
+		} else if err != nil {
+			meta.SetStatusCondition(&obs.Status.SDINodeConfigStatus.Conditions, metav1.Condition{
+				Type:               "OperatorDegraded",
+				Status:             metav1.ConditionTrue,
+				Reason:             sdiv1alpha1.ReasonResourceNotAvailable,
+				LastTransitionTime: metav1.NewTime(time.Now()),
+				Message:            fmt.Sprintf("unable to get operand machine config: %s", err.Error()),
+			})
 			return err
+		} else {
+			a.logger.Info(fmt.Sprintf("MachineConfig %s already exists. Do nothing", machineConfigName))
 		}
-	} else if err != nil {
-		return err
-	} else {
-		a.logger.Info(fmt.Sprintf("KubeletConfig %s exists. Do nothing", kubeletConfigAsset.Name))
-	}
 
-	containerRuntimeConfigAsset := assets.GetKubeletConfigFromFile("manifests/machineconfiguration/obsolete-containerruntimeconfig-sdi-pid-limit.yaml")
+		kubeletConfigName := "sdi-pids-limit"
+		kubeletConfig := &configv1.KubeletConfig{}
 
-	containerRuntimeConfig := &configv1.ContainerRuntimeConfig{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: containerRuntimeConfigAsset.Name,
-		},
-	}
-
-	err = a.Client.Get(ctx, client.ObjectKey{Name: containerRuntimeConfigAsset.Name}, containerRuntimeConfig)
-	if err != nil && errors.IsNotFound(err) {
-		a.logger.Info(fmt.Sprintf("ContainerRuntimeConfig %s does not exist. No need to make the cleanup.", containerRuntimeConfigAsset.Name))
-	} else if err != nil {
-		return err
-	} else {
-		a.logger.Info(fmt.Sprintf("ContainerRuntimeConfig %s exists. Make the cleanup", containerRuntimeConfigAsset.Name))
-		if err := a.Client.Delete(ctx, kubeletConfigAsset); err != nil {
+		err = a.Client.Get(ctx, client.ObjectKey{Name: kubeletConfigName}, kubeletConfig)
+		if err != nil && errors.IsNotFound(err) {
+			kubeletConfigAsset := assets.GetKubeletConfigFromFile("manifests/machineconfiguration/kubeletconfig-sdi-pid-limit.yaml")
+			a.logger.Info(fmt.Sprintf("KubeletConfig %s does not exist. Create it.", kubeletConfigAsset.Name))
+			if err := a.Client.Create(ctx, kubeletConfigAsset); err != nil {
+				meta.SetStatusCondition(&obs.Status.SDINodeConfigStatus.Conditions, metav1.Condition{
+					Type:               "OperatorDegraded",
+					Status:             metav1.ConditionTrue,
+					Reason:             sdiv1alpha1.ReasonOperandResourceFailed,
+					LastTransitionTime: metav1.NewTime(time.Now()),
+					Message:            fmt.Sprintf("unable to get operand machine config: %s", err.Error()),
+				})
+				return err
+			}
+		} else if err != nil {
+			meta.SetStatusCondition(&obs.Status.SDINodeConfigStatus.Conditions, metav1.Condition{
+				Type:               "OperatorDegraded",
+				Status:             metav1.ConditionTrue,
+				Reason:             sdiv1alpha1.ReasonResourceNotAvailable,
+				LastTransitionTime: metav1.NewTime(time.Now()),
+				Message:            fmt.Sprintf("unable to get operand machine config: %s", err.Error()),
+			})
 			return err
+		} else {
+			a.logger.Info(fmt.Sprintf("KubeletConfig %s exists. Do nothing", kubeletConfigName))
 		}
-	}
 
-	machineConfigPoolAsset := assets.GetMachineConfigPoolFromFile("manifests/machineconfiguration/machineconfigpool-sdi.yaml")
-
-	machineConfigPool := &configv1.MachineConfigPool{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: machineConfigPoolAsset.Name,
-		},
-	}
-
-	err = a.Client.Get(ctx, client.ObjectKey{Name: machineConfigPoolAsset.Name}, machineConfigPool)
-	if err != nil && errors.IsNotFound(err) {
-		a.logger.Info(fmt.Sprintf("MachineConfigPool %s does not exist", machineConfigPoolAsset.Name))
-		if err := a.Client.Create(ctx, machineConfigPoolAsset); err != nil {
+		obsoleteContainerRuntimeConfig := &configv1.ContainerRuntimeConfig{}
+		obsoleteContainerRuntimeConfigName := "sdi-pids-limit"
+		err = a.Client.Get(ctx, client.ObjectKey{Name: obsoleteContainerRuntimeConfigName}, obsoleteContainerRuntimeConfig)
+		if err != nil && errors.IsNotFound(err) {
+			a.logger.Info(fmt.Sprintf("ContainerRuntimeConfig %s does not exist. No need to make the cleanup.", obsoleteContainerRuntimeConfigName))
+		} else if err != nil {
 			return err
+		} else {
+			obsoleteContainerRuntimeConfigAsset := assets.GetKubeletConfigFromFile("manifests/machineconfiguration/obsolete-containerruntimeconfig-sdi-pid-limit.yaml")
+			a.logger.Info(fmt.Sprintf("ContainerRuntimeConfig %s exists. Make the cleanup", obsoleteContainerRuntimeConfigName))
+			if err := a.Client.Delete(ctx, obsoleteContainerRuntimeConfigAsset); err != nil {
+				return err
+			}
 		}
-	} else if err != nil {
-		return err
-	} else {
-		a.logger.Info(fmt.Sprintf("MachineConfigPool %s already exists. Do nothing", machineConfigPoolAsset.Name))
+
+		machineConfigPoolName := "sdi"
+		machineConfigPool := &configv1.MachineConfigPool{}
+
+		err = a.Client.Get(ctx, client.ObjectKey{Name: machineConfigPoolName}, machineConfigPool)
+		if err != nil && errors.IsNotFound(err) {
+			machineConfigPoolAsset := assets.GetMachineConfigPoolFromFile("manifests/machineconfiguration/machineconfigpool-sdi.yaml")
+			a.logger.Info(fmt.Sprintf("MachineConfigPool %s does not exist", machineConfigPoolAsset.Name))
+			if err := a.Client.Create(ctx, machineConfigPoolAsset); err != nil {
+				return err
+			}
+		} else if err != nil {
+			meta.SetStatusCondition(&obs.Status.SDINodeConfigStatus.Conditions, metav1.Condition{
+				Type:               "OperatorDegraded",
+				Status:             metav1.ConditionTrue,
+				Reason:             sdiv1alpha1.ReasonResourceNotAvailable,
+				LastTransitionTime: metav1.NewTime(time.Now()),
+				Message:            fmt.Sprintf("unable to get operand machine config pool: %s", err.Error()),
+			})
+			return err
+		} else {
+			a.logger.Info(fmt.Sprintf("MachineConfigPool %s already exists. Do nothing", machineConfigPoolName))
+		}
 	}
 
+	meta.SetStatusCondition(&obs.Status.SDINodeConfigStatus.Conditions, metav1.Condition{
+		Type:               "OperatorDegraded",
+		Status:             metav1.ConditionFalse,
+		Reason:             sdiv1alpha1.ReasonSucceeded,
+		LastTransitionTime: metav1.NewTime(time.Now()),
+		Message:            "operator successfully reconciling",
+	})
 	return nil
 }

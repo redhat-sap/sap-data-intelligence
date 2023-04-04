@@ -1,11 +1,11 @@
 ---
 apiVersion: machineconfiguration.openshift.io/v1
-kind: KubeletConfig
+kind: ContainerRuntimeConfig
 metadata:
   name: sdi-pids-limit
 spec:
-  kubeletConfig:
-    podPidsLimit: 8192
   machineConfigPoolSelector:
     matchLabels:
       workload: sapdataintelligence
+  containerRuntimeConfig:
+    pidsLimit: 16384

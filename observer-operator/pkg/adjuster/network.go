@@ -79,7 +79,7 @@ func (a *Adjuster) AdjustSDIVsystemRoute(ns string, obs *sdiv1alpha1.SDIObserver
 			meta.SetStatusCondition(&obs.Status.VSystemRouteStatus.Conditions, metav1.Condition{
 				Type:               "OperatorDegraded",
 				Status:             metav1.ConditionTrue,
-				Reason:             sdiv1alpha1.ReasonRouteNotAvailable,
+				Reason:             sdiv1alpha1.ReasonResourceNotAvailable,
 				LastTransitionTime: metav1.NewTime(time.Now()),
 				Message:            fmt.Sprintf("unable to get operand route: %s", err.Error()),
 			})
@@ -122,7 +122,7 @@ func (a *Adjuster) AdjustSDIVsystemRoute(ns string, obs *sdiv1alpha1.SDIObserver
 			meta.SetStatusCondition(&obs.Status.VSystemRouteStatus.Conditions, metav1.Condition{
 				Type:               "OperatorDegraded",
 				Status:             metav1.ConditionTrue,
-				Reason:             sdiv1alpha1.ReasonOperandRouteFailed,
+				Reason:             sdiv1alpha1.ReasonOperandResourceFailed,
 				LastTransitionTime: metav1.NewTime(time.Now()),
 				Message:            fmt.Sprintf("unable to update operand route: %s", err.Error()),
 			})
@@ -166,7 +166,7 @@ func (a *Adjuster) AdjustSDIVsystemRoute(ns string, obs *sdiv1alpha1.SDIObserver
 			meta.SetStatusCondition(&obs.Status.VSystemRouteStatus.Conditions, metav1.Condition{
 				Type:               "OperatorDegraded",
 				Status:             metav1.ConditionFalse,
-				Reason:             sdiv1alpha1.ReasonRouteNotAvailable,
+				Reason:             sdiv1alpha1.ReasonResourceNotAvailable,
 				LastTransitionTime: metav1.NewTime(time.Now()),
 				Message:            fmt.Sprintf("operand route does not exist: %s", err.Error()),
 			})
@@ -177,7 +177,7 @@ func (a *Adjuster) AdjustSDIVsystemRoute(ns string, obs *sdiv1alpha1.SDIObserver
 			meta.SetStatusCondition(&obs.Status.VSystemRouteStatus.Conditions, metav1.Condition{
 				Type:               "OperatorDegraded",
 				Status:             metav1.ConditionTrue,
-				Reason:             sdiv1alpha1.ReasonRouteNotAvailable,
+				Reason:             sdiv1alpha1.ReasonResourceNotAvailable,
 				LastTransitionTime: metav1.NewTime(time.Now()),
 				Message:            fmt.Sprintf("unable to get operand route: %s", err.Error()),
 			})
@@ -190,7 +190,7 @@ func (a *Adjuster) AdjustSDIVsystemRoute(ns string, obs *sdiv1alpha1.SDIObserver
 			meta.SetStatusCondition(&obs.Status.VSystemRouteStatus.Conditions, metav1.Condition{
 				Type:               "OperatorDegraded",
 				Status:             metav1.ConditionTrue,
-				Reason:             sdiv1alpha1.ReasonOperandRouteFailed,
+				Reason:             sdiv1alpha1.ReasonOperandResourceFailed,
 				LastTransitionTime: metav1.NewTime(time.Now()),
 				Message:            fmt.Sprintf("unable to delete operand route: %s", err.Error()),
 			})
@@ -253,7 +253,7 @@ func (a *Adjuster) AdjustSLCBRoute(ns string, obs *sdiv1alpha1.SDIObserver, ctx 
 			meta.SetStatusCondition(&obs.Status.SLCBRouteStatus.Conditions, metav1.Condition{
 				Type:               "OperatorDegraded",
 				Status:             metav1.ConditionTrue,
-				Reason:             sdiv1alpha1.ReasonRouteNotAvailable,
+				Reason:             sdiv1alpha1.ReasonResourceNotAvailable,
 				LastTransitionTime: metav1.NewTime(time.Now()),
 				Message:            fmt.Sprintf("unable to get operand route: %s", err.Error()),
 			})
@@ -322,7 +322,7 @@ func (a *Adjuster) AdjustSLCBRoute(ns string, obs *sdiv1alpha1.SDIObserver, ctx 
 			meta.SetStatusCondition(&obs.Status.SLCBRouteStatus.Conditions, metav1.Condition{
 				Type:               "OperatorDegraded",
 				Status:             metav1.ConditionFalse,
-				Reason:             sdiv1alpha1.ReasonRouteNotAvailable,
+				Reason:             sdiv1alpha1.ReasonResourceNotAvailable,
 				LastTransitionTime: metav1.NewTime(time.Now()),
 				Message:            fmt.Sprintf("operand route does not exist: %s", err.Error()),
 			})
@@ -333,7 +333,7 @@ func (a *Adjuster) AdjustSLCBRoute(ns string, obs *sdiv1alpha1.SDIObserver, ctx 
 			meta.SetStatusCondition(&obs.Status.SLCBRouteStatus.Conditions, metav1.Condition{
 				Type:               "OperatorDegraded",
 				Status:             metav1.ConditionTrue,
-				Reason:             sdiv1alpha1.ReasonRouteNotAvailable,
+				Reason:             sdiv1alpha1.ReasonResourceNotAvailable,
 				LastTransitionTime: metav1.NewTime(time.Now()),
 				Message:            fmt.Sprintf("unable to get operand route: %s", err.Error()),
 			})
@@ -345,7 +345,7 @@ func (a *Adjuster) AdjustSLCBRoute(ns string, obs *sdiv1alpha1.SDIObserver, ctx 
 			meta.SetStatusCondition(&obs.Status.SLCBRouteStatus.Conditions, metav1.Condition{
 				Type:               "OperatorDegraded",
 				Status:             metav1.ConditionTrue,
-				Reason:             sdiv1alpha1.ReasonOperandRouteFailed,
+				Reason:             sdiv1alpha1.ReasonOperandResourceFailed,
 				LastTransitionTime: metav1.NewTime(time.Now()),
 				Message:            fmt.Sprintf("unable to delete operand route: %s", err.Error()),
 			})

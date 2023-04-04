@@ -34,8 +34,8 @@ const (
 
 const (
 	ReasonCRNotAvailable                  = "OperatorResourceNotAvailable"
-	ReasonRouteNotAvailable               = "OperandRouteNotAvailable"
-	ReasonOperandRouteFailed              = "OperandRouteFailed"
+	ReasonResourceNotAvailable            = "OperandResourceNotAvailable"
+	ReasonOperandResourceFailed           = "OperandResourceFailed"
 	ReasonSucceeded                       = "OperatorSucceeded"
 	ReasonRouteManagementStateUnsupported = "RouteManagementStateUnsupported"
 )
