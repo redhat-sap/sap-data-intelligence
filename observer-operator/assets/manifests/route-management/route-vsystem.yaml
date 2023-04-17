@@ -1,0 +1,22 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: vsystem
+  namespace: sdi
+  annotations:
+    haproxy.router.openshift.io/timeout: 2m
+spec:
+  port:
+    targetPort: vsystem
+  tls:
+    destinationCACertificate: |+
+      -----BEGIN CERTIFICATE-----
+      -----END CERTIFICATE-----
+
+    insecureEdgeTerminationPolicy: Redirect
+    termination: reencrypt
+  to:
+    kind: Service
+    name: vsystem
+    weight: 100
+  wildcardPolicy: None

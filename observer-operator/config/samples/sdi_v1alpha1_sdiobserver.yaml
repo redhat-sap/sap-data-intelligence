@@ -11,10 +11,11 @@ metadata:
   # namespace: sdi-observer
 spec:
   # TODO(user): Add fields here
-  sdiRoute:
-    namespace: sdi
-    targetedService: vsystem
+  sdiNamespace: "sdi"
+  slcbNamespace: "sap-slcbridge"
+  sdiVSystemRoute:
+    managementState: Managed
   slcbRoute:
-    namespace: sap-slcbridge
-    targetedService: slcbridgebase-service
+    managementState: Managed
+  manageSDINodeConfig: true
 

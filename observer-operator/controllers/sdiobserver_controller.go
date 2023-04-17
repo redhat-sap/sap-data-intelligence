@@ -19,7 +19,6 @@ package controllers
 import (
 	"context"
 	"fmt"
-	routev1 "github.com/openshift/api/route/v1"
 	"github.com/redhat-sap/sap-data-intelligence/observer-operator/pkg/adjuster"
 	"github.com/redhat-sap/sap-data-intelligence/observer-operator/pkg/sdiobserver"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -40,9 +39,8 @@ import (
 type SDIObserverReconciler struct {
 	client.Client
 	Scheme            *runtime.Scheme
-	SdiNamespace      string
-	SlcbNamespace     string
 	ObserverNamespace string
+	Interval          time.Duration
 }
 
 //+kubebuilder:rbac:groups=sdi.sap-redhat.io,resources=sdiobservers,verbs=get;list;watch;create;update;patch;delete
@@ -53,6 +51,10 @@ type SDIObserverReconciler struct {
 //+kubebuilder:rbac:groups=route.openshift.io,resources=routes/status,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch
 //+kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch
+//+kubebuilder:rbac:groups=apps,resources=daemonset,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=,resources=serviceaccount,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=image.openshift.io,resources=imagestream,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=machineconfiguration.openshift.io,resources=kubeletconfig;machineconfig;machineconfigpool;containerruntimeconfig,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=installers.datahub.sap.com,resources=datahubs;voraclusters,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
@@ -91,7 +93,8 @@ func (r *SDIObserverReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	sdiAdjuster := adjuster.New(
 		operatorCR.Name,
 		operatorCR.Namespace,
-		r,
+		r.Client,
+		r.Scheme,
 		logger,
 	)
 
@@ -103,14 +106,14 @@ func (r *SDIObserverReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		}
 	}
 
-	return ctrl.Result{}, nil
+	logger.Info(fmt.Sprintf("Reconciled Successfully. Requeueing at %s", time.Now().Add(r.Interval).Format(time.Stamp)))
+	return ctrl.Result{RequeueAfter: r.Interval}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *SDIObserverReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&sdiv1alpha1.SDIObserver{}).
-		Owns(&routev1.Route{}).
 		Complete(r)
 }
 

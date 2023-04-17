@@ -3,6 +3,8 @@ kind: Route
 metadata:
   name: sap-slcbridge
   namespace: sap-slcbridge
+  annotations:
+    haproxy.router.openshift.io/timeout: 10m
 spec:
   tls:
     insecureEdgeTerminationPolicy: Redirect
