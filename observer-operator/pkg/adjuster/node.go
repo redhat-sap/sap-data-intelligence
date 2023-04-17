@@ -197,7 +197,7 @@ func (a *Adjuster) AdjustSDINodes(obs *sdiv1alpha1.SDIObserver, ctx context.Cont
 		} else if err != nil {
 			return err
 		} else {
-			obsoleteContainerRuntimeConfigAsset := assets.GetKubeletConfigFromFile("manifests/machineconfiguration/obsolete-containerruntimeconfig-sdi-pid-limit.yaml")
+			obsoleteContainerRuntimeConfigAsset := assets.GetContainerRuntimeConfigFromFile("manifests/machineconfiguration/obsolete-containerruntimeconfig-sdi-pid-limit.yaml")
 			a.logger.Info(fmt.Sprintf("ContainerRuntimeConfig %s exists. Make the cleanup", obsoleteContainerRuntimeConfigName))
 			if err := a.Client.Delete(ctx, obsoleteContainerRuntimeConfigAsset); err != nil {
 				return err
