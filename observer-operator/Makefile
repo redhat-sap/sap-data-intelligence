@@ -33,6 +33,7 @@ IMAGE_TAG_BASE ?= sap-redhat.io/observer-operator
 
 # BUNDLE_IMG defines the image:tag used for the bundle.
 # You can use it as an arg. (E.g make bundle-build BUNDLE_IMG=<some-registry>/<project-name-bundle>:<tag>)
+# BUNDLE_IMG=quay.io/redhat-sap-cop/sdi-observer-operator-bundle:v0.0.1
 BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:v$(VERSION)
 
 # BUNDLE_GEN_FLAGS are the flags passed to the operator-sdk generate bundle command
@@ -47,6 +48,7 @@ ifeq ($(USE_IMAGE_DIGESTS), true)
 endif
 
 # Image URL to use all building/pushing image targets
+# IMG=quay.io/redhat-sap-cop/sdi-observer-operator:0.1.1
 IMG ?= controller:latest
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.25.0

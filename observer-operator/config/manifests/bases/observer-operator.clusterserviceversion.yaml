@@ -1,0 +1,52 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: ClusterServiceVersion
+metadata:
+  annotations:
+    alm-examples: '[]'
+    capabilities: Basic Install
+  name: observer-operator.v0.0.0
+  namespace: placeholder
+spec:
+  apiservicedefinitions: {}
+  customresourcedefinitions:
+    owned:
+    - description: SDIObserver is the Schema for the sdiobservers API
+      displayName: SDIObserver
+      kind: SDIObserver
+      name: sdiobservers.sdi.sap-redhat.io
+      version: v1alpha1
+  description: Operator for monitoring SDI's namespace and modifying objects in there
+    that enable running of SDI on top of OpenShift. The observer shall be run in a
+    dedicated namespace. It must be deployed before the SDI installation is started.
+    Please refer to https://access.redhat.com/articles/5100521 for detailed information.
+  displayName: SAP Data Intelligence Observer Operator
+  icon:
+  - base64data: ""
+    mediatype: ""
+  install:
+    spec:
+      deployments: null
+    strategy: ""
+  installModes:
+  - supported: false
+    type: OwnNamespace
+  - supported: false
+    type: SingleNamespace
+  - supported: false
+    type: MultiNamespace
+  - supported: true
+    type: AllNamespaces
+  keywords:
+  - sdi
+  - sap data intelligence
+  links:
+  - name: Observer Operator
+    url: https://observer-operator.domain
+  maintainers:
+  - email: mjiao@redhat.com
+    name: Manjun Jiao
+  maturity: alpha
+  provider:
+    name: SAP LinuxLab - Red Hat
+    url: https://github.com/sap-linuxlab
+  version: 0.0.0
