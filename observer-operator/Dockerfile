@@ -30,6 +30,7 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -a -o ma
 # FROM gcr.io/distroless/static:nonroot
 FROM registry.access.redhat.com/ubi8/ubi-minimal:latest
 WORKDIR /
+COPY LICENSE licenses/LICENSE
 COPY --from=builder /workspace/manager .
 USER 65532:65532
 
