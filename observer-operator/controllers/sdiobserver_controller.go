@@ -55,6 +55,7 @@ type SDIObserverReconciler struct {
 //+kubebuilder:rbac:groups=,resources=serviceaccount,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=image.openshift.io,resources=imagestream,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=machineconfiguration.openshift.io,resources=kubeletconfig;machineconfig;machineconfigpool;containerruntimeconfig,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=config.openshift.io,resources=clusteroperator,verbs=get;list
 //+kubebuilder:rbac:groups=installers.datahub.sap.com,resources=datahubs;voraclusters,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to

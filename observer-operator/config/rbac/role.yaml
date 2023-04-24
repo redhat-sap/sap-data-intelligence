@@ -28,6 +28,13 @@ rules:
   - update
   - watch
 - apiGroups:
+  - config.openshift.io
+  resources:
+  - clusteroperator
+  verbs:
+  - get
+  - list
+- apiGroups:
   - ""
   resources:
   - secrets

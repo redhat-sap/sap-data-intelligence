@@ -33,7 +33,7 @@ metadata:
     capabilities: Basic Install
     operators.operatorframework.io/builder: operator-sdk-v1.19.0+git
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
-  name: observer-operator.v0.0.1
+  name: observer-operator.v0.0.3
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -78,6 +78,13 @@ spec:
           - patch
           - update
           - watch
+        - apiGroups:
+          - config.openshift.io
+          resources:
+          - clusteroperator
+          verbs:
+          - get
+          - list
         - apiGroups:
           - ""
           resources:
@@ -279,7 +286,7 @@ spec:
                   valueFrom:
                     fieldRef:
                       fieldPath: metadata.namespace
-                image: quay.io/redhat-sap-cop/sdi-observer-operator:0.1.1
+                image: quay.io/redhat-sap-cop/sdi-observer-operator:0.1.4
                 livenessProbe:
                   httpGet:
                     path: /healthz
@@ -366,4 +373,4 @@ spec:
   provider:
     name: SAP LinuxLab - Red Hat
     url: https://github.com/sap-linuxlab
-  version: 0.0.1
+  version: 0.0.3
