@@ -24,6 +24,8 @@ spec:
         app: sdi-node-configurator
         daemonset: sdi-node-configurator
     spec:
+      nodeSelector:
+        node-role.kubernetes.io/sdi: ""
       containers:
         - command:
             - "/bin/sleep"

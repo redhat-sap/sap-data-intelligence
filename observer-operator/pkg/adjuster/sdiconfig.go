@@ -4,8 +4,11 @@ import (
 	"context"
 	"fmt"
 	sdiv1alpha1 "github.com/redhat-sap/sap-data-intelligence/observer-operator/api/v1alpha1"
+	"github.com/redhat-sap/sap-data-intelligence/observer-operator/assets"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -13,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/pointer"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"time"
 )
@@ -352,5 +356,253 @@ func (a *Adjuster) adjustNamespaceAnnotation(ns, s string, ctx context.Context) 
 		}
 		a.logger.Info(fmt.Sprintf("Annotation '%s' created for namespace '%s'\n", annotationKey, ns))
 	}
+	return nil
+}
+
+func (a *Adjuster) AdjustSDIRbac(ns string, obs *sdiv1alpha1.SDIObserver, ctx context.Context) error {
+
+	privilegedRole := &rbacv1.RoleBinding{}
+	privilegedRoleName := "sdi-privileged"
+	err := a.Client.Get(ctx, client.ObjectKey{Name: privilegedRoleName, Namespace: ns}, privilegedRole)
+	if err != nil && errors.IsNotFound(err) {
+		a.logger.Info(fmt.Sprintf(
+			"Privileged role %s does not exist in namespace %s. Create a new one",
+			privilegedRoleName,
+			ns,
+		))
+		privilegedRoleAsset := assets.GetRoleFromFile("manifests/role-rolebinding-config-for-sdi/privileged-role.yaml")
+		privilegedRoleAsset.Namespace = ns
+		if err := a.Client.Create(ctx, privilegedRoleAsset); err != nil {
+			meta.SetStatusCondition(&obs.Status.SDINodeConfigStatus.Conditions, metav1.Condition{
+				Type:               "OperatorDegraded",
+				Status:             metav1.ConditionTrue,
+				Reason:             sdiv1alpha1.ReasonOperandResourceFailed,
+				LastTransitionTime: metav1.NewTime(time.Now()),
+				Message:            fmt.Sprintf("unable to get operand role binding: %s", err.Error()),
+			})
+			return err
+		}
+		a.logger.Info(fmt.Sprintf(
+			"Privileged role %s is created in namespace %s",
+			privilegedRoleName,
+			ns,
+		))
+		ctrl.SetControllerReference(obs, privilegedRoleAsset, a.Scheme)
+	} else if err != nil {
+		meta.SetStatusCondition(&obs.Status.SDINodeConfigStatus.Conditions, metav1.Condition{
+			Type:               "OperatorDegraded",
+			Status:             metav1.ConditionTrue,
+			Reason:             sdiv1alpha1.ReasonResourceNotAvailable,
+			LastTransitionTime: metav1.NewTime(time.Now()),
+			Message:            fmt.Sprintf("unable to get operand role binding: %s", err.Error()),
+		})
+		return err
+	} else {
+		a.logger.Info(fmt.Sprintf(
+			"Privileged role %s already exists in namespace %s. Do nothing",
+			privilegedRoleName,
+			ns,
+		))
+	}
+
+	privilegedRoleBinding := &rbacv1.RoleBinding{}
+	privilegedRoleBindingName := "sdi-privileged"
+	err = a.Client.Get(ctx, client.ObjectKey{Name: privilegedRoleBindingName, Namespace: ns}, privilegedRoleBinding)
+	if err != nil && errors.IsNotFound(err) {
+		privilegedRoleBindingAsset := assets.GetRoleBindingFromFile("manifests/role-rolebinding-config-for-sdi/privileged-rolebinding.yaml")
+		privilegedRoleBindingAsset.Namespace = ns
+
+		privilegedRoleBindingAsset.Subjects = []rbacv1.Subject{
+			{
+				Kind:      "ServiceAccount",
+				Name:      "default",
+				Namespace: ns,
+			},
+			{
+				Kind:      "ServiceAccount",
+				Name:      "mlf-deployment-api",
+				Namespace: ns,
+			},
+			{
+				Kind:      "ServiceAccount",
+				Name:      "vora-vflow-server",
+				Namespace: ns,
+			},
+			{
+				Kind:      "ServiceAccount",
+				Name:      "vora-vsystem-" + ns,
+				Namespace: ns,
+			},
+			{
+				Kind:      "ServiceAccount",
+				Name:      "vora-vsystem-" + ns + "-vrep",
+				Namespace: ns,
+			},
+
+			// SDI 3.2 compatibility
+			{
+				Kind:      "ServiceAccount",
+				Name:      ns + "-elasticsearch",
+				Namespace: ns,
+			},
+			{
+				Kind:      "ServiceAccount",
+				Name:      ns + "-fluentd",
+				Namespace: ns,
+			},
+
+			// SDI 3.3
+			{
+				Kind:      "ServiceAccount",
+				Name:      "diagnostics-elasticsearch",
+				Namespace: ns,
+			},
+			{
+				Kind:      "ServiceAccount",
+				Name:      "diagnostics-fluentd",
+				Namespace: ns,
+			},
+		}
+
+		a.logger.Info(fmt.Sprintf(
+			"Privileged roleBinding %s does not exist in namespace %s. Create a new one",
+			privilegedRoleBindingName,
+			ns,
+		))
+		if err := a.Client.Create(ctx, privilegedRoleBindingAsset); err != nil {
+			meta.SetStatusCondition(&obs.Status.SDINodeConfigStatus.Conditions, metav1.Condition{
+				Type:               "OperatorDegraded",
+				Status:             metav1.ConditionTrue,
+				Reason:             sdiv1alpha1.ReasonOperandResourceFailed,
+				LastTransitionTime: metav1.NewTime(time.Now()),
+				Message:            fmt.Sprintf("unable to get operand role binding: %s", err.Error()),
+			})
+			return err
+		}
+
+		a.logger.Info(fmt.Sprintf(
+			"Privileged roleBinding %s is created in namespace %s",
+			privilegedRoleBindingName,
+			ns,
+		))
+		ctrl.SetControllerReference(obs, privilegedRoleBindingAsset, a.Scheme)
+
+	} else if err != nil {
+		meta.SetStatusCondition(&obs.Status.SDINodeConfigStatus.Conditions, metav1.Condition{
+			Type:               "OperatorDegraded",
+			Status:             metav1.ConditionTrue,
+			Reason:             sdiv1alpha1.ReasonResourceNotAvailable,
+			LastTransitionTime: metav1.NewTime(time.Now()),
+			Message:            fmt.Sprintf("unable to get operand role binding: %s", err.Error()),
+		})
+		return err
+	} else {
+		a.logger.Info(fmt.Sprintf(
+			"Privileged roleBinding %s already exists in namespace %s. Do nothing",
+			privilegedRoleBindingName,
+			ns,
+		))
+	}
+
+	// Handle anyuid role, rolebinding
+	anyuidRole := &rbacv1.RoleBinding{}
+	anyuidRoleName := "sdi-anyuid"
+	err = a.Client.Get(ctx, client.ObjectKey{Name: anyuidRoleName, Namespace: ns}, anyuidRole)
+	if err != nil && errors.IsNotFound(err) {
+		anyuidRoleAsset := assets.GetRoleFromFile("manifests/role-rolebinding-config-for-sdi/anyuid-role.yaml")
+		anyuidRoleAsset.Namespace = ns
+		a.logger.Info(fmt.Sprintf(
+			"Anyuid role %s does not exist in namespace %s. Create a new one",
+			anyuidRoleName,
+			ns,
+		))
+		if err := a.Client.Create(ctx, anyuidRoleAsset); err != nil {
+			meta.SetStatusCondition(&obs.Status.SDINodeConfigStatus.Conditions, metav1.Condition{
+				Type:               "OperatorDegraded",
+				Status:             metav1.ConditionTrue,
+				Reason:             sdiv1alpha1.ReasonOperandResourceFailed,
+				LastTransitionTime: metav1.NewTime(time.Now()),
+				Message:            fmt.Sprintf("unable to get operand role binding: %s", err.Error()),
+			})
+			return err
+		}
+		a.logger.Info(fmt.Sprintf(
+			"Anyuid role %s is created in namespace %s",
+			anyuidRoleName,
+			ns,
+		))
+		ctrl.SetControllerReference(obs, anyuidRoleAsset, a.Scheme)
+	} else if err != nil {
+		meta.SetStatusCondition(&obs.Status.SDINodeConfigStatus.Conditions, metav1.Condition{
+			Type:               "OperatorDegraded",
+			Status:             metav1.ConditionTrue,
+			Reason:             sdiv1alpha1.ReasonResourceNotAvailable,
+			LastTransitionTime: metav1.NewTime(time.Now()),
+			Message:            fmt.Sprintf("unable to get operand role binding: %s", err.Error()),
+		})
+		return err
+	} else {
+		a.logger.Info(fmt.Sprintf(
+			"Anyuid role %s already exists in namespace %s. Do nothing",
+			anyuidRoleName,
+			ns,
+		))
+	}
+
+	anyuidRoleBinding := &rbacv1.RoleBinding{}
+	anyuidRoleBindingName := "sdi-anyuid"
+	err = a.Client.Get(ctx, client.ObjectKey{Name: anyuidRoleBindingName, Namespace: ns}, anyuidRoleBinding)
+	if err != nil && errors.IsNotFound(err) {
+		anyuidRoleBindingAsset := assets.GetRoleBindingFromFile("manifests/role-rolebinding-config-for-sdi/anyuid-rolebinding.yaml")
+		anyuidRoleBindingAsset.Namespace = ns
+
+		anyuidRoleBindingAsset.Subjects = []rbacv1.Subject{
+			{
+				Kind: "Group",
+				Name: "system:serviceaccounts:" + ns,
+			},
+		}
+
+		a.logger.Info(fmt.Sprintf(
+			"Anyuid roleBinding %s does not exist in namespace %s. Create a new one",
+			anyuidRoleBindingName,
+			ns,
+		))
+
+		if err := a.Client.Create(ctx, anyuidRoleBindingAsset); err != nil {
+			meta.SetStatusCondition(&obs.Status.SDINodeConfigStatus.Conditions, metav1.Condition{
+				Type:               "OperatorDegraded",
+				Status:             metav1.ConditionTrue,
+				Reason:             sdiv1alpha1.ReasonOperandResourceFailed,
+				LastTransitionTime: metav1.NewTime(time.Now()),
+				Message:            fmt.Sprintf("unable to get operand role binding: %s", err.Error()),
+			})
+			return err
+		}
+
+		a.logger.Info(fmt.Sprintf(
+			"Anyuid roleBinding %s is created in namespace %s",
+			anyuidRoleBindingName,
+			ns,
+		))
+		ctrl.SetControllerReference(obs, anyuidRoleBindingAsset, a.Scheme)
+
+	} else if err != nil {
+		meta.SetStatusCondition(&obs.Status.SDINodeConfigStatus.Conditions, metav1.Condition{
+			Type:               "OperatorDegraded",
+			Status:             metav1.ConditionTrue,
+			Reason:             sdiv1alpha1.ReasonResourceNotAvailable,
+			LastTransitionTime: metav1.NewTime(time.Now()),
+			Message:            fmt.Sprintf("unable to get operand role binding: %s", err.Error()),
+		})
+		return err
+	} else {
+		a.logger.Info(fmt.Sprintf(
+			"Anyuid roleBinding %s already exists in namespace %s. Do nothing",
+			anyuidRoleBindingName,
+			ns,
+		))
+	}
+
 	return nil
 }

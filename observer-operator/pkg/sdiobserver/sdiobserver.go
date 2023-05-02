@@ -86,6 +86,18 @@ func (so *SDIObserver) AdjustSDIConfig(a *adjuster.Adjuster, c context.Context) 
 		})
 		return err
 	}
+	err = a.AdjustSDIRbac(so.obs.Spec.SDINamespace, so.obs, c)
+	if err != nil {
+		meta.SetStatusCondition(&so.obs.Status.Conditions, metav1.Condition{
+			Type:               "OperatorDegraded",
+			Status:             metav1.ConditionTrue,
+			Reason:             sdiv1alpha1.ReasonOperandResourceFailed,
+			LastTransitionTime: metav1.NewTime(time.Now()),
+			Message:            fmt.Sprintf("unable to adjust rbac for SDI: %s", err.Error()),
+		})
+		return err
+	}
+
 	meta.SetStatusCondition(&so.obs.Status.Conditions, metav1.Condition{
 		Type:               "OperatorDegraded",
 		Status:             metav1.ConditionFalse,
