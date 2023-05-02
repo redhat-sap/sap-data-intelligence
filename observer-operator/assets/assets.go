@@ -149,7 +149,7 @@ func GetRoleFromFile(name string) *rbacv1.Role {
 		panic(err)
 	}
 
-	roleObject, err := runtime.Decode(appsCodecs.UniversalDecoder(corev1.SchemeGroupVersion), roleBytes)
+	roleObject, err := runtime.Decode(appsCodecs.UniversalDecoder(rbacv1.SchemeGroupVersion), roleBytes)
 	if err != nil {
 		panic(err)
 	}
@@ -163,7 +163,7 @@ func GetRoleBindingFromFile(name string) *rbacv1.RoleBinding {
 		panic(err)
 	}
 
-	roleBindingObject, err := runtime.Decode(appsCodecs.UniversalDecoder(corev1.SchemeGroupVersion), roleBindingBytes)
+	roleBindingObject, err := runtime.Decode(appsCodecs.UniversalDecoder(rbacv1.SchemeGroupVersion), roleBindingBytes)
 	if err != nil {
 		panic(err)
 	}

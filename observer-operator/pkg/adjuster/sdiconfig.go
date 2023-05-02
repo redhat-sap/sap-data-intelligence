@@ -365,7 +365,12 @@ func (a *Adjuster) AdjustSDIRbac(ns string, obs *sdiv1alpha1.SDIObserver, ctx co
 	privilegedRoleName := "sdi-privileged"
 	err := a.Client.Get(ctx, client.ObjectKey{Name: privilegedRoleName, Namespace: ns}, privilegedRole)
 	if err != nil && errors.IsNotFound(err) {
-		privilegedRoleAsset := assets.GetRoleBindingFromFile("manifests/role-rolebinding-config-for-sdi/privileged-role.yaml")
+		a.logger.Info(fmt.Sprintf(
+			"Privileged role %s does not exist in namespace %s. Create a new one",
+			privilegedRoleName,
+			ns,
+		))
+		privilegedRoleAsset := assets.GetRoleFromFile("manifests/role-rolebinding-config-for-sdi/privileged-role.yaml")
 		privilegedRoleAsset.Namespace = ns
 		if err := a.Client.Create(ctx, privilegedRoleAsset); err != nil {
 			meta.SetStatusCondition(&obs.Status.SDINodeConfigStatus.Conditions, metav1.Condition{
@@ -377,6 +382,11 @@ func (a *Adjuster) AdjustSDIRbac(ns string, obs *sdiv1alpha1.SDIObserver, ctx co
 			})
 			return err
 		}
+		a.logger.Info(fmt.Sprintf(
+			"Privileged role %s is created in namespace %s",
+			privilegedRoleName,
+			ns,
+		))
 		ctrl.SetControllerReference(obs, privilegedRoleAsset, a.Scheme)
 	} else if err != nil {
 		meta.SetStatusCondition(&obs.Status.SDINodeConfigStatus.Conditions, metav1.Condition{
@@ -387,6 +397,12 @@ func (a *Adjuster) AdjustSDIRbac(ns string, obs *sdiv1alpha1.SDIObserver, ctx co
 			Message:            fmt.Sprintf("unable to get operand role binding: %s", err.Error()),
 		})
 		return err
+	} else {
+		a.logger.Info(fmt.Sprintf(
+			"Privileged role %s already exists in namespace %s. Do nothing",
+			privilegedRoleName,
+			ns,
+		))
 	}
 
 	privilegedRoleBinding := &rbacv1.RoleBinding{}
@@ -448,6 +464,11 @@ func (a *Adjuster) AdjustSDIRbac(ns string, obs *sdiv1alpha1.SDIObserver, ctx co
 			},
 		}
 
+		a.logger.Info(fmt.Sprintf(
+			"Privileged roleBinding %s does not exist in namespace %s. Create a new one",
+			privilegedRoleBindingName,
+			ns,
+		))
 		if err := a.Client.Create(ctx, privilegedRoleBindingAsset); err != nil {
 			meta.SetStatusCondition(&obs.Status.SDINodeConfigStatus.Conditions, metav1.Condition{
 				Type:               "OperatorDegraded",
@@ -458,6 +479,12 @@ func (a *Adjuster) AdjustSDIRbac(ns string, obs *sdiv1alpha1.SDIObserver, ctx co
 			})
 			return err
 		}
+
+		a.logger.Info(fmt.Sprintf(
+			"Privileged roleBinding %s is created in namespace %s",
+			privilegedRoleBindingName,
+			ns,
+		))
 		ctrl.SetControllerReference(obs, privilegedRoleBindingAsset, a.Scheme)
 
 	} else if err != nil {
@@ -469,6 +496,12 @@ func (a *Adjuster) AdjustSDIRbac(ns string, obs *sdiv1alpha1.SDIObserver, ctx co
 			Message:            fmt.Sprintf("unable to get operand role binding: %s", err.Error()),
 		})
 		return err
+	} else {
+		a.logger.Info(fmt.Sprintf(
+			"Privileged roleBinding %s already exists in namespace %s. Do nothing",
+			privilegedRoleBindingName,
+			ns,
+		))
 	}
 
 	// Handle anyuid role, rolebinding
@@ -476,8 +509,13 @@ func (a *Adjuster) AdjustSDIRbac(ns string, obs *sdiv1alpha1.SDIObserver, ctx co
 	anyuidRoleName := "sdi-anyuid"
 	err = a.Client.Get(ctx, client.ObjectKey{Name: anyuidRoleName, Namespace: ns}, anyuidRole)
 	if err != nil && errors.IsNotFound(err) {
-		anyuidRoleAsset := assets.GetRoleBindingFromFile("manifests/role-rolebinding-config-for-sdi/anyuid-role.yaml")
+		anyuidRoleAsset := assets.GetRoleFromFile("manifests/role-rolebinding-config-for-sdi/anyuid-role.yaml")
 		anyuidRoleAsset.Namespace = ns
+		a.logger.Info(fmt.Sprintf(
+			"Anyuid role %s does not exist in namespace %s. Create a new one",
+			anyuidRoleName,
+			ns,
+		))
 		if err := a.Client.Create(ctx, anyuidRoleAsset); err != nil {
 			meta.SetStatusCondition(&obs.Status.SDINodeConfigStatus.Conditions, metav1.Condition{
 				Type:               "OperatorDegraded",
@@ -488,6 +526,11 @@ func (a *Adjuster) AdjustSDIRbac(ns string, obs *sdiv1alpha1.SDIObserver, ctx co
 			})
 			return err
 		}
+		a.logger.Info(fmt.Sprintf(
+			"Anyuid role %s is created in namespace %s",
+			anyuidRoleName,
+			ns,
+		))
 		ctrl.SetControllerReference(obs, anyuidRoleAsset, a.Scheme)
 	} else if err != nil {
 		meta.SetStatusCondition(&obs.Status.SDINodeConfigStatus.Conditions, metav1.Condition{
@@ -498,6 +541,12 @@ func (a *Adjuster) AdjustSDIRbac(ns string, obs *sdiv1alpha1.SDIObserver, ctx co
 			Message:            fmt.Sprintf("unable to get operand role binding: %s", err.Error()),
 		})
 		return err
+	} else {
+		a.logger.Info(fmt.Sprintf(
+			"Anyuid role %s already exists in namespace %s. Do nothing",
+			anyuidRoleName,
+			ns,
+		))
 	}
 
 	anyuidRoleBinding := &rbacv1.RoleBinding{}
@@ -514,6 +563,12 @@ func (a *Adjuster) AdjustSDIRbac(ns string, obs *sdiv1alpha1.SDIObserver, ctx co
 			},
 		}
 
+		a.logger.Info(fmt.Sprintf(
+			"Anyuid roleBinding %s does not exist in namespace %s. Create a new one",
+			anyuidRoleBindingName,
+			ns,
+		))
+
 		if err := a.Client.Create(ctx, anyuidRoleBindingAsset); err != nil {
 			meta.SetStatusCondition(&obs.Status.SDINodeConfigStatus.Conditions, metav1.Condition{
 				Type:               "OperatorDegraded",
@@ -524,6 +579,12 @@ func (a *Adjuster) AdjustSDIRbac(ns string, obs *sdiv1alpha1.SDIObserver, ctx co
 			})
 			return err
 		}
+
+		a.logger.Info(fmt.Sprintf(
+			"Anyuid roleBinding %s is created in namespace %s",
+			anyuidRoleBindingName,
+			ns,
+		))
 		ctrl.SetControllerReference(obs, anyuidRoleBindingAsset, a.Scheme)
 
 	} else if err != nil {
@@ -535,6 +596,12 @@ func (a *Adjuster) AdjustSDIRbac(ns string, obs *sdiv1alpha1.SDIObserver, ctx co
 			Message:            fmt.Sprintf("unable to get operand role binding: %s", err.Error()),
 		})
 		return err
+	} else {
+		a.logger.Info(fmt.Sprintf(
+			"Anyuid roleBinding %s already exists in namespace %s. Do nothing",
+			anyuidRoleBindingName,
+			ns,
+		))
 	}
 
 	return nil
