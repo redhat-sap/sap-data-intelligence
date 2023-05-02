@@ -10,6 +10,7 @@ import (
 	"github.com/redhat-sap/sap-data-intelligence/observer-operator/assets"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -87,7 +88,7 @@ func (a *Adjuster) AdjustSDINodes(obs *sdiv1alpha1.SDIObserver, ctx context.Cont
 
 		daemonset := &appsv1.DaemonSet{}
 		daemonsetName := "sdi-node-configurator"
-		err = a.Client.Get(ctx, client.ObjectKey{Name: daemonsetName}, daemonset)
+		err = a.Client.Get(ctx, client.ObjectKey{Name: daemonsetName, Namespace: obs.Namespace}, daemonset)
 		if err != nil && errors.IsNotFound(err) {
 			daemonsetAsset := assets.GetDaemonSetFromFile("manifests/node-configurator/daemonset.yaml")
 			daemonsetAsset.Namespace = obs.Namespace
@@ -108,11 +109,66 @@ func (a *Adjuster) AdjustSDINodes(obs *sdiv1alpha1.SDIObserver, ctx context.Cont
 				Status:             metav1.ConditionTrue,
 				Reason:             sdiv1alpha1.ReasonResourceNotAvailable,
 				LastTransitionTime: metav1.NewTime(time.Now()),
-				Message:            fmt.Sprintf("unable to get operand image stream: %s", err.Error()),
+				Message:            fmt.Sprintf("unable to get operand daemonset: %s", err.Error()),
 			})
 			return err
 		}
 
+		role := &rbacv1.Role{}
+		roleName := "sdi-node-configurator"
+		err = a.Client.Get(ctx, client.ObjectKey{Name: roleName, Namespace: obs.Namespace}, role)
+		if err != nil && errors.IsNotFound(err) {
+			roleAsset := assets.GetRoleFromFile("manifests/node-configurator/role.yaml")
+			roleAsset.Namespace = obs.Namespace
+			if err := a.Client.Create(ctx, roleAsset); err != nil {
+				meta.SetStatusCondition(&obs.Status.SDINodeConfigStatus.Conditions, metav1.Condition{
+					Type:               "OperatorDegraded",
+					Status:             metav1.ConditionTrue,
+					Reason:             sdiv1alpha1.ReasonOperandResourceFailed,
+					LastTransitionTime: metav1.NewTime(time.Now()),
+					Message:            fmt.Sprintf("unable to get operand role: %s", err.Error()),
+				})
+				return err
+			}
+			ctrl.SetControllerReference(obs, roleAsset, a.Scheme)
+		} else if err != nil {
+			meta.SetStatusCondition(&obs.Status.SDINodeConfigStatus.Conditions, metav1.Condition{
+				Type:               "OperatorDegraded",
+				Status:             metav1.ConditionTrue,
+				Reason:             sdiv1alpha1.ReasonResourceNotAvailable,
+				LastTransitionTime: metav1.NewTime(time.Now()),
+				Message:            fmt.Sprintf("unable to get operand role: %s", err.Error()),
+			})
+			return err
+		}
+
+		roleBinding := &rbacv1.RoleBinding{}
+		roleBindingName := "sdi-node-configurator"
+		err = a.Client.Get(ctx, client.ObjectKey{Name: roleBindingName, Namespace: obs.Namespace}, roleBinding)
+		if err != nil && errors.IsNotFound(err) {
+			roleBindingAsset := assets.GetRoleBindingFromFile("manifests/node-configurator/rolebinding.yaml")
+			roleBindingAsset.Namespace = obs.Namespace
+			if err := a.Client.Create(ctx, roleBindingAsset); err != nil {
+				meta.SetStatusCondition(&obs.Status.SDINodeConfigStatus.Conditions, metav1.Condition{
+					Type:               "OperatorDegraded",
+					Status:             metav1.ConditionTrue,
+					Reason:             sdiv1alpha1.ReasonOperandResourceFailed,
+					LastTransitionTime: metav1.NewTime(time.Now()),
+					Message:            fmt.Sprintf("unable to get operand role binding: %s", err.Error()),
+				})
+				return err
+			}
+			ctrl.SetControllerReference(obs, roleBindingAsset, a.Scheme)
+		} else if err != nil {
+			meta.SetStatusCondition(&obs.Status.SDINodeConfigStatus.Conditions, metav1.Condition{
+				Type:               "OperatorDegraded",
+				Status:             metav1.ConditionTrue,
+				Reason:             sdiv1alpha1.ReasonResourceNotAvailable,
+				LastTransitionTime: metav1.NewTime(time.Now()),
+				Message:            fmt.Sprintf("unable to get operand role binding: %s", err.Error()),
+			})
+			return err
+		}
 	} else if err != nil {
 		meta.SetStatusCondition(&obs.Status.SDINodeConfigStatus.Conditions, metav1.Condition{
 			Type:               "OperatorDegraded",

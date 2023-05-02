@@ -5,6 +5,7 @@ import (
 	openshiftv1 "github.com/openshift/api/image/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 
 	routev1 "github.com/openshift/api/route/v1"
 	configv1 "github.com/openshift/machine-config-operator/pkg/apis/machineconfiguration.openshift.io/v1"
@@ -23,6 +24,9 @@ var (
 
 func init() {
 	if err := configv1.AddToScheme(appsScheme); err != nil {
+		panic(err)
+	}
+	if err := rbacv1.AddToScheme(appsScheme); err != nil {
 		panic(err)
 	}
 }
@@ -137,4 +141,32 @@ func GetServiceAccountFromFile(name string) *corev1.ServiceAccount {
 	}
 
 	return serviceAccountObject.(*corev1.ServiceAccount)
+}
+
+func GetRoleFromFile(name string) *rbacv1.Role {
+	roleBytes, err := manifests.ReadFile(name)
+	if err != nil {
+		panic(err)
+	}
+
+	roleObject, err := runtime.Decode(appsCodecs.UniversalDecoder(corev1.SchemeGroupVersion), roleBytes)
+	if err != nil {
+		panic(err)
+	}
+
+	return roleObject.(*rbacv1.Role)
+}
+
+func GetRoleBindingFromFile(name string) *rbacv1.RoleBinding {
+	roleBindingBytes, err := manifests.ReadFile(name)
+	if err != nil {
+		panic(err)
+	}
+
+	roleBindingObject, err := runtime.Decode(appsCodecs.UniversalDecoder(corev1.SchemeGroupVersion), roleBindingBytes)
+	if err != nil {
+		panic(err)
+	}
+
+	return roleBindingObject.(*rbacv1.RoleBinding)
 }
