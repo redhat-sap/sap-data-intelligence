@@ -4,6 +4,9 @@ metadata:
   annotations:
     alm-examples: '[]'
     capabilities: Basic Install
+    categories: AI/Machine Learning
+    description: Configure and enable SAP Data Intelligence to run correctly on OpenShift
+    containerImage: quay.io/redhat-sap-cop/sdi-observer-operator:0.1.5
   name: observer-operator.v0.0.0
   namespace: placeholder
 spec:
@@ -15,14 +18,16 @@ spec:
       kind: SDIObserver
       name: sdiobservers.sdi.sap-redhat.io
       version: v1alpha1
-  description: Operator for monitoring SDI's namespace and modifying objects in there
-    that enable running of SDI on top of OpenShift. The observer shall be run in a
-    dedicated namespace. It must be deployed before the SDI installation is started.
-    Please refer to https://access.redhat.com/articles/5100521 for detailed information.
-  displayName: SAP Data Intelligence Observer Operator
+  description: Operator for monitoring SAP Data Intelligence (SDI) namespace and modifying
+    objects in there that enable running of SDI on top of OpenShift. The observer
+    shall be run in a dedicated namespace. It must be deployed before the SDI installation
+    is started. This is the prerequisite for the successful installation of the SDI
+    on OpenShift. Please refer to https://access.redhat.com/articles/5100521 for detailed
+    information.
+  displayName: SAP Data Intelligence 3.0 - Observer Operator
   icon:
-  - base64data: ""
-    mediatype: ""
+  - base64data: iVBORw0KGgoAAAANSUhEUgAAAGIAAAA7CAYAAACAJF8xAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAADZ9JREFUeNrsm3twU1UawL+0aZukj6TUvjBJofRF3zwUaBEq6wItjICLSoFV0XVZVnecBVYBV5zZGXUd9/HH7ugO7LjOKCC6q+jSwnaEFqUVF2kLpe0KKH1p38lN+kofSfb7TnLDTZOUW2ib6PTMnLn3nvud75z7/c73nUdTieZk29pmkPfCdPKUqq2rwrjJbkQCJw3WaVt7TBcx500JCMlx/TSIMSBY1qi4qWhM4n+saxqEBwgj6yK4qWpQKhmxTJvdDYThn0RyU9kogjBPm34UhKGHY7ipbljqZ572CCEE0+aZnDcadxualIF+cL9GDstigiAuxN/pXWOvGS7qhuDT9kG4pBseU/lP5wS71Od1vP11n0s5tbcsOmhMndyQBS7ph23Xm7Q/XggDj6g5b40CifzNRqsQwGuLwmFrQrCoykY0xsdNA/DX2h40ypALzNYtao91Yw+1gGHIeRA8P08Jz2crRXeeb/+lKgPCHbktCP3btJw33dGPPIJyllIKX6yLEQ2BUhgam+RL8qOA18PnR+IVY9a9Xy1zqSOxjG8Bx7df/+BMeO0ulau+m+eLmL0OwQFChdHj6I+jQBsivSUlz5Z3u3zk1qSQscNWYohLHbDc+kr6qfQw5s3jhdD35CyvQ7CBwMn6afwIbeitQajpGoRDtQYgPXzOCg+AjIjAMestnSmDuGB/p3oSy+1taX6ZqXTV6T5fxJzXuyPeJyDYJmvs2Na5oW5fNvcMw8vnuqHJaIu/yiA/uEcth7VzQkATGsDK9pzpZB8nTFtTQkQ1vjU5BF5B/Y5ktXrsxzt1Rnavwj4I2x+dns4Mg+ewTzebE4zPJPkMBMfy1dNH7SntgKJrPU5lxVeMsPd0OyzVKCAjUgbljb3gN6relrniJtytc8Pg1fIbRvPkEU2GYSe535d3wRurY6FgjivwzDuCYIwlOYPA7UzxKQgOj/CU9i6OgMtt/cwQo1N5Qy/LklHlaxJDISzIT1TjmrAAyMQQVtNhsoHw4BGAxcJ+Gvst8Mb5brcgtKjT3TfFyYfhxTmdWcH+lmMlJU1lWFSNuWzlypWcz4AwDprReK7r/fQoGVz8eSIcqeGg+KoRiq4Yb6pwc5p7byhv6oNcreuKbMf8GfBUUYvtwdMcgYBGG1disXiEO1qWIOyf0w0IgR6X2zNLJSUljQREAKbaKyDAbIWir4xQmBnuUagwQ8UyASPZv/23C2raTa4bQZk/FCSGua73sd5TH7dA9dPJLu/WJIXiO6tj5HtMZueXuRr3y+zL1C+BbJwCISTpeAjuUhzmR+2ZwNDlzCg4k+41bI54raxtTBCOdTt6DclRrsC54dUz7Sw8OeaG9Aj33oAyLToT1LYPQFq03EXnWgxnxf8zeJwjKGRRPwl0eowcCrPCYVPWDPcTOzfomCPiFCPwQrIOFP7jXo2N5TXVCKZsEjzCAk3dJvjVsUb4y/o40RVz4kLgo0dCWL0jVTqb52S5h1lcjwMK2ymqN7iAYPUQbHGt3uOqidrq2p8lql98W3HBCCGVA4V0Qk75PXlNNQ8I4TTc3hxhj7XvXuiCy9/1w0sFasiZFSpaAcEz9o9AEzcEaTFytzIn0MjUzok6PTybF+PyPj9FCapAiefJWmRqxj7QdzAI6caJgnAzr3lG4DVCMGXjAyGIp7UtfbD+wFeQGx8K23OiYXWqSpSSlwo0UIxGdpdO1nFg7BthqyvS34LGUqtcN3uF2RG3tbM2mszw6NvXcGIegd9mTjoET15Ded2teI0k6rkvPPZYKfeH/NRwyE8LRyjht9S7ozhCaZRWfGOEnPgw2L402q2u2tZ+5jm777tz3G1UfNMDLxxvBKOxB56f3+sNCGKTR6+RRO8+J6rXmvAgeOuxJEibqZi0Xr73ZRc8tPAOUbK1GEYpv/tlJ1R8bQRtqBn2LewTBSEuLg6kUqlPkAkICGiUy+W9kpidFY6eP7ksFo6e7wTjgPsj5dXpM+Af25KnvLOfo6EfeL3W43ttqAX23t0vCkJGRgaEhYWBv7+/T7mKH4vLmB9eGAm/WzcLTu3KhN0r1aChOG5/R5mWmbtXqb3XU0FfhFkbbIa9d32/IdhXTbYP2L1Kw65qDEG78H6X/bnu2z4Ik0tBPSPIe72knbWbiVwThp6wyASKAHEQQkNDwc/PD9VZfRPEQ4uiPRo69c7gW1Lcg+GtWTfotj7BHa/e0SAIwp7Fg6IgpKenQ0hIiM9CsG3o8AN3FWgnXPEfi5rgYOm3NqNFyBhoWr7y88+b21NhVWaESI9wPofSKBFCztAPBgKbI2ik/el4AzuCGO+IH6vOf6q72Cim3NI5AOe+4qCnb9hRRu9Fe4PdIyjTxLwnVxyENISgCA4GiR9NhVafzmxn/X55K8tpmhB4cEkMLElWQara/R936lp64f2KNnjv8zb482Mp0NLlCqO524TG73c5IncCVdUJ5xZHi1uqNveynblGaYVn7xlGCDevk5aWBgq5AkcaeoLF93/MKFE/Weqxl2oMKZo7ZLada/8IM4i3EoOQJw5CamoqKBQKn1wdeQbxs9M+P1w0KoIwIhqCHCHQnPB9SlKJj7stQfhNnlk0BJlcDhKJxKcnZverJh/uMINwr0UUhLlzUyFIJoPTp07BKcyUZPgcGxsLqThf5Obmwr69e1n5y6+84lHPwQMHIHbmTFi7di1UXrgAFzAvWLAA5mOeXI+w+i6E3SsQQqAYCHMhKCgIFwcSx7hSqVQQHh4O169fZ1kWJLuxGh4jCpAsL8ProutkT/jSsf8+6S0IuNP/kXgIgYGBbI1rsVrwa2zfM2/+fFixYgVUVFTAieJi0Ol1gtMSCyuvr68HTq+H2bNnM9l/ffABe9/a2goH/34Q4uPjmTYryh8//m9obWtjsvV1dSwEFhQUQFVlJSt/4oknWL1ibGv+vHnsnspjY2JsAwHlc3JyWLumgQF2T310gJgTASZ/P5D5CgRFoBW2LbaKgpCSMhcCAgiCYE6wX/Vo4Eo0EhmNhamgGycH9I7gxKCRKHxVVVWxq1OYxvseoxEa0IizZ81ihm1oaIA2vJJsGxqZdPPl1P4AGngseXpHbdI99S0bgTlAnP7DffKSkhL6C1Ae5mz7dbmvT27JKSkQEBjAPEE4MfN31WhcypRmoWHoo0+cOMGelUolrM7PZ4bhOM7hBdsefxxe3L+fGYvuS0tLnXRS+vXOnazekSNHnMpZH+z9EJZv2LABBkwmOPbhh7B4yRLIx3apDUedG6EJwP4rhWP2zBLCyRaAoWuWr0BISk6mc3yXjxF6RHZ2NjM+jUYyrDCRR5xEKFROcidPnnTRJTSs0FNoLqJFwehy8gbrqD4weZTl5ckrXdoQgnCX7L/vofyWHYxKAIaHo5xyCElJIJUG2CZQNys+vkipVIFWa/sxhGXURFtVWWU3qgzjd4OjHi/X2toGpadLnXTyekmGlxOWHzl8xOFdo+WFeoR1he9E/5nK7jVl9uwVr0lECP5SD57gCE1Wx9WTDHnUuXOfY6xuhazsbFbGcXomT3+9a2xshDNnymDZ8uUCnVY3IciK9bNQvoHpohBoMHBO8uAUNoV9cu6fZCI3PpPpNYmJBEHKNms/xCSZ7B3oRHhNQmIi+Pv/cCFMCYjb9ZqEhETww/X1REC4dOkSGOxxPDo6GpS46aPreFJ7ezuYcBVEIex7DWI8XpOQkGA7vJsgTzj0zjvQ1NTkMu9s3Lhx3Dr27ts30Ttr7yd3KzRcev6zr78/x2K1yifqPIzXUrhlC/OMs2fPwtUrV9gGi/YW7R0drJxWZrTk7KDRPzgI0VFRzPgkQ95AqQEndFoa0zO/WSRv0aKnkBwlqm8wGNhzFHoe3fPP/JWXlfpivLz77kWvcwZunsVikU/KEYpGw/KX588D/aPB1WvX4OynnzreFxcVwfYdO+CTTz6BZgRAe4dBBKLRaqEDYbHl6qFDkJ6RAZdrahzv+X3GL7AuHTzSOz4VrFnDjF+O8Pm0afNm9qsSnwSh57jDuB5fZbZYZky4crtnkRHJoGQ8Mhwdn9NRRBSOfDJ8c3Mz8xRengCQ0Wn0nkBIVHdTYSH09vU5jL3+gQfgNIIzGo1Qg2VUTrAp9NGJ8NnPPmM6KFE7CxYuZFd+avApEDq9HYLZPGOy2yIjRJJBFixkJ6sURq5dvcrAUDIN3PgT8Pr1G5x21pTUag0Ca3LoSpiTABfIwxCEXmc7YCSglClROR8baQGSlpbudBIs9R0I+sN6/eRC4OeIhx7e5FROxx1kqHXr12P4MEJZ6Wnb5svNUQR/R3OJVfD/NSTDv1OqbL/tpbCzOr/A7n2mMTebPgGiW0cQ9JPvCVZwuys3DdpG/0fHjjlGvPPm2OriEQcPHoC8vHsdsrYdt+0xMjKS5c7OTnjv6LuOMvIEJ3lfWr52d+sO66YCAqba2loc+QZYsiTHqZzmisrKCziCcXUTFQnXcPKme1tIcZYnz6mtvczu47Rx0NjUyGTpVyO8fgo7BIzkSDctwyMjo6CFQlVLM2gwrKk1Gt8B0UUQdLopgTC9s/YEoav7cPc0BO+C6CQI3d3TELwJoqOzCz1hGoJXQRCErmlP8C6Ilu9aP8Ytfu40BC+C+Pp6w9KBgYGNCIGbNrlzGhkZibGYzTH/F2AAKzLtQWOoEHAAAAAASUVORK5CYII=
+    mediatype: image/png
   install:
     spec:
       deployments: null
@@ -40,12 +45,13 @@ spec:
   - sdi
   - sap data intelligence
   links:
-  - name: Observer Operator
-    url: https://observer-operator.domain
+  - name: SAP Data Intelligence 3.0 - Observer Operator
+    url: https://github.com/redhat-sap/sap-data-intelligence/tree/master/observer-operator
   maintainers:
   - email: mjiao@redhat.com
     name: Manjun Jiao
   maturity: alpha
+  minKubeVersion: 1.25.0
   provider:
     name: SAP LinuxLab - Red Hat
     url: https://github.com/sap-linuxlab
