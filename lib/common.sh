@@ -642,8 +642,8 @@ function ensurePullsFromNamespace() {
         for secret in "${secret_array[@]}"; do
             secret_content=$(oc get secret -n "$saNamespace" "$secret" -o json)
             # Get the annotation of the secret
-            annotation=$(echo "$secret" | jq -r '.metadata.annotations."kubernetes.io/service-account.name"')
-            type=$(echo "$secret" | jq -r '.type')
+            annotation=$(echo "$secret_content" | jq -r '.metadata.annotations."kubernetes.io/service-account.name"')
+            type=$(echo "$secret_content" | jq -r '.type')
             # Check if the annotation matches the desired value
             if [[ "$annotation" == "default" && "$type" == "kubernetes.io/service-account-token" ]]; then
                 echo "Found secret with annotation 'kubernetes.io/service-account.name: default': $secret"
