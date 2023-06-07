@@ -629,26 +629,36 @@ function ensurePullsFromNamespace() {
     fi
     secretName="$(oc get -o json -n "$saNamespace" "sa/$saName" | \
         jq -r '.secrets[] | select(.name | test("token")).name')"
-    token="$(oc get -n "$saNamespace" -o jsonpath='{.data.token}' "secret/$secretName" | \
-        base64 -d)"
-    if [[ -z "${token:-}" ]]; then
-        log 'ERROR: failed to get a token of service account %s in namespace %s' \
+
+    if [ -z "$secretName" ]; then
+        log -n 'Granting privileges to the %s service account in %s namespace to pull' \
             "$saName" "$saNamespace"
-        return 1
+        log -d ' images from %s namespace' "$sourceNamespace"
+        runOrLog oc policy add-role-to-user \
+            system:image-puller "system:serviceaccount:$saNamespace:$saName" \
+            --namespace="$sourceNamespace"
+    else
+        token="$(oc get -n "$saNamespace" -o jsonpath='{.data.token}' "secret/$secretName" | \
+                base64 -d)"
+        if [[ -z "${token:-}" ]]; then
+            log 'ERROR: failed to get a token of service account %s in namespace %s' \
+                "$saName" "$saNamespace"
+            return 1
+        fi
+        if oc --token="$token" auth can-i -n "$sourceNamespace" get \
+                imagestreams/layers >/dev/null
+        then
+            log 'Service account %s in %s namespace can already pull images from %s namespace.' \
+                "$saName" "$saNamespace" "$sourceNamespace"
+            return 0
+        fi
+        log -n 'Granting privileges to the %s service account in %s namespace to pull' \
+            "$saName" "$saNamespace"
+        log -d ' images from %s namespace' "$sourceNamespace"
+        runOrLog oc policy add-role-to-user \
+            system:image-puller "system:serviceaccount:$saNamespace:$saName" \
+            --namespace="$sourceNamespace"
     fi
-    if oc --token="$token" auth can-i -n "$sourceNamespace" get \
-            imagestreams/layers >/dev/null
-    then
-        log 'Service account %s in %s namespace can already pull images from %s namespace.' \
-            "$saName" "$saNamespace" "$sourceNamespace"
-        return 0
-    fi
-    log -n 'Granting privileges to the %s service account in %s namespace to pull' \
-        "$saName" "$saNamespace"
-    log -d ' images from %s namespace' "$sourceNamespace"
-    runOrLog oc policy add-role-to-user \
-        system:image-puller "system:serviceaccount:$saNamespace:$saName" \
-        --namespace="$sourceNamespace"
 }
 
 function ensureRedHatRegistrySecret() {
