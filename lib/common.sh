@@ -635,8 +635,11 @@ function ensurePullsFromNamespace() {
         # Get all secrets in the namespace
         secrets=$(oc get secrets -n $saNamespace -o jsonpath='{.items[*].metadata.name}')
 
+        # Split the secrets into an array
+        IFS=' ' read -ra secret_array <<< "$secrets"
+
         # Iterate over the secrets
-        for secret in $secrets; do
+        for secret in "${secret_array[@]}"; do
             # Get the annotation of the secret
             annotation=$(oc get secret $secret -n $saNamespace -o jsonpath='{.metadata.annotations.kubernetes\.io/service-account\.name}')
 
@@ -646,7 +649,7 @@ function ensurePullsFromNamespace() {
 
                 # Perform any additional actions you need with the matching secret
                 # For example, you can retrieve and display the token
-                token=$(kubectl get secret $secret -n $saNamespace -o jsonpath='{.data.token}' | base64 --decode)
+                token=$(oc get secret $secret -n $saNamespace -o jsonpath='{.data.token}' | base64 --decode)
                 echo "Token: $token"
                 if [[ -z "${token:-}" ]]; then
                     log 'ERROR: failed to get a token of service account %s in namespace %s' \
