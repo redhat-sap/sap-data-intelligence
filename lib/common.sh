@@ -646,9 +646,7 @@ function ensurePullsFromNamespace() {
             type=$(echo "$secret_content" | jq -r '.type')
             # Check if the annotation matches the desired value
             if [[ "$annotation" == "default" && "$type" == "kubernetes.io/service-account-token" ]]; then
-                echo "Found secret with annotation 'kubernetes.io/service-account.name: default': $secret"
                 token=$(oc get secret $secret -n $saNamespace -o jsonpath='{.data.token}' | base64 --decode)
-                echo "Token: $token"
                 if [[ -z "${token:-}" ]]; then
                     log 'ERROR: failed to get a token of service account %s in namespace %s' \
                         "$saName" "$saNamespace"
