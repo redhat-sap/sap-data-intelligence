@@ -640,15 +640,13 @@ function ensurePullsFromNamespace() {
 
         # Iterate over the secrets
         for secret in "${secret_array[@]}"; do
+            secret_content=$(kubectl get secret -n "$saNamespace" "$secret" -o json)
             # Get the annotation of the secret
-            annotation=$(oc get secret $secret -n $saNamespace -o jsonpath='{.metadata.annotations.kubernetes\.io/service-account\.name}')
-
+            annotation=$(echo "$secret" | jq -r '.metadata.annotations."kubernetes.io/service-account.name"')
+            type=$(echo "$secret" | jq -r '.type')
             # Check if the annotation matches the desired value
-            if [[ "$annotation" == "default" ]]; then
+            if [[ "$annotation" == "default" && "$type" == "kubernetes.io/service-account-token" ]]; then
                 echo "Found secret with annotation 'kubernetes.io/service-account.name: default': $secret"
-
-                # Perform any additional actions you need with the matching secret
-                # For example, you can retrieve and display the token
                 token=$(oc get secret $secret -n $saNamespace -o jsonpath='{.data.token}' | base64 --decode)
                 echo "Token: $token"
                 if [[ -z "${token:-}" ]]; then
