@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-set -xeuo pipefail
+set -euo pipefail
 IFS=$'\n\t'
 
 for d in "$(dirname "${BASH_SOURCE[0]}")/.." . .. /usr/local/share/sdi; do
