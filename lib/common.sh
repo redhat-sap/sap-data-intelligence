@@ -631,6 +631,39 @@ function ensurePullsFromNamespace() {
         jq -r '.secrets[] | select(.name | test("token")).name')"
 
     if [ -z "$secretName" ]; then
+
+        # Get all secrets in the namespace
+        secrets=$(oc get secrets -n $saNamespace -o jsonpath='{.items[*].metadata.name}')
+
+        # Iterate over the secrets
+        for secret in $secrets; do
+            # Get the annotation of the secret
+            annotation=$(oc get secret $secret -n $saNamespace -o jsonpath='{.metadata.annotations.kubernetes\.io/service-account\.name}')
+
+            # Check if the annotation matches the desired value
+            if [[ "$annotation" == "default" ]]; then
+                echo "Found secret with annotation 'kubernetes.io/service-account.name: default': $secret"
+
+                # Perform any additional actions you need with the matching secret
+                # For example, you can retrieve and display the token
+                token=$(kubectl get secret $secret -n $saNamespace -o jsonpath='{.data.token}' | base64 --decode)
+                echo "Token: $token"
+                if [[ -z "${token:-}" ]]; then
+                    log 'ERROR: failed to get a token of service account %s in namespace %s' \
+                        "$saName" "$saNamespace"
+                    return 1
+                fi
+                if oc --token="$token" auth can-i -n "$sourceNamespace" get \
+                        imagestreams/layers >/dev/null
+                then
+                    log 'Service account %s in %s namespace can already pull images from %s namespace.' \
+                        "$saName" "$saNamespace" "$sourceNamespace"
+                    return 0
+                fi
+                # Exit the loop if you only want to find the first matching secret
+                # break
+            fi
+        done
         log -n 'Granting privileges to the %s service account in %s namespace to pull' \
             "$saName" "$saNamespace"
         log -d ' images from %s namespace' "$sourceNamespace"
