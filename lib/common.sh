@@ -640,7 +640,7 @@ function ensurePullsFromNamespace() {
 
         # Iterate over the secrets
         for secret in "${secret_array[@]}"; do
-            secret_content=$(kubectl get secret -n "$saNamespace" "$secret" -o json)
+            secret_content=$(oc get secret -n "$saNamespace" "$secret" -o json)
             # Get the annotation of the secret
             annotation=$(echo "$secret" | jq -r '.metadata.annotations."kubernetes.io/service-account.name"')
             type=$(echo "$secret" | jq -r '.type')
