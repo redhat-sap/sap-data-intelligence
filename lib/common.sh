@@ -629,26 +629,70 @@ function ensurePullsFromNamespace() {
     fi
     secretName="$(oc get -o json -n "$saNamespace" "sa/$saName" | \
         jq -r '.secrets[] | select(.name | test("token")).name')"
-    token="$(oc get -n "$saNamespace" -o jsonpath='{.data.token}' "secret/$secretName" | \
-        base64 -d)"
-    if [[ -z "${token:-}" ]]; then
-        log 'ERROR: failed to get a token of service account %s in namespace %s' \
+
+    if [ -z "$secretName" ]; then
+
+        # Get all secrets in the namespace
+        secrets=$(oc get secrets -n $saNamespace -o jsonpath='{.items[*].metadata.name}')
+
+        # Split the secrets into an array
+        IFS=' ' read -ra secret_array <<< "$secrets"
+
+        # Iterate over the secrets
+        for secret in "${secret_array[@]}"; do
+            secret_content=$(oc get secret -n "$saNamespace" "$secret" -o json)
+            # Get the annotation of the secret
+            annotation=$(echo "$secret_content" | jq -r '.metadata.annotations."kubernetes.io/service-account.name"')
+            type=$(echo "$secret_content" | jq -r '.type')
+            # Check if the annotation matches the desired value
+            if [[ "$annotation" == "default" && "$type" == "kubernetes.io/service-account-token" ]]; then
+                echo "Found secret with annotation 'kubernetes.io/service-account.name: default': $secret"
+                token=$(oc get secret $secret -n $saNamespace -o jsonpath='{.data.token}' | base64 --decode)
+                echo "Token: $token"
+                if [[ -z "${token:-}" ]]; then
+                    log 'ERROR: failed to get a token of service account %s in namespace %s' \
+                        "$saName" "$saNamespace"
+                    return 1
+                fi
+                if oc --token="$token" auth can-i -n "$sourceNamespace" get \
+                        imagestreams/layers >/dev/null
+                then
+                    log 'Service account %s in %s namespace can already pull images from %s namespace.' \
+                        "$saName" "$saNamespace" "$sourceNamespace"
+                    return 0
+                fi
+                # Exit the loop if you only want to find the first matching secret
+                # break
+            fi
+        done
+        log -n 'Granting privileges to the %s service account in %s namespace to pull' \
             "$saName" "$saNamespace"
-        return 1
+        log -d ' images from %s namespace' "$sourceNamespace"
+        runOrLog oc policy add-role-to-user \
+            system:image-puller "system:serviceaccount:$saNamespace:$saName" \
+            --namespace="$sourceNamespace"
+    else
+        token="$(oc get -n "$saNamespace" -o jsonpath='{.data.token}' "secret/$secretName" | \
+                base64 -d)"
+        if [[ -z "${token:-}" ]]; then
+            log 'ERROR: failed to get a token of service account %s in namespace %s' \
+                "$saName" "$saNamespace"
+            return 1
+        fi
+        if oc --token="$token" auth can-i -n "$sourceNamespace" get \
+                imagestreams/layers >/dev/null
+        then
+            log 'Service account %s in %s namespace can already pull images from %s namespace.' \
+                "$saName" "$saNamespace" "$sourceNamespace"
+            return 0
+        fi
+        log -n 'Granting privileges to the %s service account in %s namespace to pull' \
+            "$saName" "$saNamespace"
+        log -d ' images from %s namespace' "$sourceNamespace"
+        runOrLog oc policy add-role-to-user \
+            system:image-puller "system:serviceaccount:$saNamespace:$saName" \
+            --namespace="$sourceNamespace"
     fi
-    if oc --token="$token" auth can-i -n "$sourceNamespace" get \
-            imagestreams/layers >/dev/null
-    then
-        log 'Service account %s in %s namespace can already pull images from %s namespace.' \
-            "$saName" "$saNamespace" "$sourceNamespace"
-        return 0
-    fi
-    log -n 'Granting privileges to the %s service account in %s namespace to pull' \
-        "$saName" "$saNamespace"
-    log -d ' images from %s namespace' "$sourceNamespace"
-    runOrLog oc policy add-role-to-user \
-        system:image-puller "system:serviceaccount:$saNamespace:$saName" \
-        --namespace="$sourceNamespace"
 }
 
 function ensureRedHatRegistrySecret() {
