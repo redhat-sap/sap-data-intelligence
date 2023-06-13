@@ -10,7 +10,8 @@ import (
 
 type Actioner interface {
 	AdjustNodes(s *Adjuster, c context.Context) error
-	AdjustNetwork(s *Adjuster, c context.Context) error
+	AdjustSDINetwork(s *Adjuster, c context.Context) error
+	AdjustSLCBNetwork(s *Adjuster, c context.Context) error
 	AdjustStorage(s *Adjuster, c context.Context) error
 	AdjustSDIConfig(s *Adjuster, c context.Context) error
 }
@@ -44,7 +45,7 @@ func (a *Adjuster) Adjust(ac Actioner, ctx context.Context) error {
 	if err := ac.AdjustNodes(a, ctx); err != nil {
 		return fmt.Errorf("Adjustment of nodes failed: %v", err)
 	}
-	if err := ac.AdjustNetwork(a, ctx); err != nil {
+	if err := ac.AdjustSLCBNetwork(a, ctx); err != nil {
 		return fmt.Errorf("Adjustment of network config failed: %v", err)
 	}
 	if err := ac.AdjustStorage(a, ctx); err != nil {
@@ -52,6 +53,9 @@ func (a *Adjuster) Adjust(ac Actioner, ctx context.Context) error {
 	}
 	if err := ac.AdjustSDIConfig(a, ctx); err != nil {
 		return fmt.Errorf("Adjustment of SDI config failed: %v", err)
+	}
+	if err := ac.AdjustSDINetwork(a, ctx); err != nil {
+		return fmt.Errorf("Adjustment of network config failed: %v", err)
 	}
 	return nil
 }

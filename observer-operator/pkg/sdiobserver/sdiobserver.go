@@ -51,7 +51,31 @@ func (so *SDIObserver) AdjustStorage(a *adjuster.Adjuster, c context.Context) er
 
 func (so *SDIObserver) AdjustSDIConfig(a *adjuster.Adjuster, c context.Context) error {
 	a.Logger().V(0).Info("Trying to adjust the SDIConfig")
-	err := a.AdjustSDIDiagnosticsFluentdDaemonsetContainerPrivilege(so.obs.Spec.SDINamespace, so.obs, c)
+
+	err := a.AdjustNamespacesNodeSelectorAnnotation(so.obs, c)
+	if err != nil {
+		meta.SetStatusCondition(&so.obs.Status.Conditions, metav1.Condition{
+			Type:               "OperatorDegraded",
+			Status:             metav1.ConditionTrue,
+			Reason:             sdiv1alpha1.ReasonOperandResourceFailed,
+			LastTransitionTime: metav1.NewTime(time.Now()),
+			Message:            fmt.Sprintf("unable to adjust namespace node selector: %s", err.Error()),
+		})
+		return err
+	}
+	err = a.AdjustSDIRbac(so.obs.Spec.SDINamespace, so.obs, c)
+	if err != nil {
+		meta.SetStatusCondition(&so.obs.Status.Conditions, metav1.Condition{
+			Type:               "OperatorDegraded",
+			Status:             metav1.ConditionTrue,
+			Reason:             sdiv1alpha1.ReasonOperandResourceFailed,
+			LastTransitionTime: metav1.NewTime(time.Now()),
+			Message:            fmt.Sprintf("unable to adjust rbac for SDI: %s", err.Error()),
+		})
+		return err
+	}
+
+	err = a.AdjustSDIDiagnosticsFluentdDaemonsetContainerPrivilege(so.obs.Spec.SDINamespace, so.obs, c)
 	if err != nil {
 		meta.SetStatusCondition(&so.obs.Status.Conditions, metav1.Condition{
 			Type:               "OperatorDegraded",
@@ -75,29 +99,6 @@ func (so *SDIObserver) AdjustSDIConfig(a *adjuster.Adjuster, c context.Context) 
 		return err
 	}
 
-	err = a.AdjustNamespacesNodeSelectorAnnotation(so.obs, c)
-	if err != nil {
-		meta.SetStatusCondition(&so.obs.Status.Conditions, metav1.Condition{
-			Type:               "OperatorDegraded",
-			Status:             metav1.ConditionTrue,
-			Reason:             sdiv1alpha1.ReasonOperandResourceFailed,
-			LastTransitionTime: metav1.NewTime(time.Now()),
-			Message:            fmt.Sprintf("unable to adjust namespace node selector: %s", err.Error()),
-		})
-		return err
-	}
-	err = a.AdjustSDIRbac(so.obs.Spec.SDINamespace, so.obs, c)
-	if err != nil {
-		meta.SetStatusCondition(&so.obs.Status.Conditions, metav1.Condition{
-			Type:               "OperatorDegraded",
-			Status:             metav1.ConditionTrue,
-			Reason:             sdiv1alpha1.ReasonOperandResourceFailed,
-			LastTransitionTime: metav1.NewTime(time.Now()),
-			Message:            fmt.Sprintf("unable to adjust rbac for SDI: %s", err.Error()),
-		})
-		return err
-	}
-
 	meta.SetStatusCondition(&so.obs.Status.Conditions, metav1.Condition{
 		Type:               "OperatorDegraded",
 		Status:             metav1.ConditionFalse,
@@ -114,9 +115,36 @@ func New(obs *sdiv1alpha1.SDIObserver) *SDIObserver {
 	}
 }
 
-func (so *SDIObserver) AdjustNetwork(a *adjuster.Adjuster, ctx context.Context) error {
+func (so *SDIObserver) AdjustSLCBNetwork(a *adjuster.Adjuster, ctx context.Context) error {
 
-	a.Logger().V(0).Info("Trying to adjust the network")
+	a.Logger().V(0).Info("Trying to adjust the SLCB network")
+
+	err := a.AdjustSLCBRoute(so.obs.Spec.SLCBNamespace, so.obs, ctx)
+	if err != nil {
+		meta.SetStatusCondition(&so.obs.Status.Conditions, metav1.Condition{
+			Type:               "OperatorDegraded",
+			Status:             metav1.ConditionTrue,
+			Reason:             sdiv1alpha1.ReasonOperandResourceFailed,
+			LastTransitionTime: metav1.NewTime(time.Now()),
+			Message:            fmt.Sprintf("unable to adjust SLCB Route: %s", err.Error()),
+		})
+		return err
+	}
+
+	meta.SetStatusCondition(&so.obs.Status.Conditions, metav1.Condition{
+		Type:               "OperatorDegraded",
+		Status:             metav1.ConditionFalse,
+		Reason:             sdiv1alpha1.ReasonSucceeded,
+		LastTransitionTime: metav1.NewTime(time.Now()),
+		Message:            "operator successfully reconciling SDI route",
+	})
+	return nil
+}
+
+func (so *SDIObserver) AdjustSDINetwork(a *adjuster.Adjuster, ctx context.Context) error {
+
+	a.Logger().V(0).Info("Trying to adjust the SDI network")
+
 	err := a.AdjustSDIVsystemRoute(so.obs.Spec.SDINamespace, so.obs, ctx)
 	if err != nil {
 		meta.SetStatusCondition(&so.obs.Status.Conditions, metav1.Condition{
@@ -129,17 +157,6 @@ func (so *SDIObserver) AdjustNetwork(a *adjuster.Adjuster, ctx context.Context) 
 		return err
 	}
 
-	err = a.AdjustSLCBRoute(so.obs.Spec.SLCBNamespace, so.obs, ctx)
-	if err != nil {
-		meta.SetStatusCondition(&so.obs.Status.Conditions, metav1.Condition{
-			Type:               "OperatorDegraded",
-			Status:             metav1.ConditionTrue,
-			Reason:             sdiv1alpha1.ReasonOperandResourceFailed,
-			LastTransitionTime: metav1.NewTime(time.Now()),
-			Message:            fmt.Sprintf("unable to adjust SLCB Route: %s", err.Error()),
-		})
-		return err
-	}
 	meta.SetStatusCondition(&so.obs.Status.Conditions, metav1.Condition{
 		Type:               "OperatorDegraded",
 		Status:             metav1.ConditionFalse,

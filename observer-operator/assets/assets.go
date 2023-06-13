@@ -29,6 +29,10 @@ func init() {
 	if err := rbacv1.AddToScheme(appsScheme); err != nil {
 		panic(err)
 	}
+
+	if err := routev1.AddToScheme(appsScheme); err != nil {
+		panic(err)
+	}
 }
 
 func GetRouteFromFile(name string) *routev1.Route {

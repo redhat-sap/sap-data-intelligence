@@ -154,8 +154,7 @@ spec:
                   type: object
                 type: array
               sdiConfigStatus:
-                description: Status of the SDI config. Conditions will be empty when
-                  not managed.
+                description: Status of the SDI config.
                 properties:
                   conditions:
                     items:
@@ -232,8 +231,7 @@ spec:
                 - conditions
                 type: object
               sdiNodeConfigStatus:
-                description: Status of the SDI node config. Conditions will be empty
-                  when not managed.
+                description: Status of the SDI node config.
                 properties:
                   conditions:
                     items:
@@ -310,8 +308,7 @@ spec:
                 - conditions
                 type: object
               slcbRouteStatus:
-                description: Status of the slcb route. Conditions will be empty when
-                  not managed.
+                description: Status of the slcb route.
                 properties:
                   conditions:
                     items:
@@ -388,8 +385,7 @@ spec:
                 - conditions
                 type: object
               vsystemRouteStatus:
-                description: Status of the vsystem route. Conditions will be empty
-                  when not managed.
+                description: Status of the vsystem route.
                 properties:
                   conditions:
                     items:
@@ -467,6 +463,10 @@ spec:
                 type: object
             required:
             - conditions
+            - sdiConfigStatus
+            - sdiNodeConfigStatus
+            - slcbRouteStatus
+            - vsystemRouteStatus
             type: object
         type: object
     served: true
