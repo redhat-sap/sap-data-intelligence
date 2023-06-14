@@ -88,6 +88,15 @@ spec:
         - apiGroups:
           - ""
           resources:
+          - pods
+          verbs:
+          - delete
+          - get
+          - list
+          - watch
+        - apiGroups:
+          - ""
+          resources:
           - secrets
           verbs:
           - get
@@ -121,6 +130,8 @@ spec:
           verbs:
           - get
           - list
+          - patch
+          - update
           - watch
         - apiGroups:
           - machineconfiguration.openshift.io
@@ -129,6 +140,19 @@ spec:
           - kubeletconfig
           - machineconfig
           - machineconfigpool
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - rbac.authorization.k8s.io
+          resources:
+          - role
+          - rolebinding
           verbs:
           - create
           - delete
@@ -286,7 +310,7 @@ spec:
                   valueFrom:
                     fieldRef:
                       fieldPath: metadata.namespace
-                image: quay.io/redhat-sap-cop/sdi-observer-operator:0.1.4
+                image: quay.io/redhat-sap-cop/sdi-observer-operator:0.1.12
                 livenessProbe:
                   httpGet:
                     path: /healthz
