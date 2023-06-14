@@ -148,7 +148,7 @@ func (a *Adjuster) AdjustSDIVSystemVrepStatefulSets(ns string, obs *sdiv1alpha1.
 
 	for _, v := range ss.Spec.Template.Spec.Volumes {
 		if v.Name == volumeName {
-			a.logger.Info("volume is already patched for statefulset " + stsName)
+			a.logger.Info("Volume is already patched for statefulset " + stsName)
 			volumePatched = true
 			break
 		}
@@ -158,11 +158,12 @@ func (a *Adjuster) AdjustSDIVSystemVrepStatefulSets(ns string, obs *sdiv1alpha1.
 		if c.Name == stsName {
 			for _, vm := range c.VolumeMounts {
 				if vm.Name == volumeName {
-					a.logger.Info("volumeMount is already patched for statefulset " + stsName)
+					a.logger.Info("VolumeMount is already patched for statefulset " + stsName)
 					volumeMountPatched = true
 					break
 				}
 			}
+			break
 		}
 	}
 
@@ -182,17 +183,38 @@ func (a *Adjuster) AdjustSDIVSystemVrepStatefulSets(ns string, obs *sdiv1alpha1.
 		},
 	}
 
-	ss.Spec.Template.Spec.Volumes = append(ss.Spec.Template.Spec.Volumes, emptyDirVolume)
+	if !volumePatched {
+		a.logger.Info("Volume will be patched for statefulset " + stsName)
+		ss.Spec.Template.Spec.Volumes = append(ss.Spec.Template.Spec.Volumes, emptyDirVolume)
+	}
 
-	for _, c := range ss.Spec.Template.Spec.Containers {
-		if c.Name == stsName {
-			emptyDirVolumeMount := corev1.VolumeMount{
-				Name:      volumeName,
-				MountPath: "/exports",
+	if !volumeMountPatched {
+		var containers []corev1.Container
+		for _, c := range ss.Spec.Template.Spec.Containers {
+			if c.Name == stsName {
+				emptyDirVolumeMount := corev1.VolumeMount{
+					Name:      volumeName,
+					MountPath: "/exports",
+				}
+				a.logger.Info("VolumeMount will be patched for statefulset " + stsName)
+				c.VolumeMounts = append(c.VolumeMounts, emptyDirVolumeMount)
 			}
-
-			c.VolumeMounts = append(c.VolumeMounts, emptyDirVolumeMount)
+			containers = append(containers, c)
 		}
+		ss.Spec.Template.Spec.Containers = containers
+	}
+
+	a.logger.Info("Patching Volume/VolumeMount for statefulset " + stsName)
+	err = a.Client.Update(ctx, ss)
+	if err != nil {
+		meta.SetStatusCondition(&obs.Status.SDINodeConfigStatus.Conditions, metav1.Condition{
+			Type:               "OperatorDegraded",
+			Status:             metav1.ConditionTrue,
+			Reason:             sdiv1alpha1.ReasonResourceNotAvailable,
+			LastTransitionTime: metav1.NewTime(time.Now()),
+			Message:            fmt.Sprintf("unable to update operand statefulset: %s", err.Error()),
+		})
+		return err
 	}
 
 	err = a.adjustSDIDataHub(ns, obs, ctx)
