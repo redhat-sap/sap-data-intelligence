@@ -6,7 +6,7 @@ metadata:
   name: manager-role
 rules:
 - resources:
-  - serviceaccount
+  - serviceaccounts
   verbs:
   - create
   - delete
@@ -18,7 +18,7 @@ rules:
 - apiGroups:
   - apps
   resources:
-  - daemonset
+  - daemonsets
   verbs:
   - create
   - delete
@@ -30,7 +30,7 @@ rules:
 - apiGroups:
   - config.openshift.io
   resources:
-  - clusteroperator
+  - clusteroperators
   verbs:
   - get
   - list
@@ -62,7 +62,7 @@ rules:
 - apiGroups:
   - image.openshift.io
   resources:
-  - imagestream
+  - imagestreams
   verbs:
   - create
   - delete
@@ -85,10 +85,10 @@ rules:
 - apiGroups:
   - machineconfiguration.openshift.io
   resources:
-  - containerruntimeconfig
-  - kubeletconfig
-  - machineconfig
-  - machineconfigpool
+  - containerruntimeconfigs
+  - kubeletconfigs
+  - machineconfigpools
+  - machineconfigs
   verbs:
   - create
   - delete
@@ -100,8 +100,8 @@ rules:
 - apiGroups:
   - rbac.authorization.k8s.io
   resources:
-  - role
-  - rolebinding
+  - rolebindings
+  - roles
   verbs:
   - create
   - delete
