@@ -100,17 +100,17 @@ type SDIObserverSpec struct {
 type SDIObserverStatus struct {
 	Conditions []metav1.Condition `json:"conditions"`
 
-	// Status of the vsystem route. Conditions will be empty when not managed.
-	VSystemRouteStatus ManagedRouteStatus `json:"vsystemRouteStatus,omitempty"`
+	// Status of the vsystem route.
+	VSystemRouteStatus ManagedRouteStatus `json:"vsystemRouteStatus"`
 
-	// Status of the slcb route. Conditions will be empty when not managed.
-	SLCBRouteStatus ManagedRouteStatus `json:"slcbRouteStatus,omitempty"`
+	// Status of the slcb route.
+	SLCBRouteStatus ManagedRouteStatus `json:"slcbRouteStatus"`
 
-	// Status of the SDI config. Conditions will be empty when not managed.
-	SDIConfigStatus SDIConfigStatus `json:"sdiConfigStatus,omitempty"`
+	// Status of the SDI config.
+	SDIConfigStatus SDIConfigStatus `json:"sdiConfigStatus"`
 
-	// Status of the SDI node config. Conditions will be empty when not managed.
-	SDINodeConfigStatus SDINodeConfigStatus `json:"sdiNodeConfigStatus,omitempty"`
+	// Status of the SDI node config.
+	SDINodeConfigStatus SDINodeConfigStatus `json:"sdiNodeConfigStatus"`
 }
 
 //+kubebuilder:object:root=true

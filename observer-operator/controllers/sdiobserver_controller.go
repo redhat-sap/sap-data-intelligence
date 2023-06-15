@@ -51,13 +51,14 @@ type SDIObserverReconciler struct {
 //+kubebuilder:rbac:groups=route.openshift.io,resources=routes/status,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch
 //+kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch
-//+kubebuilder:rbac:groups=apps,resources=daemonset,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=,resources=serviceaccount,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=role;rolebinding,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=image.openshift.io,resources=imagestream,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=machineconfiguration.openshift.io,resources=kubeletconfig;machineconfig;machineconfigpool;containerruntimeconfig,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=config.openshift.io,resources=clusteroperator,verbs=get;list
-//+kubebuilder:rbac:groups=installers.datahub.sap.com,resources=datahubs;voraclusters,verbs=get;list;watch
+// +kubebuilder:rbac:groups=core,resources=pods,verbs=get;list;watch;delete
+//+kubebuilder:rbac:groups=apps,resources=daemonsets,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=,resources=serviceaccounts,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles;rolebindings,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=image.openshift.io,resources=imagestreams,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=machineconfiguration.openshift.io,resources=kubeletconfigs;machineconfigs;machineconfigpools;containerruntimeconfigs,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=config.openshift.io,resources=clusteroperators,verbs=get;list
+//+kubebuilder:rbac:groups=installers.datahub.sap.com,resources=datahubs;voraclusters,verbs=get;list;watch;update;patch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.

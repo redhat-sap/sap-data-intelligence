@@ -5,4 +5,4 @@ kind: Kustomization
 images:
 - name: controller
   newName: quay.io/redhat-sap-cop/sdi-observer-operator
-  newTag: 0.1.4
+  newTag: 0.1.12
