@@ -472,12 +472,6 @@ spec:
                 required:
                 - conditions
                 type: object
-            required:
-            - conditions
-            - sdiConfigStatus
-            - sdiNodeConfigStatus
-            - slcbRouteStatus
-            - vsystemRouteStatus
             type: object
         type: object
     served: true

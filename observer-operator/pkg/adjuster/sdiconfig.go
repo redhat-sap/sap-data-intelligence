@@ -254,8 +254,7 @@ func (a *Adjuster) pruneStateFullSetOldRevision(ns string, obs *sdiv1alpha1.SDIO
 	}
 
 	if ss.Status.UpdateRevision == ss.Status.CurrentRevision {
-		a.logger.Info(fmt.Sprintf("statefulset %s has the updated revision running already.", stsName))
-		return nil
+		a.logger.Info(fmt.Sprintf("Statefulset %s current revision is the same as its update revision.", stsName))
 	}
 
 	updateRevisionPodList := &corev1.PodList{}
@@ -270,6 +269,7 @@ func (a *Adjuster) pruneStateFullSetOldRevision(ns string, obs *sdiv1alpha1.SDIO
 			Selector: updateRevisionSelector,
 		},
 	)
+
 	if err != nil {
 		meta.SetStatusCondition(&obs.Status.SDINodeConfigStatus.Conditions, metav1.Condition{
 			Type:               "OperatorDegraded",
@@ -282,14 +282,17 @@ func (a *Adjuster) pruneStateFullSetOldRevision(ns string, obs *sdiv1alpha1.SDIO
 	}
 
 	if len(updateRevisionPodList.Items) > 0 {
-		a.logger.Info(fmt.Sprintf("The pod of the updated revision of statefulset %s exists already.", stsName))
+		a.logger.Info(fmt.Sprintf("The pod of the updated revision of statefulset %s exists already. Do nothing.", stsName))
 		return nil
 	}
 
+	a.logger.Info(fmt.Sprintf("The pod of the updated revision of statefulset %s does not exists. Clean up the pod of outdated revision.", stsName))
+
 	podList := &corev1.PodList{}
-	err = a.Client.List(ctx, updateRevisionPodList,
+	err = a.Client.List(ctx, podList,
 		client.InNamespace(namespace),
 		client.MatchingLabels(ss.Spec.Selector.MatchLabels))
+
 	if err != nil {
 		meta.SetStatusCondition(&obs.Status.SDINodeConfigStatus.Conditions, metav1.Condition{
 			Type:               "OperatorDegraded",
@@ -302,8 +305,9 @@ func (a *Adjuster) pruneStateFullSetOldRevision(ns string, obs *sdiv1alpha1.SDIO
 	}
 
 	for _, pod := range podList.Items {
-		if pod.Labels["controller-revision-hash"] != ss.Status.CurrentRevision {
-			err := a.Client.Delete(ctx, &pod, client.GracePeriodSeconds(5))
+		if pod.Labels["controller-revision-hash"] != ss.Status.UpdateRevision {
+			a.logger.Info(fmt.Sprintf("Delete pod %s which has the outdated revision of statefulset %s.", pod.Name, stsName))
+			err := a.Client.Delete(ctx, &pod, client.GracePeriodSeconds(1))
 			if err != nil {
 				meta.SetStatusCondition(&obs.Status.SDIConfigStatus.Conditions, metav1.Condition{
 					Type:               "OperatorDegraded",

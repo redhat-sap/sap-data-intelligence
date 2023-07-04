@@ -6,7 +6,7 @@ metadata:
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: node-configurator-scc-role
+  name: sdi-node-configurator
 subjects:
   - kind: ServiceAccount
     name: sdi-node-configurator

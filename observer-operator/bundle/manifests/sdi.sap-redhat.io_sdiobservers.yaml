@@ -36,11 +36,20 @@ spec:
             properties:
               SDINodeLabel:
                 default: node-role.kubernetes.io/sdi=
+                description: SDINodeLabel should be set to the corresponding SAP DI
+                  node label. It will be used for annotating the namespaces of SAP
+                  DI service so that the Pods will be running on the labeled SAP DI
+                  node
                 type: string
               manageSDINodeConfig:
                 default: true
+                description: ManageSDINodeConfig defines whether SAP DI node configuration
+                  (load kernal modules, change container PID limits) will be managed
+                  by Operator
                 type: boolean
               sdiNamespace:
+                description: SDINamespace is the namespace in which the SAP Data
+                  Intelligence is running
                 maxLength: 63
                 minLength: 2
                 pattern: '[[:alnum:]]+(-[[:alnum:]]+)*'
@@ -58,6 +67,8 @@ spec:
                     type: string
                 type: object
               slcbNamespace:
+                description: SLCBNamespace is the namespace in which the SAP SLC Bridge
+                  is running
                 maxLength: 63
                 minLength: 2
                 pattern: '[[:alnum:]]+(-[[:alnum:]]+)*'

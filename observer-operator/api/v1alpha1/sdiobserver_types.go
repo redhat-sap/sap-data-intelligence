@@ -102,19 +102,19 @@ type SDIObserverSpec struct {
 
 // SDIObserverStatus defines the observed state of SDIObserver.
 type SDIObserverStatus struct {
-	Conditions []metav1.Condition `json:"conditions"`
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 
 	// Status of the vsystem route.
-	VSystemRouteStatus ManagedRouteStatus `json:"vsystemRouteStatus"`
+	VSystemRouteStatus ManagedRouteStatus `json:"vsystemRouteStatus,omitempty"`
 
 	// Status of the slcb route.
-	SLCBRouteStatus ManagedRouteStatus `json:"slcbRouteStatus"`
+	SLCBRouteStatus ManagedRouteStatus `json:"slcbRouteStatus,omitempty"`
 
 	// Status of the SDI config.
-	SDIConfigStatus SDIConfigStatus `json:"sdiConfigStatus"`
+	SDIConfigStatus SDIConfigStatus `json:"sdiConfigStatus,omitempty"`
 
 	// Status of the SDI node config.
-	SDINodeConfigStatus SDINodeConfigStatus `json:"sdiNodeConfigStatus"`
+	SDINodeConfigStatus SDINodeConfigStatus `json:"sdiNodeConfigStatus,omitempty"`
 }
 
 //+kubebuilder:object:root=true
