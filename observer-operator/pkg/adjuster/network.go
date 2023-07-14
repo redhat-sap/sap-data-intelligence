@@ -76,6 +76,10 @@ func (a *Adjuster) AdjustSDIVsystemRoute(ns string, obs *sdiv1alpha1.SDIObserver
 			route.Spec.TLS.DestinationCACertificate = caBundle
 		} else if err != nil {
 			a.logger.Error(err, "Error getting existing sdi vsystem route.")
+			if err := a.Client.Get(ctx, client.ObjectKey{Name: a.Name, Namespace: a.Namespace}, obs); err != nil {
+				a.Logger().Error(err, "Failed to re-fetch SDIObserver")
+				return err
+			}
 			meta.SetStatusCondition(&obs.Status.VSystemRouteStatus.Conditions, metav1.Condition{
 				Type:               "OperatorDegraded",
 				Status:             metav1.ConditionTrue,
@@ -117,10 +121,6 @@ func (a *Adjuster) AdjustSDIVsystemRoute(ns string, obs *sdiv1alpha1.SDIObserver
 					return err
 				}
 
-				if err := a.Client.Get(ctx, client.ObjectKey{Name: obs.Name, Namespace: obs.Namespace}, obs); err != nil {
-					a.logger.Error(err, "Failed to re-fetch SDIObserver")
-					return err
-				}
 				return nil
 			} else {
 				route.Spec.TLS.DestinationCACertificate = caBundle
@@ -145,6 +145,11 @@ func (a *Adjuster) AdjustSDIVsystemRoute(ns string, obs *sdiv1alpha1.SDIObserver
 				Message:            fmt.Sprintf("unable to update operand route: %s", err.Error()),
 			})
 			return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
+		}
+
+		if err := a.Client.Get(ctx, client.ObjectKey{Name: a.Name, Namespace: a.Namespace}, obs); err != nil {
+			a.Logger().Error(err, "Failed to re-fetch SDIObserver")
+			return err
 		}
 
 		meta.SetStatusCondition(&obs.Status.VSystemRouteStatus.Conditions, metav1.Condition{
@@ -230,6 +235,10 @@ func (a *Adjuster) AdjustSDIVsystemRoute(ns string, obs *sdiv1alpha1.SDIObserver
 			return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
 		}
 
+		if err := a.Client.Get(ctx, client.ObjectKey{Name: a.Name, Namespace: a.Namespace}, obs); err != nil {
+			a.Logger().Error(err, "Failed to re-fetch SDIObserver")
+			return err
+		}
 		meta.SetStatusCondition(&obs.Status.VSystemRouteStatus.Conditions, metav1.Condition{
 			Type:               "OperatorDegraded",
 			Status:             metav1.ConditionFalse,
@@ -249,7 +258,7 @@ func (a *Adjuster) AdjustSDIVsystemRoute(ns string, obs *sdiv1alpha1.SDIObserver
 		//if err != nil {
 		//	return err
 		//}
-		return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
+		return a.Client.Status().Update(ctx, obs)
 	default:
 		if err := a.Client.Get(ctx, client.ObjectKey{Name: a.Name, Namespace: a.Namespace}, obs); err != nil {
 			a.Logger().Error(err, "Failed to re-fetch SDIObserver")
@@ -355,7 +364,7 @@ func (a *Adjuster) AdjustSLCBRoute(ns string, obs *sdiv1alpha1.SDIObserver, ctx 
 		//	return err
 		//}
 
-		return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
+		return a.Client.Status().Update(ctx, obs)
 	case sdiv1alpha1.RouteManagementStateUnmanaged:
 		if err := a.Client.Get(ctx, client.ObjectKey{Name: a.Name, Namespace: a.Namespace}, obs); err != nil {
 			a.Logger().Error(err, "Failed to re-fetch SDIObserver")
@@ -443,7 +452,7 @@ func (a *Adjuster) AdjustSLCBRoute(ns string, obs *sdiv1alpha1.SDIObserver, ctx 
 		//	return err
 		//}
 
-		return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
+		return a.Client.Status().Update(ctx, obs)
 	default:
 		if err := a.Client.Get(ctx, client.ObjectKey{Name: a.Name, Namespace: a.Namespace}, obs); err != nil {
 			a.Logger().Error(err, "Failed to re-fetch SDIObserver")

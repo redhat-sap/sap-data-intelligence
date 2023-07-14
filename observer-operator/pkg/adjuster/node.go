@@ -360,5 +360,5 @@ func (a *Adjuster) AdjustSDINodes(obs *sdiv1alpha1.SDIObserver, ctx context.Cont
 		LastTransitionTime: metav1.NewTime(time.Now()),
 		Message:            "operator successfully reconciling",
 	})
-	return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
+	return a.Client.Status().Update(ctx, obs)
 }
