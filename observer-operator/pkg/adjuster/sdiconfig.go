@@ -15,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -43,7 +44,7 @@ func (a *Adjuster) adjustSDIDataHub(ns string, obs *sdiv1alpha1.SDIObserver, ctx
 			LastTransitionTime: metav1.NewTime(time.Now()),
 			Message:            fmt.Sprintf("unable to get operand SDI DataHub: %s", err.Error()),
 		})
-		return err
+		return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
 	}
 
 	spec := obj.Object["spec"].(map[string]interface{})
@@ -62,7 +63,7 @@ func (a *Adjuster) adjustSDIDataHub(ns string, obs *sdiv1alpha1.SDIObserver, ctx
 				LastTransitionTime: metav1.NewTime(time.Now()),
 				Message:            fmt.Sprintf("unable to update operand DataHub vRep: %s", err.Error()),
 			})
-			return err
+			return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
 		}
 	} else {
 		a.logger.Info("DataHub vRep is already patched")
@@ -88,7 +89,7 @@ func (a *Adjuster) AdjustSDIDiagnosticsFluentdDaemonsetContainerPrivilege(ns str
 			LastTransitionTime: metav1.NewTime(time.Now()),
 			Message:            fmt.Sprintf("unable to get operand daemonset: %s", err.Error()),
 		})
-		return err
+		return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
 	}
 
 	for _, c := range ds.Spec.Template.Spec.Containers {
@@ -118,7 +119,7 @@ func (a *Adjuster) AdjustSDIDiagnosticsFluentdDaemonsetContainerPrivilege(ns str
 			LastTransitionTime: metav1.NewTime(time.Now()),
 			Message:            fmt.Sprintf("unable to update operand daemonset: %s", err.Error()),
 		})
-		return err
+		return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
 	}
 
 	return nil
@@ -139,7 +140,7 @@ func (a *Adjuster) AdjustSDIVSystemVrepStatefulSets(ns string, obs *sdiv1alpha1.
 			LastTransitionTime: metav1.NewTime(time.Now()),
 			Message:            fmt.Sprintf("unable to get operand statefulset: %s", err.Error()),
 		})
-		return err
+		return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
 	}
 
 	volumeName := "exports-mask"
@@ -214,7 +215,7 @@ func (a *Adjuster) AdjustSDIVSystemVrepStatefulSets(ns string, obs *sdiv1alpha1.
 			LastTransitionTime: metav1.NewTime(time.Now()),
 			Message:            fmt.Sprintf("unable to update operand statefulset: %s", err.Error()),
 		})
-		return err
+		return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
 	}
 
 	err = a.adjustSDIDataHub(ns, obs, ctx)
@@ -250,7 +251,7 @@ func (a *Adjuster) pruneStateFullSetOldRevision(ns string, obs *sdiv1alpha1.SDIO
 			LastTransitionTime: metav1.NewTime(time.Now()),
 			Message:            fmt.Sprintf("unable to get operand statefulset: %s", err.Error()),
 		})
-		return err
+		return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
 	}
 
 	if ss.Status.UpdateRevision == ss.Status.CurrentRevision {
@@ -278,7 +279,7 @@ func (a *Adjuster) pruneStateFullSetOldRevision(ns string, obs *sdiv1alpha1.SDIO
 			LastTransitionTime: metav1.NewTime(time.Now()),
 			Message:            fmt.Sprintf("unable to get operand pod list: %s", err.Error()),
 		})
-		return err
+		return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
 	}
 
 	if len(updateRevisionPodList.Items) > 0 {
@@ -301,7 +302,7 @@ func (a *Adjuster) pruneStateFullSetOldRevision(ns string, obs *sdiv1alpha1.SDIO
 			LastTransitionTime: metav1.NewTime(time.Now()),
 			Message:            fmt.Sprintf("unable to get operand pod list: %s", err.Error()),
 		})
-		return err
+		return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
 	}
 
 	for _, pod := range podList.Items {
@@ -316,7 +317,7 @@ func (a *Adjuster) pruneStateFullSetOldRevision(ns string, obs *sdiv1alpha1.SDIO
 					LastTransitionTime: metav1.NewTime(time.Now()),
 					Message:            fmt.Sprintf("unable to delete operand pod: %s", err.Error()),
 				})
-				return err
+				return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
 			}
 		}
 	}
@@ -339,7 +340,7 @@ func (a *Adjuster) AdjustNamespacesNodeSelectorAnnotation(obs *sdiv1alpha1.SDIOb
 					err.Error(),
 				),
 			})
-			return err
+			return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
 		}
 	}
 	return nil
@@ -406,7 +407,7 @@ func (a *Adjuster) AdjustSDIRbac(ns string, obs *sdiv1alpha1.SDIObserver, ctx co
 				LastTransitionTime: metav1.NewTime(time.Now()),
 				Message:            fmt.Sprintf("unable to get operand role binding: %s", err.Error()),
 			})
-			return err
+			return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
 		}
 		a.logger.Info(fmt.Sprintf(
 			"Privileged role %s is created in namespace %s",
@@ -422,7 +423,7 @@ func (a *Adjuster) AdjustSDIRbac(ns string, obs *sdiv1alpha1.SDIObserver, ctx co
 			LastTransitionTime: metav1.NewTime(time.Now()),
 			Message:            fmt.Sprintf("unable to get operand role binding: %s", err.Error()),
 		})
-		return err
+		return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
 	} else {
 		a.logger.Info(fmt.Sprintf(
 			"Privileged role %s already exists in namespace %s. Do nothing",
@@ -503,7 +504,7 @@ func (a *Adjuster) AdjustSDIRbac(ns string, obs *sdiv1alpha1.SDIObserver, ctx co
 				LastTransitionTime: metav1.NewTime(time.Now()),
 				Message:            fmt.Sprintf("unable to get operand role binding: %s", err.Error()),
 			})
-			return err
+			return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
 		}
 
 		a.logger.Info(fmt.Sprintf(
@@ -521,7 +522,7 @@ func (a *Adjuster) AdjustSDIRbac(ns string, obs *sdiv1alpha1.SDIObserver, ctx co
 			LastTransitionTime: metav1.NewTime(time.Now()),
 			Message:            fmt.Sprintf("unable to get operand role binding: %s", err.Error()),
 		})
-		return err
+		return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
 	} else {
 		a.logger.Info(fmt.Sprintf(
 			"Privileged roleBinding %s already exists in namespace %s. Do nothing",
@@ -566,7 +567,7 @@ func (a *Adjuster) AdjustSDIRbac(ns string, obs *sdiv1alpha1.SDIObserver, ctx co
 			LastTransitionTime: metav1.NewTime(time.Now()),
 			Message:            fmt.Sprintf("unable to get operand role binding: %s", err.Error()),
 		})
-		return err
+		return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
 	} else {
 		a.logger.Info(fmt.Sprintf(
 			"Anyuid role %s already exists in namespace %s. Do nothing",
@@ -603,7 +604,7 @@ func (a *Adjuster) AdjustSDIRbac(ns string, obs *sdiv1alpha1.SDIObserver, ctx co
 				LastTransitionTime: metav1.NewTime(time.Now()),
 				Message:            fmt.Sprintf("unable to get operand role binding: %s", err.Error()),
 			})
-			return err
+			return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
 		}
 
 		a.logger.Info(fmt.Sprintf(
@@ -621,7 +622,7 @@ func (a *Adjuster) AdjustSDIRbac(ns string, obs *sdiv1alpha1.SDIObserver, ctx co
 			LastTransitionTime: metav1.NewTime(time.Now()),
 			Message:            fmt.Sprintf("unable to get operand role binding: %s", err.Error()),
 		})
-		return err
+		return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
 	} else {
 		a.logger.Info(fmt.Sprintf(
 			"Anyuid roleBinding %s already exists in namespace %s. Do nothing",
