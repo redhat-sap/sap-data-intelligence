@@ -44,7 +44,7 @@ spec:
               manageSDINodeConfig:
                 default: true
                 description: ManageSDINodeConfig defines whether SAP DI node configuration
-                  (load kernal modules, change container PID limits) will be managed
+                  (load kernel modules, change container PID limits) will be managed
                   by Operator
                 type: boolean
               sdiNamespace:

@@ -91,7 +91,7 @@ type SDIObserverSpec struct {
 
 	// +kubebuilder:validation:Required
 	// +kubebuilder:default:=true
-	// ManageSDINodeConfig defines whether SAP DI node configuration (load kernal modules, change container PID limits) will be managed by Operator
+	// ManageSDINodeConfig defines whether SAP DI node configuration (load kernel modules, change container PID limits) will be managed by Operator
 	ManageSDINodeConfig bool `json:"manageSDINodeConfig"`
 
 	// +kubebuilder:validation:Optional

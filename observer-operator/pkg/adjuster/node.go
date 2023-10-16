@@ -230,14 +230,14 @@ func (a *Adjuster) AdjustSDINodes(obs *sdiv1alpha1.SDIObserver, ctx context.Cont
 			machineConfigClusterOperatorName,
 		))
 
-		kernalModuleLoadMachineConfig := &configv1.MachineConfig{}
+		kernelModuleLoadMachineConfig := &configv1.MachineConfig{}
 
 		machineConfigName := "75-worker-sap-data-intelligence"
-		err = a.Client.Get(ctx, client.ObjectKey{Name: machineConfigName}, kernalModuleLoadMachineConfig)
+		err = a.Client.Get(ctx, client.ObjectKey{Name: machineConfigName}, kernelModuleLoadMachineConfig)
 		if err != nil && errors.IsNotFound(err) {
-			kernalModuleLoadMachineConfigAsset := assets.GetMachineConfigFromFile("manifests/machineconfiguration/machineconfig-sdi-load-kernal-modules.yaml")
-			a.logger.Info(fmt.Sprintf("MachineConfig %s does not exist", kernalModuleLoadMachineConfigAsset.Name))
-			if err := a.Client.Create(ctx, kernalModuleLoadMachineConfigAsset); err != nil {
+			kernelModuleLoadMachineConfigAsset := assets.GetMachineConfigFromFile("manifests/machineconfiguration/machineconfig-sdi-load-kernel-modules.yaml")
+			a.logger.Info(fmt.Sprintf("MachineConfig %s does not exist", kernelModuleLoadMachineConfigAsset.Name))
+			if err := a.Client.Create(ctx, kernelModuleLoadMachineConfigAsset); err != nil {
 				if err := a.Client.Get(ctx, client.ObjectKey{Name: a.Name, Namespace: a.Namespace}, obs); err != nil {
 					a.Logger().Error(err, "Failed to re-fetch SDIObserver")
 					return err
