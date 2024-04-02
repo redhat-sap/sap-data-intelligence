@@ -278,7 +278,7 @@ Bridge runs or will be running.
 
 | `DRY_RUN`           | `false`         | Make SDI Observer perform no changes to k8s resources.
 The observer will only output what would have been done. Use the following command to monitor its
-progress: `oc logs -n $NAMESPACE -f dc/sdi-observer` 
+progress: `oc logs -n $NAMESPACE -f deploy/sdi-observer`
 
 | `OCP_MINOR_RELEASE` | _server version_ | Determines the desired release of oc client binary. It
 should match the OCP cluster's minor release.
@@ -413,7 +413,7 @@ So far, updates need to be performed manually.
    available, run the following to see the previous environment variables:
 +
 ....
-# oc set env --list dc/sdi-observer -n "${NAMESPACE:-sdi-observer}"
+# oc set env --list deploy/sdi-observer -n "${NAMESPACE:-sdi-observer}"
 ....
 +
 2. Download the run script from git repository like this:
@@ -425,7 +425,7 @@ So far, updates need to be performed manually.
 3. Edit the downloaded `run-observer-template.sh` file in your favorite editor. Especially, mind
    the `FLAVOUR`, `NAMESPACE`, `SDI_NAMESPACE` and `OCP_MINOR_RELEASE` parameters. Compare it
    against the old `run-observer-template.sh` or against the output of
-   `oc set env --list dc/sdi-observer` and update the parameters accordingly.
+   `oc set env --list deploy/sdi-observer` and update the parameters accordingly.
 +
 4. Continue with the xref:#tmpl-run[regular template instantiation] starting with the step 3.
 

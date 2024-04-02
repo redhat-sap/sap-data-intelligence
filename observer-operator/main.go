@@ -20,6 +20,7 @@ import (
 	"flag"
 	"fmt"
 	operatorv1 "github.com/openshift/api/config/v1"
+	openshiftv1 "github.com/openshift/api/image/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	"os"
 	"time"
@@ -61,6 +62,8 @@ func init() {
 	utilruntime.Must(operatorv1.AddToScheme(scheme))
 
 	utilruntime.Must(configv1.AddToScheme(scheme))
+
+	utilruntime.Must(openshiftv1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 

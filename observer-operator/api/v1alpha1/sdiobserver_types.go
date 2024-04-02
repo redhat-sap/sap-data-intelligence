@@ -76,12 +76,14 @@ type SDIObserverSpec struct {
 	// +kubebuilder:validation:MinLength=2
 	// +kubebuilder:validation:MaxLength=63
 	// +kubebuilder:validation:Pattern="[[:alnum:]]+(-[[:alnum:]]+)*"
+	// SLCBNamespace is the namespace in which the SAP Data Intelligence is running
 	SDINamespace string `json:"sdiNamespace"`
 
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinLength=2
 	// +kubebuilder:validation:MaxLength=63
 	// +kubebuilder:validation:Pattern="[[:alnum:]]+(-[[:alnum:]]+)*"
+	// SLCBNamespace is the namespace in which the SAP SLC Bridge is running
 	SLCBNamespace string `json:"slcbNamespace"`
 
 	SDIVSystemRoute ManagedRouteSpec `json:"sdiVSystemRoute"`
@@ -89,28 +91,30 @@ type SDIObserverSpec struct {
 
 	// +kubebuilder:validation:Required
 	// +kubebuilder:default:=true
+	// ManageSDINodeConfig defines whether SAP DI node configuration (load kernel modules, change container PID limits) will be managed by Operator
 	ManageSDINodeConfig bool `json:"manageSDINodeConfig"`
 
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default:="node-role.kubernetes.io/sdi="
+	// SDINodeLabel should be set to the corresponding SAP DI node label. It will be used for annotating the namespaces of SAP DI service so that the Pods will be running on the labeled SAP DI node
 	SDINodeLabel string `json:"SDINodeLabel"`
 }
 
 // SDIObserverStatus defines the observed state of SDIObserver.
 type SDIObserverStatus struct {
-	Conditions []metav1.Condition `json:"conditions"`
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 
 	// Status of the vsystem route.
-	VSystemRouteStatus ManagedRouteStatus `json:"vsystemRouteStatus"`
+	VSystemRouteStatus ManagedRouteStatus `json:"vsystemRouteStatus,omitempty"`
 
 	// Status of the slcb route.
-	SLCBRouteStatus ManagedRouteStatus `json:"slcbRouteStatus"`
+	SLCBRouteStatus ManagedRouteStatus `json:"slcbRouteStatus,omitempty"`
 
 	// Status of the SDI config.
-	SDIConfigStatus SDIConfigStatus `json:"sdiConfigStatus"`
+	SDIConfigStatus SDIConfigStatus `json:"sdiConfigStatus,omitempty"`
 
 	// Status of the SDI node config.
-	SDINodeConfigStatus SDINodeConfigStatus `json:"sdiNodeConfigStatus"`
+	SDINodeConfigStatus SDINodeConfigStatus `json:"sdiNodeConfigStatus,omitempty"`
 }
 
 //+kubebuilder:object:root=true

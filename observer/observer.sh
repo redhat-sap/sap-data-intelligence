@@ -439,7 +439,7 @@ function checkPermissions() {
     fi
 }
 
-# delete obsolete deploymentconfigs
+# delete obsolete deployments
 function deleteResource() {
     local namespace="$1"
     shift
@@ -459,9 +459,9 @@ function purgeDeprecatedResources() {
     fi
     export DRY_RUN
     parallel deleteResource ::: "${purgeNamespaces[@]}" ::: \
-        {deploymentconfig,serviceaccount,role}/{vflow,vsystem,sdh}-observer || :
+        {deployment,serviceaccount,role}/{vflow,vsystem,sdh}-observer || :
     parallel deleteResource '{1}' rolebinding '{2}' ::: "${purgeNamespaces[@]}" :::  \
-        "--selector=deploymentconfig="{vflow-observer,vsystem-observer,sdh-observer} ||:
+        "--selector=deployment="{vflow-observer,vsystem-observer,sdh-observer} ||:
 }
 
 function getJobImage() {
@@ -470,7 +470,7 @@ function getJobImage() {
         return 0
     fi
     # shellcheck disable=SC2016
-    JOB_IMAGE="$(oc get -n "$NAMESPACE" dc/sdi-observer -o  \
+    JOB_IMAGE="$(oc get -n "$NAMESPACE" deploy/sdi-observer -o  \
         go-template='{{with $c := index .spec.template.spec.containers 0}}{{$c.image}}{{end}}')"
     export JOB_IMAGE
     printf '%s' "${JOB_IMAGE}"

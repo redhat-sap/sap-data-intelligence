@@ -17,7 +17,7 @@ type Actioner interface {
 }
 
 type Adjuster struct {
-	name      string
+	Name      string
 	Namespace string
 	Client    client.Client
 	Scheme    *runtime.Scheme
@@ -33,7 +33,7 @@ func New(
 	l logr.Logger,
 ) *Adjuster {
 	return &Adjuster{
-		name:      n,
+		Name:      n,
 		Namespace: ns,
 		Client:    c,
 		Scheme:    s,

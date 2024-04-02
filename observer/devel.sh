@@ -159,29 +159,29 @@ fi
 if [[ "$CLEAN" == 1 ]]; then
     printf 'Cleaning sdi-observer resources...\n' >&2
     (
-        oc get all -o name -l deploymentconfig=sdi-observer;
-        oc get is -o name -l deploymentconfig=sdi-observer;
-        oc get roles -o name -l deploymentconfig=sdi-observer;
-        oc get sa -o name -l deploymentconfig=sdi-observer;
-        oc get bc -o name -l deploymentconfig=sdi-observer;
-        oc get builds -o name -l deploymentconfig=sdi-observer;
+        oc get all -o name -l deployment=sdi-observer;
+        oc get is -o name -l deployment=sdi-observer;
+        oc get roles -o name -l deployment=sdi-observer;
+        oc get sa -o name -l deployment=sdi-observer;
+        oc get bc -o name -l deployment=sdi-observer;
+        oc get builds -o name -l deployment=sdi-observer;
         oc get cm -o name sdi-observer;
     ) | xargs -r oc delete --wait --grace-period=0  ||:
 fi
 
 set -x
 newDeployment=0
-if ! oc get dc/sdi-observer >/dev/null; then
+if ! oc get deploy/sdi-observer >/dev/null; then
     # TODO patch the container command to spawn sleep
     oc process REGISTRY_SECRET_NAME="${SECRET_NAME}" NAMESPACE="${NAMESPACE}" \
-        -f ocp-template.yaml -o json | jq '.items[] | if (.kind != "DeploymentConfig") then
+        -f ocp-template.yaml -o json | jq '.items[] | if (.kind != "Deployment") then
     .
 else
     .spec.template.spec.containers[].command |= ["/usr/bin/sleep", "infinity"]
 end' | oc create -f - || :
     newDeployment=1
 else
-    oc patch dc/sdi-observer -p 'spec:
+    oc patch deploy/sdi-observer -p 'spec:
   template:
     spec:
       containers:
@@ -191,7 +191,7 @@ fi
 
 case "$newDeployment$REBUILD" in
     01)
-        oc get -o name builds -l deploymentconfig=sdi-observer | xargs -r oc delete --wait ||:
+        oc get -o name builds -l deployment=sdi-observer | xargs -r oc delete --wait ||:
         printf 'Rebuilding sdi-observer from template...\n'
         oc process REGISTRY_SECRET_NAME="$SECRET_NAME" \
                 NAMESPACE="$NAMESPACE" -f ocp-template.yaml -o json | \
@@ -209,7 +209,7 @@ if [[ "$NO_SCRIPT_UPDATE" == 0 ]]; then
     oc create configmap sdi-observer.sh --from-file=observer.sh=./observer.sh  -o yaml --dry-run | \
         createOrReplaceFromStdin configmap/sdi-observer.sh
     if [[ -n "${NFS_SHARE:-}" ]]; then
-        oc set volume dc/sdi-observer --dry-run -o json \
+        oc set volume deploy/sdi-observer --dry-run -o json \
             --add --overwrite --type emptyDir --sub-path=observer.sh \
             --name observer-sh --configmap-name=sdi-observer.sh \
             --read-only=true --mount-path=/observer.sh | oc patch --local -f - -o json \
@@ -221,21 +221,21 @@ if [[ "$NO_SCRIPT_UPDATE" == 0 ]]; then
             oc replace -f -
 
     elif [[ "$MOUNT_CONFIG_MAP" == 1 ]]; then
-        oc set volume dc/sdi-observer \
+        oc set volume deploy/sdi-observer \
             --add --overwrite --type configmap --sub-path=observer.sh \
             --name observer-sh --configmap-name=sdi-observer.sh \
             --read-only=true --mount-path=/observer.sh
-        printf 'Script mounted to dc/sdi-observer at %s, re-deploying...\n' "$script_path"
+        printf 'Script mounted to deploy/sdi-observer at %s, re-deploying...\n' "$script_path"
         sleep 1
         # TODO: determine if a new deployment shall be rolled out or not
-        oc rollout latest dc/sdi-observer
+        oc rollout latest deploy/sdi-observer
         sleep 1
-        oc rollout status -w dc/sdi-observer
-        printf 'dc/sdi-observer rolled out.\n'
+        oc rollout status -w deploy/sdi-observer
+        printf 'deploy/sdi-observer rolled out.\n'
 
     else
-        printf 'Copying observer script to dc/sdi-observer at %s\n' "$script_path"
-        cm="$(oc get pods -l deploymentconfig=sdi-observer -o name | \
+        printf 'Copying observer script to deployment/sdi-observer at %s\n' "$script_path"
+        cm="$(oc get pods -l deployment=sdi-observer -o name | \
                     sort -n | tail -n 1 | sed 's,^pod/,,')"
         oc cp ./observer.sh "$cm:/tmp/observer.sh"
         script_path="/tmp$script_path"
@@ -243,7 +243,7 @@ if [[ "$NO_SCRIPT_UPDATE" == 0 ]]; then
     fi
 fi
 
-args=( rsh dc/sdi-observer )
+args=( rsh deploy/sdi-observer )
 if [[ "${ENTER_THE_SHELL:-0}" == 0 ]]; then
     args+=( /bin/bash "$script_path" )
 fi

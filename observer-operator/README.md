@@ -17,7 +17,7 @@ The Operator is supposed to replace SDI Observer once it reaches the same functi
 Implemented SDI Observer features:
 - [x] vsystem route management
 - [x] slcb route management
-- [x] configure SDI nodes for kernal parameters
+- [x] configure SDI nodes for kernel parameters
 - [x] configure SDI nodes for container PID limits parameters
 - [x] configure statefulset vsystem-vrep volume and volumemount
 - [x] configure daemonset diagnostics-fluentd container privileges

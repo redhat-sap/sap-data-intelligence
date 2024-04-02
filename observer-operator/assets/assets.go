@@ -33,6 +33,14 @@ func init() {
 	if err := routev1.AddToScheme(appsScheme); err != nil {
 		panic(err)
 	}
+
+	if err := openshiftv1.AddToScheme(appsScheme); err != nil {
+		panic(err)
+	}
+
+	if err := appsv1.AddToScheme(appsScheme); err != nil {
+		panic(err)
+	}
 }
 
 func GetRouteFromFile(name string) *routev1.Route {

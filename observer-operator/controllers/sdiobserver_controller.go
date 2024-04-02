@@ -91,6 +91,45 @@ func (r *SDIObserverReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		return ctrl.Result{}, utilerrors.NewAggregate([]error{err, r.Status().Update(ctx, operatorCR)})
 	}
 
+	updateStatus := false
+	// Let's just set the status as Unknown when no status are available
+	if operatorCR.Status.Conditions == nil || len(operatorCR.Status.Conditions) == 0 {
+		meta.SetStatusCondition(&operatorCR.Status.Conditions, metav1.Condition{Type: "Available", Status: metav1.ConditionUnknown, Reason: "Reconciling", Message: "Starting reconciliation"})
+		updateStatus = true
+	}
+
+	if operatorCR.Status.SDINodeConfigStatus.Conditions == nil || len(operatorCR.Status.SDINodeConfigStatus.Conditions) == 0 {
+		meta.SetStatusCondition(&operatorCR.Status.SDINodeConfigStatus.Conditions, metav1.Condition{Type: "Available", Status: metav1.ConditionUnknown, Reason: "Reconciling", Message: "Starting reconciliation"})
+		updateStatus = true
+	}
+
+	if operatorCR.Status.SDIConfigStatus.Conditions == nil || len(operatorCR.Status.SDIConfigStatus.Conditions) == 0 {
+		meta.SetStatusCondition(&operatorCR.Status.SDIConfigStatus.Conditions, metav1.Condition{Type: "Available", Status: metav1.ConditionUnknown, Reason: "Reconciling", Message: "Starting reconciliation"})
+		updateStatus = true
+	}
+
+	if operatorCR.Status.SLCBRouteStatus.Conditions == nil || len(operatorCR.Status.SLCBRouteStatus.Conditions) == 0 {
+		meta.SetStatusCondition(&operatorCR.Status.SLCBRouteStatus.Conditions, metav1.Condition{Type: "Available", Status: metav1.ConditionUnknown, Reason: "Reconciling", Message: "Starting reconciliation"})
+		updateStatus = true
+	}
+
+	if operatorCR.Status.VSystemRouteStatus.Conditions == nil || len(operatorCR.Status.VSystemRouteStatus.Conditions) == 0 {
+		meta.SetStatusCondition(&operatorCR.Status.VSystemRouteStatus.Conditions, metav1.Condition{Type: "Available", Status: metav1.ConditionUnknown, Reason: "Reconciling", Message: "Starting reconciliation"})
+		updateStatus = true
+	}
+
+	if updateStatus {
+		if err = r.Status().Update(ctx, operatorCR); err != nil {
+			logger.Error(err, "Failed to update SDIObserver VSystemRouteStatus")
+			return ctrl.Result{}, err
+		}
+
+		if err := r.Get(ctx, req.NamespacedName, operatorCR); err != nil {
+			logger.Error(err, "Failed to re-fetch SDIObserver")
+			return ctrl.Result{}, err
+		}
+	}
+
 	sdiObserver := sdiobserver.New(operatorCR)
 
 	sdiAdjuster := adjuster.New(
@@ -109,6 +148,24 @@ func (r *SDIObserverReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		}
 	}
 
+	if err := r.Get(ctx, req.NamespacedName, operatorCR); err != nil {
+		logger.Error(err, "Failed to re-fetch SDIObserver")
+		return ctrl.Result{}, err
+	}
+
+	meta.SetStatusCondition(&operatorCR.Status.Conditions, metav1.Condition{
+		Type:               "OperatorDegraded",
+		Status:             metav1.ConditionFalse,
+		Reason:             sdiv1alpha1.ReasonSucceeded,
+		LastTransitionTime: metav1.NewTime(time.Now()),
+		Message:            fmt.Sprintf("The reconcilation is done successfuly"),
+	})
+
+	if err = r.Status().Update(ctx, operatorCR); err != nil {
+		logger.Error(err, "Failed to update SDIObserver status")
+		return ctrl.Result{}, err
+	}
+
 	logger.Info(fmt.Sprintf("Reconciled Successfully. Requeueing at %s", time.Now().Add(r.Interval).Format(time.Stamp)))
 	return ctrl.Result{RequeueAfter: r.Interval}, nil
 }
@@ -118,8 +175,4 @@ func (r *SDIObserverReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&sdiv1alpha1.SDIObserver{}).
 		Complete(r)
-}
-
-func getBoolPtr(b bool) *bool {
-	return &b
 }
