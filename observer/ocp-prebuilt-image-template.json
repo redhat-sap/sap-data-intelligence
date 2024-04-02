@@ -1,7 +1,7 @@
 {
    "apiVersion": "template.openshift.io/v1",
    "kind": "Template",
-   "message": "The SDI Observer will be started. You can watch the progress with the following commands:\n\n  oc logs -f dc/sdi-observer\n",
+   "message": "The SDI Observer will be started. You can watch the progress with the following commands:\n\n  oc logs -f deploy/sdi-observer\n",
    "metadata": {
       "annotations": {
          "description": "The template spawns the \"sdi-observer\" pod that observes the particular namespace where\nSAP Data Intelligence (SDI) runs and modifies its deployments and configuration to enable\nits pods to run on Red Hat OpenShift.\n\nOn Red Hat Enterprise Linux CoreOS, SDI's vsystem-vrep statefulset needs to be patched to\nmount `emptyDir` volume at `/exports` directory in order to enable NFS exports in the\ncontainer running on top of overlayfs which is the default filesystem in RHCOS.\n\nThe observer pod modifies vsystem-vrep statefulset as soon as it appears to enable the NFS\nexports.\n\nAdditionally, it patches diagnostics-fluentd daemonset to allow its pods to access log\nfiles on the host system. It also modifies it to parse plain text log files instead of\npreconfigured json.\n\nOn Red Hat Enterprise Linux CoreOS, \"vsystem-iptables\" containers need to be run as\nprivileged in order to load iptables-related kernel modules. SDI containers named\n\"vsystem-iptables\" deployed as part of every \"vsystem-app\" deployment attempt to modify\niptables rules without having the necessary permissions. The ideal solution is to pre-load\nthese modules during node's startup. When not feasable, this template can also fix the\npermissions on-the-fly as the deployments are created. The drawback is a slower startup of\nSDI components.\n\nBy default, observer also exposes SDI vsystem service as a route using OpenShift Ingress\ncontroller.\n\nThe template must be instantiated before the SDI installation. It is stronly recommended\nto run the observer in a separate namespace from SDI.\n\nPrerequisites:\n  - OCP cluster must be healty including all the cluster operators.\n  - A container image registry hosting a prebuilt image of SDI Observer must be reachable\n    from the OCP cluster. IMAGE_PULL_SPEC parameter must point to this registry.\n  - If the registry requires authentication, a pull secret must be created in the\n    NAMESPACE and linked with the \"sdi-observer\" service account.\n\nUsage:\n  Assuming the SDI will be run in the SDI_NAMESPACE which is different from the observer\n  NAMESPACE, instantiate the template with parameters like this:\n\n    oc new-project $SDI_NAMESPACE\n    oc new-project sdi-observer\n    # the following 2 commands are needed only if the registry requires authentication\n    oc create secret docker-registry my-secret --docker-server=REGISTRY \\\n        --docker-username=... --docker-password=...\n    # oc secrets link sdi-observer my-secret --for=pull\n\n    oc process sdi-observer \\\n        SDI_NAMESPACE=$SDI_NAMESPACE \\\n        NAMESPACE=sdi-observer | oc create -f -\n",
@@ -20,21 +20,24 @@
             "labels": {
                "app": "sdi-observer",
                "created-by": "sdi-observer-template",
-               "deploymentconfig": "sdi-observer"
+               "deployment": "sdi-observer"
             },
             "name": "sdi-observer",
             "namespace": "${NAMESPACE}"
          }
       },
       {
-         "apiVersion": "v1",
-         "kind": "DeploymentConfig",
+         "apiVersion": "apps/v1",
+         "kind": "Deployment",
          "metadata": {
             "labels": {
                "app": "sdi-observer",
                "created-by": "sdi-observer-template",
-               "deploymentconfig": "sdi-observer",
+               "deployment": "sdi-observer",
                "sdi-observer/version": "0.1.26"
+            },
+            "annotations": {
+               "image.openshift.io/triggers": "[{\"from\":{\"kind\":\"ImageStreamTag\",\"name\":\"sdi-observer:0.1.26-ocp${OCP_MINOR_RELEASE}\"},\"fieldPath\":\"spec.template.spec.containers[?(@.name==\\\"sdi-observer\\\")].image\"}]"
             },
             "name": "sdi-observer",
             "namespace": "${NAMESPACE}"
@@ -42,16 +45,15 @@
          "spec": {
             "replicas": 1,
             "selector": {
-               "deploymentconfig": "sdi-observer"
-            },
-            "strategy": {
-               "type": "Recreate"
+               "matchLabels": {
+                  "deployment": "sdi-observer"
+               }
             },
             "template": {
                "metadata": {
                   "labels": {
                      "app": "sdi-observer",
-                     "deploymentconfig": "sdi-observer"
+                     "deployment": "sdi-observer"
                   }
                },
                "spec": {
@@ -149,25 +151,7 @@
                   "serviceAccount": "sdi-observer",
                   "serviceAccountName": "sdi-observer"
                }
-            },
-            "triggers": [
-               {
-                  "type": "ConfigChange"
-               },
-               {
-                  "imageChangeParams": {
-                     "automatic": true,
-                     "containerNames": [
-                        "sdi-observer"
-                     ],
-                     "from": {
-                        "kind": "ImageStreamTag",
-                        "name": "sdi-observer:0.1.26-ocp${OCP_MINOR_RELEASE}"
-                     }
-                  },
-                  "type": "ImageChange"
-               }
-            ]
+            }
          }
       },
       {
@@ -176,7 +160,7 @@
          "metadata": {
             "labels": {
                "created-by": "sdi-observer-template",
-               "deploymentconfig": "sdi-observer"
+               "deployment": "sdi-observer"
             },
             "name": "sdi-observer-admin-in-${NAMESPACE}"
          },
@@ -199,7 +183,7 @@
          "metadata": {
             "labels": {
                "created-by": "sdi-observer-template",
-               "deploymentconfig": "sdi-observer"
+               "deployment": "sdi-observer"
             },
             "name": "sdi-observer-cluster-access-in-${NAMESPACE}"
          },
@@ -242,7 +226,7 @@
          "metadata": {
             "labels": {
                "created-by": "sdi-observer-template",
-               "deploymentconfig": "sdi-observer"
+               "deployment": "sdi-observer"
             },
             "name": "sdi-observer-cluster-access-in-${NAMESPACE}"
          },
@@ -265,7 +249,7 @@
          "metadata": {
             "labels": {
                "created-by": "sdi-observer-template",
-               "deploymentconfig": "sdi-observer"
+               "deployment": "sdi-observer"
             },
             "name": "sdi-observer-in-${NAMESPACE}",
             "namespace": "${SDI_NAMESPACE}"
@@ -393,11 +377,10 @@
             },
             {
                "apiGroups": [
-                  "apps",
-                  "deploymentconfigs.apps.openshift.io"
+                  "apps"
                ],
                "resources": [
-                  "deploymentconfigs"
+                  "deployment"
                ],
                "verbs": [
                   "get",
@@ -557,7 +540,7 @@
          "metadata": {
             "labels": {
                "created-by": "sdi-observer-template",
-               "deploymentconfig": "sdi-observer"
+               "deployment": "sdi-observer"
             },
             "name": "sdi-observer-in-${NAMESPACE}",
             "namespace": "${SDI_NAMESPACE}"
@@ -582,7 +565,7 @@
          "metadata": {
             "labels": {
                "created-by": "sdi-observer-template",
-               "deploymentconfig": "sdi-observer"
+               "deployment": "sdi-observer"
             },
             "name": "sdi-observer-for-slcbridge-in-${NAMESPACE}",
             "namespace": "${SLCB_NAMESPACE}"
@@ -698,7 +681,7 @@
          "metadata": {
             "labels": {
                "created-by": "sdi-observer-template",
-               "deploymentconfig": "sdi-observer"
+               "deployment": "sdi-observer"
             },
             "name": "sdi-observer-for-slcbridge-in-${NAMESPACE}",
             "namespace": "${SLCB_NAMESPACE}"
@@ -723,7 +706,7 @@
          "metadata": {
             "labels": {
                "created-by": "sdi-observer-template",
-               "deploymentconfig": "sdi-observer"
+               "deployment": "sdi-observer"
             },
             "name": "sdi-observer-node-reader-in-${NAMESPACE}"
          },

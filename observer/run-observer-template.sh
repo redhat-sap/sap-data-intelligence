@@ -374,7 +374,7 @@ fi
 
 printf '\n'
 printf 'You can monitor the SDI Observer with:\n'
-printf '  oc logs -n %s -f dc/sdi-observer\n' "$NAMESPACE"
+printf '  oc logs -n %s -f deploy/sdi-observer\n' "$NAMESPACE"
 if [[ "${DEPLOY_SDI_REGISTRY:-false}"  == true && \
         "${SDI_REGISTRY_AUTHENTICATION:-}" == basic ]];
 then
