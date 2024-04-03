@@ -197,7 +197,7 @@
                               "value": "${EXPOSE_WITH_LETSENCRYPT}"
                            }
                         ],
-                        "image": " ",
+                        "image": "sdi-observer:0.1.26-ocp${OCP_MINOR_RELEASE}",
                         "name": "sdi-observer",
                         "resources": {
                            "limits": {
