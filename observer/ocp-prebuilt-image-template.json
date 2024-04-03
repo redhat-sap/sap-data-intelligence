@@ -133,7 +133,7 @@
                               "value": "${IMAGE_PULL_SPEC}"
                            }
                         ],
-                        "image": " ",
+                        "image": "sdi-observer:0.1.26-ocp${OCP_MINOR_RELEASE}",
                         "name": "sdi-observer",
                         "resources": {
                            "limits": {
