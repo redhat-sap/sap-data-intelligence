@@ -831,129 +831,129 @@ function ensureSlcbRoute() {
 #      # logDriverExpression: /^(?<time>.+) (?<stream>stdout|stderr)( (?<logtag>.))? (?<log>.*)$/
 #
 #      # collectLogs: false
-#function patchDiagnosticsFluentd() {
-#    local nm="$1"
-#    local name="$2"
-#    local appVersion="$3"
-#    local unprivileged="$4"
-#    local jqpatches=()
-#    local jqargs=( -r )
-#
-#    if [[ "$unprivileged" == "true" ]]; then
-#        log 'Patching daemonset/%s to make its pods privileged ...' "$name"
-#        jqpatches+=( ' .spec.template.spec.containers |= [.[] |
-#            if .name == "diagnostics-fluentd" then
-#                .securityContext.privileged |= true
-#            else . end] ' )
-#    else
-#        log 'Containers in the daemonset/%s are already privileged.' "$name"
-#    fi
-#
-#    local def
-#    def="$(oc get -o json -n "$nm" ds/"$name")"
-#
-#    # fluentd already mounts /var/log/containers and /var/log/pods host paths, thus remove any
-#    # /var/lib/docker volumes
-#    if [[ "$(jq --arg vName "$FLUENTD_DOCKER_VOLUME_NAME" '.spec.template.spec as $s |
-#            def inspectVMs($cs): [(($cs // [])[] | (.volumeMounts // []))[] |
-#                select(.name == $vName) | true];
-#            [$s.volumes[] | select((.name == $vName)
-#                or ((.hostPath.path // "") | test("^/var/lib/docker"))) | true] +
-#            inspectVMs($s.containers) + inspectVMs($s.initContainers // []) |
-#                any' <<<"$def")" == "true" ]];
-#    then
-#        log 'Removing %s volumes and /var/lib/docker hostPath volumes from the daemonset/%s ...' \
-#            "$FLUENTD_DOCKER_VOLUME_NAME" "$name"
-#        # shellcheck disable=SC2016
-#        jqpatches+=( ' . as $ds | $ds.spec.template.spec.volumes as $vs |
-#            [$vs[] | select((.name == $vName)
-#                    or ((.hostPath.path // "") | test("^/var/lib/docker"))) | .name] as $toDelete |
-#            $ds.spec.template.spec.volumes |= [.[] | select(
-#                    . as $v | $toDelete | all($v.name != .))] |
-#            def prune($c): c.volumeMounts |= [(. // [])[] | select(. as $vm | $toDelete |
-#                all($vm.name != .))];
-#            $ds | .spec.template.spec.containers |= [.[] | prune(.)] |
-#            .spec.template.spec.initContainers |= [(. // [])[] | prune(.)] |
-#            .spec.template.spec.volumes |= [.[] | select(.name as $vn |
-#                $toDelete | all($vn != .))] ' )
-#        jqargs+=( --arg vName "$FLUENTD_DOCKER_VOLUME_NAME" )
-#    else
-#        log -n 'DaemonSet %s does not have any references to /var/lib/docker' "$name"
-#        log -d ' host path, no need to patch.'
-#    fi
-#
-#    [[ "${#jqpatches[@]}" == 0 ]] && return 0
-#    createOrReplace < <(jq "${jqargs[@]}" "$(join \| "${jqpatches[@]}")" <<<"$def")
-#}
+function patchDiagnosticsFluentd() {
+    local nm="$1"
+    local name="$2"
+    local appVersion="$3"
+    local unprivileged="$4"
+    local jqpatches=()
+    local jqargs=( -r )
 
-#function patchDiagnosticsFluentdConfig() {
-#    local nm="$1"
-#    local name="$2"
-#    local resource="cm/$name"
-#    local contents
-#    local currentLogParseType
-#    local newContents
-#    local yamlPatch
-#
-#    contents="$(oc get "$resource" -o go-template='{{index .data "fluent.conf"}}')"
-#    if [[ -z "${contents:-}" ]]; then
-#        log "Failed to get contents of fluent.conf configuration file!"
-#        return 1
-#    fi
-#    currentLogParseType="$(sed -n '/<parse>/,/<\/parse>/s,^\s\+@type\s*\([^[:space:]]\+\).*,\1,p' <<<"${contents}")"
-#    if [[ -z "${currentLogParseType:-}" ]]; then
-#        log "Failed to determine the current log type parsing of fluentd pods!"
-#        return 1
-#    fi
-#    case "${currentLogParseType}" in
-#    "multi_format")
-#        return 0;   # shall support both json and text
-#        ;;
-#    "json")
-#        if [[ "$NODE_LOG_FORMAT" == json ]]; then
-#            log "Fluentd pods are already configured to parse json, not patching..."
-#            return 0
-#        fi
-#        ;;
-#    "regexp")
-#        if [[ "$NODE_LOG_FORMAT" == text ]]; then
-#            log "Fluentd pods are already configured to parse text, not patching..."
-#            return 0
-#        fi
-#        ;;
-#    esac
-#
-#    local exprs=(
-#        -e '/^\s\+expression\s\+\/\^.*logtag/d'
-#    )
-#    if [[ "$NODE_LOG_FORMAT" == text ]]; then
-#        exprs+=(
-#            -e '/<parse>/,/<\/parse>/s,@type.*,@type regexp,'
-#            -e '/<parse>/,/<\/parse>/s,\(\s*\)@type.*,\0\n\1expression /^(?<time>.+) (?<stream>stdout|stderr)( (?<logtag>.))? (?<log>.*)$/,'
-#            -e "/<parse>/,/<\/parse>/s,time_format.*,time_format '%Y-%m-%dT%H:%M:%S.%N%:z',"
-#        )
-#    else
-#        exprs+=(
-#            -e '/<parse>/,/<\/parse>/s,@type.*,@type json,'
-#            -e "/<parse>/,/<\/parse>/s,time_format.*,time_format '%Y-%m-%dT%H:%M:%S.%NZ',"
-#        )
-#    fi
-#
-#    newContents="$(printf '%s\n' "${contents}" | sed "${exprs[@]}")"
-#
-#    log 'Patching configmap %s to support %s logging format on OCP 4...' \
-#        "$name" "$NODE_LOG_FORMAT"
-#
-#    # shellcheck disable=SC2001
-#    yamlPatch="$(printf '%s\n' "data:" "    fluent.conf: |" \
-#        "$(sed 's/^/        /' <<<"${newContents}")")"
-#    runOrLog oc patch "$resource" -p "$yamlPatch"
-#    readarray -t pods <<<"$(oc get pods -l datahub.sap.com/app-component=fluentd -o name)"
-#    [[ "${#pods[@]}" == 0 ]] && return 0
-#
-#    log 'Restarting fluentd pods ...'
-#    runOrLog oc delete --force --grace-period=0 "${pods[@]}" ||:
-#}
+    if [[ "$unprivileged" == "true" ]]; then
+        log 'Patching daemonset/%s to make its pods privileged ...' "$name"
+        jqpatches+=( ' .spec.template.spec.containers |= [.[] |
+            if .name == "diagnostics-fluentd" then
+                .securityContext.privileged |= true
+            else . end] ' )
+    else
+        log 'Containers in the daemonset/%s are already privileged.' "$name"
+    fi
+
+    local def
+    def="$(oc get -o json -n "$nm" ds/"$name")"
+
+    # fluentd already mounts /var/log/containers and /var/log/pods host paths, thus remove any
+    # /var/lib/docker volumes
+    if [[ "$(jq --arg vName "$FLUENTD_DOCKER_VOLUME_NAME" '.spec.template.spec as $s |
+            def inspectVMs($cs): [(($cs // [])[] | (.volumeMounts // []))[] |
+                select(.name == $vName) | true];
+            [$s.volumes[] | select((.name == $vName)
+                or ((.hostPath.path // "") | test("^/var/lib/docker"))) | true] +
+            inspectVMs($s.containers) + inspectVMs($s.initContainers // []) |
+                any' <<<"$def")" == "true" ]];
+    then
+        log 'Removing %s volumes and /var/lib/docker hostPath volumes from the daemonset/%s ...' \
+            "$FLUENTD_DOCKER_VOLUME_NAME" "$name"
+        # shellcheck disable=SC2016
+        jqpatches+=( ' . as $ds | $ds.spec.template.spec.volumes as $vs |
+            [$vs[] | select((.name == $vName)
+                    or ((.hostPath.path // "") | test("^/var/lib/docker"))) | .name] as $toDelete |
+            $ds.spec.template.spec.volumes |= [.[] | select(
+                    . as $v | $toDelete | all($v.name != .))] |
+            def prune($c): c.volumeMounts |= [(. // [])[] | select(. as $vm | $toDelete |
+                all($vm.name != .))];
+            $ds | .spec.template.spec.containers |= [.[] | prune(.)] |
+            .spec.template.spec.initContainers |= [(. // [])[] | prune(.)] |
+            .spec.template.spec.volumes |= [.[] | select(.name as $vn |
+                $toDelete | all($vn != .))] ' )
+        jqargs+=( --arg vName "$FLUENTD_DOCKER_VOLUME_NAME" )
+    else
+        log -n 'DaemonSet %s does not have any references to /var/lib/docker' "$name"
+        log -d ' host path, no need to patch.'
+    fi
+
+    [[ "${#jqpatches[@]}" == 0 ]] && return 0
+    createOrReplace < <(jq "${jqargs[@]}" "$(join \| "${jqpatches[@]}")" <<<"$def")
+}
+
+function patchDiagnosticsFluentdConfig() {
+    local nm="$1"
+    local name="$2"
+    local resource="cm/$name"
+    local contents
+    local currentLogParseType
+    local newContents
+    local yamlPatch
+
+    contents="$(oc get "$resource" -o go-template='{{index .data "fluent.conf"}}')"
+    if [[ -z "${contents:-}" ]]; then
+        log "Failed to get contents of fluent.conf configuration file!"
+        return 1
+    fi
+    currentLogParseType="$(sed -n '/<parse>/,/<\/parse>/s,^\s\+@type\s*\([^[:space:]]\+\).*,\1,p' <<<"${contents}")"
+    if [[ -z "${currentLogParseType:-}" ]]; then
+        log "Failed to determine the current log type parsing of fluentd pods!"
+        return 1
+    fi
+    case "${currentLogParseType}" in
+    "multi_format")
+        return 0;   # shall support both json and text
+        ;;
+    "json")
+        if [[ "$NODE_LOG_FORMAT" == json ]]; then
+            log "Fluentd pods are already configured to parse json, not patching..."
+            return 0
+        fi
+        ;;
+    "regexp")
+        if [[ "$NODE_LOG_FORMAT" == text ]]; then
+            log "Fluentd pods are already configured to parse text, not patching..."
+            return 0
+        fi
+        ;;
+    esac
+
+    local exprs=(
+        -e '/^\s\+expression\s\+\/\^.*logtag/d'
+    )
+    if [[ "$NODE_LOG_FORMAT" == text ]]; then
+        exprs+=(
+            -e '/<parse>/,/<\/parse>/s,@type.*,@type regexp,'
+            -e '/<parse>/,/<\/parse>/s,\(\s*\)@type.*,\0\n\1expression /^(?<time>.+) (?<stream>stdout|stderr)( (?<logtag>.))? (?<log>.*)$/,'
+            -e "/<parse>/,/<\/parse>/s,time_format.*,time_format '%Y-%m-%dT%H:%M:%S.%N%:z',"
+        )
+    else
+        exprs+=(
+            -e '/<parse>/,/<\/parse>/s,@type.*,@type json,'
+            -e "/<parse>/,/<\/parse>/s,time_format.*,time_format '%Y-%m-%dT%H:%M:%S.%NZ',"
+        )
+    fi
+
+    newContents="$(printf '%s\n' "${contents}" | sed "${exprs[@]}")"
+
+    log 'Patching configmap %s to support %s logging format on OCP 4...' \
+        "$name" "$NODE_LOG_FORMAT"
+
+    # shellcheck disable=SC2001
+    yamlPatch="$(printf '%s\n' "data:" "    fluent.conf: |" \
+        "$(sed 's/^/        /' <<<"${newContents}")")"
+    runOrLog oc patch "$resource" -p "$yamlPatch"
+    readarray -t pods <<<"$(oc get pods -l datahub.sap.com/app-component=fluentd -o name)"
+    [[ "${#pods[@]}" == 0 ]] && return 0
+
+    log 'Restarting fluentd pods ...'
+    runOrLog oc delete --force --grace-period=0 "${pods[@]}" ||:
+}
 
 
 function ensureRoutes() {
@@ -961,35 +961,35 @@ function ensureRoutes() {
     ensureSlcbRoute
 }
 
-#function managePullSecret() {
-#    local saDef="$1"   # json of the service account that shall be (un)linked with the secret
-#    local secretName="$2"
-#    local link="$3"     # one of "link" or "unlink"
-#    local present
-#    present="$(jq -r --arg secretName "$secretName" '(.imagePullSecrets // [])[] |
-#        .name // "" | select(. == $secretName) | "present"' <<<"$saDef")"
-#    case "$present:$link" in
-#        present:link)
-#            log -n 'Secret %s already linked with the default service acount' "$secretName"
-#            log -d ' for image pulls, skipping ...'
-#            return 0
-#            ;;
-#        present:unlink)
-#            log 'Unlinking secret %s from the default service account ...' "$secretName"
-#            runOrLog oc secret unlink default "$secretName"
-#            ;;
-#        *:unlink)
-#            log -n 'Secret %s not linked with the default service acount' "$secretName"
-#            log -d ' for image pulls, skipping ...'
-#            ;;
-#        *:link)
-#            log 'Linking secret %s to the default service account ...' "$secretName"
-#            runOrLog oc secret link default "$secretName" --for=pull
-#            ;;
-#    esac
-#    return 0
-#}
-#export -f managePullSecret
+function managePullSecret() {
+    local saDef="$1"   # json of the service account that shall be (un)linked with the secret
+    local secretName="$2"
+    local link="$3"     # one of "link" or "unlink"
+    local present
+    present="$(jq -r --arg secretName "$secretName" '(.imagePullSecrets // [])[] |
+        .name // "" | select(. == $secretName) | "present"' <<<"$saDef")"
+    case "$present:$link" in
+        present:link)
+            log -n 'Secret %s already linked with the default service acount' "$secretName"
+            log -d ' for image pulls, skipping ...'
+            return 0
+            ;;
+        present:unlink)
+            log 'Unlinking secret %s from the default service account ...' "$secretName"
+            runOrLog oc secret unlink default "$secretName"
+            ;;
+        *:unlink)
+            log -n 'Secret %s not linked with the default service acount' "$secretName"
+            log -d ' for image pulls, skipping ...'
+            ;;
+        *:link)
+            log 'Linking secret %s to the default service account ...' "$secretName"
+            runOrLog oc secret link default "$secretName" --for=pull
+            ;;
+    esac
+    return 0
+}
+export -f managePullSecret
 
 function patchDataHub() {
     local nm="$1"
@@ -1026,17 +1026,17 @@ function patchDataHub() {
         log 'No need to patch %s for vsystem-vrep volume, skipping ...' "$dhNames"
     fi
 
-#    if [[ "$(jq -r --arg vName "$FLUENTD_DOCKER_VOLUME_NAME" '[.items[] |
-#            .spec.diagnostic.fluentd."\($vName)" // ""] |
-#            all(. == "disabled")' <<<"$datahubs")" != "true" ]];
-#    then
-#        log 'Patching %s to remove /var/lib/docker volumes from ds/fluentd ...' "$dhNames"
-#        # shellcheck disable=SC2016
-#        jqpatches+=( '.items |= [.[] | .spec.diagnostic.fluentd."\($vName)" |= "disabled"]' )
-#        jqargs+=( --arg "vName" "$FLUENTD_DOCKER_VOLUME_NAME" )
-#    else
-#        log 'No need to patch datahubs for fluentd volume mounting, skipping ...'
-#    fi
+    if [[ "$(jq -r --arg vName "$FLUENTD_DOCKER_VOLUME_NAME" '[.items[] |
+            .spec.diagnostic.fluentd."\($vName)" // ""] |
+            all(. == "disabled")' <<<"$datahubs")" != "true" ]];
+    then
+        log 'Patching %s to remove /var/lib/docker volumes from ds/fluentd ...' "$dhNames"
+        # shellcheck disable=SC2016
+        jqpatches+=( '.items |= [.[] | .spec.diagnostic.fluentd."\($vName)" |= "disabled"]' )
+        jqargs+=( --arg "vName" "$FLUENTD_DOCKER_VOLUME_NAME" )
+    else
+        log 'No need to patch datahubs for fluentd volume mounting, skipping ...'
+    fi
 
     [[ "${#jqpatches[@]}" == 0 ]] && return 0
     createOrReplace < <(jq "${jqargs[@]}" "$(join \| "${jqpatches[@]}")" <<<"$datahubs")
