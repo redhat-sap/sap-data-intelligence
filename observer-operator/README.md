@@ -1,10 +1,8 @@
 # observer-operator
-**DO NOT USE** yet!
 
-// TODO(user): Add simple overview of use/purpose
+Operator for monitoring SAP Data Intelligence (SDI) namespace and modifying objects in there that enable running of SDI on top of OpenShift. It must be deployed before the SDI installation is started. This is the prerequisite for the successful installation of the SDI on OpenShift.
 
 ## Description
-// TODO(user): An in-depth paragraph about your project and overview of use
 
 SDI Observer has been useful so far but prone to errors, hard to maintain, configure, test, install and update. The Operator is built using the well established Operator SDK making it easy to consume, configure and manage.
 
@@ -24,12 +22,13 @@ Implemented SDI Observer features:
 - [x] configre host path mount for diagnostic pods
 - [x] configure node selector on SDI and SLC Bridge namespace
 - [x] configure role and rolebindings in SDI namespace
-- 
-Missing generic functionality:
-- [] comprehensive SDIObserver status updates
+- [x] comprehensive SDIObserver status updates
 
 
 ## Getting Started
+
+Please refer to https://access.redhat.com/articles/7042265#ocp-install-sdi-observer-operator for detailed usage information.
+
 You’ll need a Kubernetes cluster to run against. You can use [KIND](https://sigs.k8s.io/kind) to get a local cluster for testing, or run against a remote cluster.
 **Note:** Your controller will automatically use the current context in your kubeconfig file (i.e. whatever cluster `kubectl cluster-info` shows).
 

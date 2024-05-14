@@ -554,6 +554,13 @@ func (a *Adjuster) AdjustSDIRbac(ns string, obs *sdiv1alpha1.SDIObserver, ctx co
 				Name:      "diagnostics-fluentd",
 				Namespace: ns,
 			},
+
+			// SDI 3.3 SDI restore hana serviceaccount
+			{
+				Kind:      "ServiceAccount",
+				Name:      "hana-service-account",
+				Namespace: ns,
+			},
 		}
 
 		a.logger.Info(fmt.Sprintf(
