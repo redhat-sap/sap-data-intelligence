@@ -15,3 +15,6 @@ The individual components and snippets shall later be turned into an operator fu
 
 Please visit the individual component links for more information.
 
+# License
+
+This project is licensed under the Apache License 2.0. See the [LICENSE](https://www.apache.org/licenses/LICENSE-2.0) for details.
