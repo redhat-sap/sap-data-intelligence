@@ -54,15 +54,10 @@ const (
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-
 	utilruntime.Must(routev1.AddToScheme(scheme))
-
 	utilruntime.Must(sdiv1alpha1.AddToScheme(scheme))
-
 	utilruntime.Must(operatorv1.AddToScheme(scheme))
-
 	utilruntime.Must(configv1.AddToScheme(scheme))
-
 	utilruntime.Must(openshiftv1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }

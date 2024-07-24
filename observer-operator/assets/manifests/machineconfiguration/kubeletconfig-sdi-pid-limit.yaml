@@ -5,7 +5,7 @@ metadata:
   name: sdi-pids-limit
 spec:
   kubeletConfig:
-    podPidsLimit: 8192
+    podPidsLimit: 16384
   machineConfigPoolSelector:
     matchLabels:
       workload: sapdataintelligence
