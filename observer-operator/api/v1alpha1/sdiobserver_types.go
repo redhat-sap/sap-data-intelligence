@@ -33,11 +33,19 @@ const (
 )
 
 const (
+	ConditionTypeReconcile   = "Reconcile"
+	ConditionTypeReady       = "Ready"
+	ConditionTypeDegraded    = "Degraded"
+	ConditionTypeProgressing = "Progressing"
+)
+
+const (
 	ReasonCRNotAvailable                  = "OperatorResourceNotAvailable"
 	ReasonResourceNotAvailable            = "OperandResourceNotAvailable"
 	ReasonOperandResourceFailed           = "OperandResourceFailed"
 	ReasonSucceeded                       = "OperatorSucceeded"
 	ReasonRouteManagementStateUnsupported = "RouteManagementStateUnsupported"
+	ReasonFailed                          = "OperatorFailed"
 )
 
 type RouteManagementState string
@@ -49,7 +57,7 @@ type RouteManagementState string
 type ManagedRouteSpec struct {
 	// +kubebuilder:default="Managed"
 	// +kubebuilder:validation:Enum=Managed;Unmanaged;Removed
-	ManagementState string `json:"managementState,omitempty"`
+	ManagementState RouteManagementState `json:"managementState,omitempty"`
 }
 
 // ManagedRouteStatus informs about status of a managed route for an SDI service.

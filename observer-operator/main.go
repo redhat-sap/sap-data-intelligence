@@ -62,82 +62,29 @@ func init() {
 	//+kubebuilder:scaffold:scheme
 }
 
-func mkOverride(varName string) string {
-	return fmt.Sprintf("Overrides %s environment variable.", varName)
-}
-
 func main() {
-	var metricsAddr string
-	var enableLeaderElection bool
-	var probeAddr string
-	var namespace string
-	var requeueInterval time.Duration
 
-	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
-	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
-	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
-		"Enable leader election for controller manager. "+
-			"Enabling this will ensure there is only one active controller manager.")
-	flag.StringVar(&namespace, "namespace", os.Getenv(namespaceEnvVar),
-		"The k8s namespace where the operator runs. "+mkOverride(namespaceEnvVar))
-	flag.DurationVar(&requeueInterval, "requeue-interval", 1*time.Minute, "The duration until the next untriggered reconciliation run")
+	cfg := parseFlags()
+	setupLogger()
 
-	opts := zap.Options{
-		Development: true,
-	}
-
-	opts.BindFlags(flag.CommandLine)
-	flag.Parse()
-
-	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
-
-	if len(namespace) == 0 {
+	if len(cfg.Namespace) == 0 {
 		setupLog.Error(fmt.Errorf("missing namespace argument, please set at least the NAMESPACE variable"), "fatal")
 		os.Exit(1)
 	}
 
-	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Scheme:                 scheme,
-		MetricsBindAddress:     metricsAddr,
-		Port:                   9443,
-		HealthProbeBindAddress: probeAddr,
-		LeaderElection:         enableLeaderElection,
-		LeaderElectionID:       "8a63268f.sap-redhat.io",
-		// LeaderElectionReleaseOnCancel defines if the leader should step down voluntarily
-		// when the Manager ends. This requires the binary to immediately end when the
-		// Manager is stopped, otherwise, this setting is unsafe. Setting this significantly
-		// speeds up voluntary leader transitions as the new leader don't have to wait
-		// LeaseDuration time first.
-		//
-		// In the default scaffold provided, the program ends immediately after
-		// the manager stops, so would be fine to enable this option. However,
-		// if you are doing or is intended to do any operation such as perform cleanups
-		// after the manager stops then its usage might be unsafe.
-		// LeaderElectionReleaseOnCancel: true,
-
-	})
+	mgr, err := createManager(cfg)
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
 		os.Exit(1)
 	}
 
-	if err = (&controllers.SDIObserverReconciler{
-		Client:            mgr.GetClient(),
-		Scheme:            mgr.GetScheme(),
-		ObserverNamespace: namespace,
-		Interval:          requeueInterval,
-	}).SetupWithManager(mgr); err != nil {
+	if err := setupController(mgr, cfg); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "SDIObserver")
 		os.Exit(1)
 	}
-	//+kubebuilder:scaffold:builder
 
-	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
-		setupLog.Error(err, "unable to set up health check")
-		os.Exit(1)
-	}
-	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
-		setupLog.Error(err, "unable to set up ready check")
+	if err := addHealthChecks(mgr); err != nil {
+		setupLog.Error(err, "unable to set up health checks")
 		os.Exit(1)
 	}
 
@@ -146,4 +93,70 @@ func main() {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
+}
+
+type config struct {
+	MetricsAddr          string
+	ProbeAddr            string
+	EnableLeaderElection bool
+	Namespace            string
+	RequeueInterval      time.Duration
+}
+
+func parseFlags() config {
+	var cfg config
+
+	flag.StringVar(&cfg.MetricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
+	flag.StringVar(&cfg.ProbeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
+	flag.BoolVar(&cfg.EnableLeaderElection, "leader-elect", false,
+		"Enable leader election for controller manager. "+
+			"Enabling this will ensure there is only one active controller manager.")
+	flag.StringVar(&cfg.Namespace, "namespace", os.Getenv(namespaceEnvVar),
+		"The k8s namespace where the operator runs. "+mkOverride(namespaceEnvVar))
+	flag.DurationVar(&cfg.RequeueInterval, "requeue-interval", 1*time.Minute, "The duration until the next untriggered reconciliation run")
+
+	opts := zap.Options{Development: true}
+	opts.BindFlags(flag.CommandLine)
+	flag.Parse()
+
+	return cfg
+}
+
+func createManager(cfg config) (ctrl.Manager, error) {
+	return ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+		Scheme:                 scheme,
+		MetricsBindAddress:     cfg.MetricsAddr,
+		Port:                   9443,
+		HealthProbeBindAddress: cfg.ProbeAddr,
+		LeaderElection:         cfg.EnableLeaderElection,
+		LeaderElectionID:       "8a63268f.sap-redhat.io",
+	})
+}
+
+func setupLogger() {
+	opts := zap.Options{Development: true}
+	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+}
+
+func setupController(mgr ctrl.Manager, cfg config) error {
+	return (&controllers.SDIObserverReconciler{
+		Client:            mgr.GetClient(),
+		Scheme:            mgr.GetScheme(),
+		ObserverNamespace: cfg.Namespace,
+		Interval:          cfg.RequeueInterval,
+	}).SetupWithManager(mgr)
+}
+
+func addHealthChecks(mgr ctrl.Manager) error {
+	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
+		return err
+	}
+	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
+		return err
+	}
+	return nil
+}
+
+func mkOverride(varName string) string {
+	return fmt.Sprintf("Overrides %s environment variable.", varName)
 }
