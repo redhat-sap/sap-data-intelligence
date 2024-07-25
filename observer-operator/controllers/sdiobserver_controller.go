@@ -73,65 +73,26 @@ func (r *SDIObserverReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	logger := log.FromContext(ctx).WithValues("sdiobserver", req.NamespacedName)
 
 	operatorCR := &sdiv1alpha1.SDIObserver{}
-
 	err := r.Get(ctx, req.NamespacedName, operatorCR)
-
-	if err != nil && errors.IsNotFound(err) {
-		logger.Info("Operator resource object not found.")
-		return ctrl.Result{}, nil
-	} else if err != nil {
-		logger.Error(err, "Error getting operator resource object")
-		meta.SetStatusCondition(&operatorCR.Status.Conditions, metav1.Condition{
-			Type:               "OperatorDegraded",
-			Status:             metav1.ConditionTrue,
-			Reason:             sdiv1alpha1.ReasonCRNotAvailable,
-			LastTransitionTime: metav1.NewTime(time.Now()),
-			Message:            fmt.Sprintf("unable to get operator custom resource: %s", err.Error()),
-		})
-		return ctrl.Result{}, utilerrors.NewAggregate([]error{err, r.Status().Update(ctx, operatorCR)})
+	if err != nil {
+		if errors.IsNotFound(err) {
+			logger.Info("Operator resource not found.")
+			return ctrl.Result{}, nil
+		}
+		return r.handleError(ctx, operatorCR, err, "Error getting operator resource")
 	}
 
-	updateStatus := false
-	// Let's just set the status as Unknown when no status are available
-	if operatorCR.Status.Conditions == nil || len(operatorCR.Status.Conditions) == 0 {
-		meta.SetStatusCondition(&operatorCR.Status.Conditions, metav1.Condition{Type: "Available", Status: metav1.ConditionUnknown, Reason: "Reconciling", Message: "Starting reconciliation"})
-		updateStatus = true
-	}
-
-	if operatorCR.Status.SDINodeConfigStatus.Conditions == nil || len(operatorCR.Status.SDINodeConfigStatus.Conditions) == 0 {
-		meta.SetStatusCondition(&operatorCR.Status.SDINodeConfigStatus.Conditions, metav1.Condition{Type: "Available", Status: metav1.ConditionUnknown, Reason: "Reconciling", Message: "Starting reconciliation"})
-		updateStatus = true
-	}
-
-	if operatorCR.Status.SDIConfigStatus.Conditions == nil || len(operatorCR.Status.SDIConfigStatus.Conditions) == 0 {
-		meta.SetStatusCondition(&operatorCR.Status.SDIConfigStatus.Conditions, metav1.Condition{Type: "Available", Status: metav1.ConditionUnknown, Reason: "Reconciling", Message: "Starting reconciliation"})
-		updateStatus = true
-	}
-
-	if operatorCR.Status.SLCBRouteStatus.Conditions == nil || len(operatorCR.Status.SLCBRouteStatus.Conditions) == 0 {
-		meta.SetStatusCondition(&operatorCR.Status.SLCBRouteStatus.Conditions, metav1.Condition{Type: "Available", Status: metav1.ConditionUnknown, Reason: "Reconciling", Message: "Starting reconciliation"})
-		updateStatus = true
-	}
-
-	if operatorCR.Status.VSystemRouteStatus.Conditions == nil || len(operatorCR.Status.VSystemRouteStatus.Conditions) == 0 {
-		meta.SetStatusCondition(&operatorCR.Status.VSystemRouteStatus.Conditions, metav1.Condition{Type: "Available", Status: metav1.ConditionUnknown, Reason: "Reconciling", Message: "Starting reconciliation"})
-		updateStatus = true
-	}
-
+	updateStatus := r.ensureStatusConditions(operatorCR)
 	if updateStatus {
 		if err = r.Status().Update(ctx, operatorCR); err != nil {
-			logger.Error(err, "Failed to update SDIObserver VSystemRouteStatus")
-			return ctrl.Result{}, err
+			return r.handleError(ctx, operatorCR, err, "Failed to update status")
 		}
-
 		if err := r.Get(ctx, req.NamespacedName, operatorCR); err != nil {
-			logger.Error(err, "Failed to re-fetch SDIObserver")
-			return ctrl.Result{}, err
+			return r.handleError(ctx, operatorCR, err, "Failed to re-fetch SDIObserver")
 		}
 	}
 
 	sdiObserver := sdiobserver.New(operatorCR)
-
 	sdiAdjuster := adjuster.New(
 		operatorCR.Name,
 		operatorCR.Namespace,
@@ -140,17 +101,14 @@ func (r *SDIObserverReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		logger,
 	)
 
-	err = sdiAdjuster.Adjust(sdiObserver, ctx)
-	if err != nil {
+	if err := sdiAdjuster.Adjust(sdiObserver, ctx); err != nil {
 		if client.IgnoreNotFound(err) != nil {
-			logger.Error(err, "Couldn't reconcile SDI observer")
-			return ctrl.Result{}, err
+			return r.handleError(ctx, operatorCR, err, "Couldn't reconcile SDI observer")
 		}
 	}
 
 	if err := r.Get(ctx, req.NamespacedName, operatorCR); err != nil {
-		logger.Error(err, "Failed to re-fetch SDIObserver")
-		return ctrl.Result{}, err
+		return r.handleError(ctx, operatorCR, err, "Failed to re-fetch SDIObserver")
 	}
 
 	meta.SetStatusCondition(&operatorCR.Status.Conditions, metav1.Condition{
@@ -162,11 +120,10 @@ func (r *SDIObserverReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	})
 
 	if err = r.Status().Update(ctx, operatorCR); err != nil {
-		logger.Error(err, "Failed to update SDIObserver status")
-		return ctrl.Result{}, err
+		return r.handleError(ctx, operatorCR, err, "Failed to update SDIObserver status")
 	}
 
-	logger.Info(fmt.Sprintf("Reconciled Successfully. Requeueing at %s", time.Now().Add(r.Interval).Format(time.Stamp)))
+	logger.Info("Reconciled successfully. Requeueing", "nextRequeue", time.Now().Add(r.Interval).Format(time.Stamp))
 	return ctrl.Result{RequeueAfter: r.Interval}, nil
 }
 
@@ -175,4 +132,36 @@ func (r *SDIObserverReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&sdiv1alpha1.SDIObserver{}).
 		Complete(r)
+}
+
+func (r *SDIObserverReconciler) ensureStatusConditions(cr *sdiv1alpha1.SDIObserver) bool {
+	updateStatus := false
+
+	if cr.Status.Conditions == nil || len(cr.Status.Conditions) == 0 {
+		meta.SetStatusCondition(&cr.Status.Conditions, metav1.Condition{Type: "Available", Status: metav1.ConditionUnknown, Reason: "Reconciling", Message: "Starting reconciliation"})
+		updateStatus = true
+	}
+
+	return updateStatus
+}
+
+func (r *SDIObserverReconciler) handleError(ctx context.Context, cr *sdiv1alpha1.SDIObserver, err error, msg string) (ctrl.Result, error) {
+	logger := log.FromContext(ctx).WithValues("sdiobserver", cr.Name)
+	meta.SetStatusCondition(&cr.Status.Conditions, metav1.Condition{
+		Type:               "OperatorDegraded",
+		Status:             metav1.ConditionTrue,
+		Reason:             sdiv1alpha1.ReasonCRNotAvailable,
+		LastTransitionTime: metav1.NewTime(time.Now()),
+		Message:            msg,
+	})
+	if updateErr := r.Status().Update(ctx, cr); updateErr != nil {
+		return ctrl.Result{RequeueAfter: 20 * time.Second}, utilerrors.NewAggregate([]error{err, updateErr})
+	}
+	logger.Error(err, msg)
+	return ctrl.Result{RequeueAfter: 20 * time.Second}, err
+}
+
+// ConditionHolder is a helper struct to hold conditions
+type ConditionHolder struct {
+	Conditions []metav1.Condition
 }

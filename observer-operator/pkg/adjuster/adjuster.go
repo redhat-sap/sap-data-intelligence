@@ -9,11 +9,11 @@ import (
 )
 
 type Actioner interface {
-	AdjustNodes(s *Adjuster, c context.Context) error
-	AdjustSDINetwork(s *Adjuster, c context.Context) error
-	AdjustSLCBNetwork(s *Adjuster, c context.Context) error
-	AdjustStorage(s *Adjuster, c context.Context) error
-	AdjustSDIConfig(s *Adjuster, c context.Context) error
+	AdjustNodes(a *Adjuster, ctx context.Context) error
+	AdjustSDINetwork(a *Adjuster, ctx context.Context) error
+	AdjustSLCBNetwork(a *Adjuster, ctx context.Context) error
+	AdjustStorage(a *Adjuster, ctx context.Context) error
+	AdjustSDIConfig(a *Adjuster, ctx context.Context) error
 }
 
 type Adjuster struct {
@@ -24,42 +24,42 @@ type Adjuster struct {
 	logger    logr.Logger
 }
 
-// New creates a new Adjuster.
-func New(
-	n string,
-	ns string,
-	c client.Client,
-	s *runtime.Scheme,
-	l logr.Logger,
-) *Adjuster {
+// New creates a new Adjuster with the provided parameters.
+func New(name, namespace string, client client.Client, scheme *runtime.Scheme, logger logr.Logger) *Adjuster {
 	return &Adjuster{
-		Name:      n,
-		Namespace: ns,
-		Client:    c,
-		Scheme:    s,
-		logger:    l,
+		Name:      name,
+		Namespace: namespace,
+		Client:    client,
+		Scheme:    scheme,
+		logger:    logger,
 	}
 }
 
+// Adjust performs a series of adjustments using the provided Actioner.
 func (a *Adjuster) Adjust(ac Actioner, ctx context.Context) error {
-	if err := ac.AdjustNodes(a, ctx); err != nil {
-		return fmt.Errorf("Adjustment of nodes failed: %v", err)
+	// List of adjustment functions with their corresponding log messages
+	adjustments := []struct {
+		name   string
+		action func() error
+	}{
+		{"nodes", func() error { return ac.AdjustNodes(a, ctx) }},
+		{"SLCB network", func() error { return ac.AdjustSLCBNetwork(a, ctx) }},
+		{"storage", func() error { return ac.AdjustStorage(a, ctx) }},
+		{"SDI config", func() error { return ac.AdjustSDIConfig(a, ctx) }},
+		{"SDI network", func() error { return ac.AdjustSDINetwork(a, ctx) }},
 	}
-	if err := ac.AdjustSLCBNetwork(a, ctx); err != nil {
-		return fmt.Errorf("Adjustment of network config failed: %v", err)
+
+	for _, adjustment := range adjustments {
+		if err := adjustment.action(); err != nil {
+			a.logger.Error(err, fmt.Sprintf("Adjustment of %s failed", adjustment.name))
+			return fmt.Errorf("adjustment of %s failed: %w", adjustment.name, err)
+		}
 	}
-	if err := ac.AdjustStorage(a, ctx); err != nil {
-		return fmt.Errorf("Adjustment of storage failed: %v", err)
-	}
-	if err := ac.AdjustSDIConfig(a, ctx); err != nil {
-		return fmt.Errorf("Adjustment of SDI config failed: %v", err)
-	}
-	if err := ac.AdjustSDINetwork(a, ctx); err != nil {
-		return fmt.Errorf("Adjustment of network config failed: %v", err)
-	}
+
 	return nil
 }
 
+// Logger returns the logger instance associated with the Adjuster.
 func (a *Adjuster) Logger() logr.Logger {
 	return a.logger
 }

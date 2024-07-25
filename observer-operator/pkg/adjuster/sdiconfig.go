@@ -9,17 +9,21 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/utils/pointer"
-	ctrl "sigs.k8s.io/controller-runtime"
+	"reflect"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"time"
+)
+
+const (
+	diagnosticFluentdName = "diagnostics-fluentd"
+	vsystemVrepStsName    = "vsystem-vrep"
+	volumeName            = "exports-mask"
+	annotationKey         = "openshift.io/node-selector"
 )
 
 var fluentdDockerVolumeName = "varlibdockercontainers"
@@ -28,27 +32,14 @@ func (a *Adjuster) adjustSDIDataHub(ns string, obs *sdiv1alpha1.SDIObserver, ctx
 	obj := &unstructured.Unstructured{}
 	obj.SetName("default")
 	obj.SetNamespace(ns)
-	gvr := schema.GroupVersionKind{
+	obj.SetGroupVersionKind(schema.GroupVersionKind{
 		Group:   "installers.datahub.sap.com",
 		Version: "v1alpha1",
 		Kind:    "DataHub",
-	}
-	obj.SetGroupVersionKind(gvr)
+	})
 
-	err := a.Client.Get(context.Background(), client.ObjectKeyFromObject(obj), obj)
-	if err != nil {
-		if err := a.Client.Get(ctx, client.ObjectKey{Name: a.Name, Namespace: a.Namespace}, obs); err != nil {
-			a.Logger().Error(err, "Failed to fetch SDIObserver")
-			return err
-		}
-		meta.SetStatusCondition(&obs.Status.SDIConfigStatus.Conditions, metav1.Condition{
-			Type:               "OperatorDegraded",
-			Status:             metav1.ConditionTrue,
-			Reason:             sdiv1alpha1.ReasonResourceNotAvailable,
-			LastTransitionTime: metav1.NewTime(time.Now()),
-			Message:            fmt.Sprintf("unable to get operand SDI DataHub: %s", err.Error()),
-		})
-		return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
+	if err := a.Client.Get(ctx, client.ObjectKeyFromObject(obj), obj); err != nil {
+		return fmt.Errorf("unable to get operand SDI DataHub: %w", err)
 	}
 
 	spec := obj.Object["spec"].(map[string]interface{})
@@ -56,22 +47,10 @@ func (a *Adjuster) adjustSDIDataHub(ns string, obs *sdiv1alpha1.SDIObserver, ctx
 	vRep := vsystem["vRep"].(map[string]interface{})
 
 	if len(vRep) == 0 {
-		a.logger.Info("patch DataHub vRep by setting exportsMask to true")
+		a.logger.Info("Patching DataHub vRep to set exportsMask to true")
 		vRep["exportsMask"] = true
-		err = a.Client.Update(ctx, obj)
-		if err != nil {
-			if err := a.Client.Get(ctx, client.ObjectKey{Name: a.Name, Namespace: a.Namespace}, obs); err != nil {
-				a.Logger().Error(err, "Failed to fetch SDIObserver")
-				return err
-			}
-			meta.SetStatusCondition(&obs.Status.SDIConfigStatus.Conditions, metav1.Condition{
-				Type:               "OperatorDegraded",
-				Status:             metav1.ConditionTrue,
-				Reason:             sdiv1alpha1.ReasonOperandResourceFailed,
-				LastTransitionTime: metav1.NewTime(time.Now()),
-				Message:            fmt.Sprintf("unable to update operand DataHub vRep: %s", err.Error()),
-			})
-			return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
+		if err := a.Client.Update(ctx, obj); err != nil {
+			return fmt.Errorf("unable to update operand DataHub vRep: %w", err)
 		}
 	} else {
 		a.logger.Info("DataHub vRep is already patched")
@@ -80,7 +59,6 @@ func (a *Adjuster) adjustSDIDataHub(ns string, obs *sdiv1alpha1.SDIObserver, ctx
 }
 
 func (a *Adjuster) AdjustSDIDiagnosticsFluentdDaemonsetContainerPrivilege(ns string, obs *sdiv1alpha1.SDIObserver, ctx context.Context) error {
-	diagnosticFluentdName := "diagnostics-fluentd"
 	ds := &appsv1.DaemonSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      diagnosticFluentdName,
@@ -88,98 +66,50 @@ func (a *Adjuster) AdjustSDIDiagnosticsFluentdDaemonsetContainerPrivilege(ns str
 		},
 	}
 
-	err := a.Client.Get(ctx, client.ObjectKey{Name: diagnosticFluentdName, Namespace: ns}, ds)
-	if err != nil {
-		if err := a.Client.Get(ctx, client.ObjectKey{Name: a.Name, Namespace: a.Namespace}, obs); err != nil {
-			a.Logger().Error(err, "Failed to fetch SDIObserver")
-			return err
-		}
-		meta.SetStatusCondition(&obs.Status.SDIConfigStatus.Conditions, metav1.Condition{
-			Type:               "OperatorDegraded",
-			Status:             metav1.ConditionTrue,
-			Reason:             sdiv1alpha1.ReasonResourceNotAvailable,
-			LastTransitionTime: metav1.NewTime(time.Now()),
-			Message:            fmt.Sprintf("unable to get operand daemonset: %s", err.Error()),
-		})
-		return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
+	if err := a.Client.Get(ctx, client.ObjectKeyFromObject(ds), ds); err != nil {
+		return fmt.Errorf("unable to get operand daemonset: %w", err)
 	}
 
-	for _, c := range ds.Spec.Template.Spec.Containers {
+	updated := false
+	for i, c := range ds.Spec.Template.Spec.Containers {
 		if c.Name == diagnosticFluentdName {
-			if c.Name == diagnosticFluentdName {
-				if c.SecurityContext.Privileged == nil {
-					c.SecurityContext.Privileged = pointer.Bool(true)
-				} else {
-					if *c.SecurityContext.Privileged == true {
-						a.logger.Info(fmt.Sprintf("Container of daemonset/%s is already privileged", diagnosticFluentdName))
-						return nil
-					} else {
-						c.SecurityContext.Privileged = pointer.Bool(true)
-					}
-				}
+			if c.SecurityContext.Privileged == nil || !*c.SecurityContext.Privileged {
+				ds.Spec.Template.Spec.Containers[i].SecurityContext.Privileged = pointer.Bool(true)
+				updated = true
+				break
 			}
 		}
 	}
 
-	a.logger.Info(fmt.Sprintf("Patching daemonset/%s", diagnosticFluentdName))
-	err = a.Client.Update(ctx, ds)
-	if err != nil {
-		if err := a.Client.Get(ctx, client.ObjectKey{Name: a.Name, Namespace: a.Namespace}, obs); err != nil {
-			a.Logger().Error(err, "Failed to re-fetch SDIObserver")
-			return err
+	if updated {
+		a.logger.Info("Patching daemonset with privileged security context")
+		if err := a.Client.Update(ctx, ds); err != nil {
+			return fmt.Errorf("unable to update operand daemonset: %w", err)
 		}
-		meta.SetStatusCondition(&obs.Status.SDIConfigStatus.Conditions, metav1.Condition{
-			Type:               "OperatorDegraded",
-			Status:             metav1.ConditionTrue,
-			Reason:             sdiv1alpha1.ReasonOperandResourceFailed,
-			LastTransitionTime: metav1.NewTime(time.Now()),
-			Message:            fmt.Sprintf("unable to update operand daemonset: %s", err.Error()),
-		})
-		return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
+	} else {
+		a.logger.Info("Daemonset is already using privileged security context")
 	}
-
 	return nil
-
 }
 
 func (a *Adjuster) AdjustSDIVSystemVrepStatefulSets(ns string, obs *sdiv1alpha1.SDIObserver, ctx context.Context) error {
-
-	stsName := "vsystem-vrep"
 	ss := &appsv1.StatefulSet{}
-
-	err := a.Client.Get(ctx, client.ObjectKey{Name: stsName, Namespace: ns}, ss)
-	if err != nil {
-		if err := a.Client.Get(ctx, client.ObjectKey{Name: a.Name, Namespace: a.Namespace}, obs); err != nil {
-			a.Logger().Error(err, "Failed to re-fetch SDIObserver")
-			return err
-		}
-		meta.SetStatusCondition(&obs.Status.SDIConfigStatus.Conditions, metav1.Condition{
-			Type:               "OperatorDegraded",
-			Status:             metav1.ConditionTrue,
-			Reason:             sdiv1alpha1.ReasonResourceNotAvailable,
-			LastTransitionTime: metav1.NewTime(time.Now()),
-			Message:            fmt.Sprintf("unable to get operand statefulset: %s", err.Error()),
-		})
-		return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
+	if err := a.Client.Get(ctx, client.ObjectKey{Name: vsystemVrepStsName, Namespace: ns}, ss); err != nil {
+		return fmt.Errorf("unable to get operand statefulset: %w", err)
 	}
 
-	volumeName := "exports-mask"
-	volumePatched := false
-	volumeMountPatched := false
-
+	volumePatched, volumeMountPatched := false, false
 	for _, v := range ss.Spec.Template.Spec.Volumes {
 		if v.Name == volumeName {
-			a.logger.Info("Volume is already patched for statefulset " + stsName)
 			volumePatched = true
 			break
 		}
 	}
 
 	for _, c := range ss.Spec.Template.Spec.Containers {
-		if c.Name == stsName {
+		if c.Name == vsystemVrepStsName {
 			for _, vm := range c.VolumeMounts {
 				if vm.Name == volumeName {
-					a.logger.Info("VolumeMount is already patched for statefulset " + stsName)
 					volumeMountPatched = true
 					break
 				}
@@ -189,322 +119,165 @@ func (a *Adjuster) AdjustSDIVSystemVrepStatefulSets(ns string, obs *sdiv1alpha1.
 	}
 
 	if volumePatched && volumeMountPatched {
-		// Prune the old revision of Pod in case something wrong happened to volume patch
-		err = a.pruneStateFullSetOldRevision(ns, obs, ctx)
-		if err != nil {
-			return err
+		a.logger.Info("StatefulSet volumes and mounts are already patched")
+	} else {
+		if !volumePatched {
+			a.logger.Info("Patching StatefulSet with new volume")
+			ss.Spec.Template.Spec.Volumes = append(ss.Spec.Template.Spec.Volumes, corev1.Volume{
+				Name: volumeName,
+				VolumeSource: corev1.VolumeSource{
+					EmptyDir: &corev1.EmptyDirVolumeSource{},
+				},
+			})
 		}
-		return nil
-	}
 
-	emptyDirVolume := corev1.Volume{
-		Name: volumeName,
-		VolumeSource: corev1.VolumeSource{
-			EmptyDir: &corev1.EmptyDirVolumeSource{},
-		},
-	}
-
-	if !volumePatched {
-		a.logger.Info("Volume will be patched for statefulset " + stsName)
-		ss.Spec.Template.Spec.Volumes = append(ss.Spec.Template.Spec.Volumes, emptyDirVolume)
-	}
-
-	if !volumeMountPatched {
-		var containers []corev1.Container
-		for _, c := range ss.Spec.Template.Spec.Containers {
-			if c.Name == stsName {
-				emptyDirVolumeMount := corev1.VolumeMount{
-					Name:      volumeName,
-					MountPath: "/exports",
+		if !volumeMountPatched {
+			a.logger.Info("Patching StatefulSet containers with new volume mount")
+			for i, c := range ss.Spec.Template.Spec.Containers {
+				if c.Name == vsystemVrepStsName {
+					ss.Spec.Template.Spec.Containers[i].VolumeMounts = append(c.VolumeMounts, corev1.VolumeMount{
+						Name:      volumeName,
+						MountPath: "/exports",
+					})
 				}
-				a.logger.Info("VolumeMount will be patched for statefulset " + stsName)
-				c.VolumeMounts = append(c.VolumeMounts, emptyDirVolumeMount)
 			}
-			containers = append(containers, c)
 		}
-		ss.Spec.Template.Spec.Containers = containers
-	}
 
-	a.logger.Info("Patching Volume/VolumeMount for statefulset " + stsName)
-	err = a.Client.Update(ctx, ss)
-	if err != nil {
-		if err := a.Client.Get(ctx, client.ObjectKey{Name: a.Name, Namespace: a.Namespace}, obs); err != nil {
-			a.Logger().Error(err, "Failed to re-fetch SDIObserver")
+		if err := a.Client.Update(ctx, ss); err != nil {
+			return fmt.Errorf("unable to update operand statefulset: %w", err)
+		}
+
+		if err := a.adjustSDIDataHub(ns, obs, ctx); err != nil {
 			return err
 		}
-		meta.SetStatusCondition(&obs.Status.SDIConfigStatus.Conditions, metav1.Condition{
-			Type:               "OperatorDegraded",
-			Status:             metav1.ConditionTrue,
-			Reason:             sdiv1alpha1.ReasonResourceNotAvailable,
-			LastTransitionTime: metav1.NewTime(time.Now()),
-			Message:            fmt.Sprintf("unable to update operand statefulset: %s", err.Error()),
-		})
-		return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
+
+		if err := a.pruneStatefulSetOldRevision(ns, obs, ctx); err != nil {
+			return err
+		}
 	}
 
-	err = a.adjustSDIDataHub(ns, obs, ctx)
-	if err != nil {
-		return err
-	}
-
-	err = a.pruneStateFullSetOldRevision(ns, obs, ctx)
-	if err != nil {
-		return err
-	}
-
-	if err := a.Client.Get(ctx, client.ObjectKey{Name: a.Name, Namespace: a.Namespace}, obs); err != nil {
-		a.Logger().Error(err, "Failed to fetch SDIObserver")
-		return err
-	}
-	meta.SetStatusCondition(&obs.Status.SDIConfigStatus.Conditions, metav1.Condition{
-		Type:               "OperatorDegraded",
-		Status:             metav1.ConditionFalse,
-		Reason:             sdiv1alpha1.ReasonSucceeded,
-		LastTransitionTime: metav1.NewTime(time.Now()),
-		Message:            "operator successfully reconciling",
-	})
-	return a.Client.Status().Update(ctx, obs)
-
+	return nil
 }
 
-func (a *Adjuster) pruneStateFullSetOldRevision(ns string, obs *sdiv1alpha1.SDIObserver, ctx context.Context) error {
-
-	stsName := "vsystem-vrep"
-	namespace := ns
-
-	ss := &appsv1.StatefulSet{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      stsName,
-			Namespace: ns,
-		},
-	}
-
-	err := a.Client.Get(ctx, client.ObjectKey{Name: stsName, Namespace: ns}, ss)
-	if err != nil {
-		if err := a.Client.Get(ctx, client.ObjectKey{Name: a.Name, Namespace: a.Namespace}, obs); err != nil {
-			a.Logger().Error(err, "Failed to re-fetch SDIObserver")
-			return err
-		}
-		meta.SetStatusCondition(&obs.Status.SDIConfigStatus.Conditions, metav1.Condition{
-			Type:               "OperatorDegraded",
-			Status:             metav1.ConditionTrue,
-			Reason:             sdiv1alpha1.ReasonResourceNotAvailable,
-			LastTransitionTime: metav1.NewTime(time.Now()),
-			Message:            fmt.Sprintf("unable to get operand statefulset: %s", err.Error()),
-		})
-		return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
+func (a *Adjuster) pruneStatefulSetOldRevision(ns string, obs *sdiv1alpha1.SDIObserver, ctx context.Context) error {
+	ss := &appsv1.StatefulSet{}
+	if err := a.Client.Get(ctx, client.ObjectKey{Name: vsystemVrepStsName, Namespace: ns}, ss); err != nil {
+		return fmt.Errorf("unable to get operand statefulset: %w", err)
 	}
 
 	if ss.Status.UpdateRevision == ss.Status.CurrentRevision {
-		a.logger.Info(fmt.Sprintf("Statefulset %s current revision is the same as its update revision.", stsName))
-	}
-
-	updateRevisionPodList := &corev1.PodList{}
-
-	updateRevisionSelector := labels.SelectorFromSet(labels.Set(map[string]string{
-		"controller-revision-hash": ss.Status.UpdateRevision,
-	}))
-
-	err = a.Client.List(ctx, updateRevisionPodList,
-		client.InNamespace(namespace),
-		client.MatchingLabelsSelector{
-			Selector: updateRevisionSelector,
-		},
-	)
-
-	if err != nil {
-		if err := a.Client.Get(ctx, client.ObjectKey{Name: a.Name, Namespace: a.Namespace}, obs); err != nil {
-			a.Logger().Error(err, "Failed to re-fetch SDIObserver")
-			return err
-		}
-		meta.SetStatusCondition(&obs.Status.SDIConfigStatus.Conditions, metav1.Condition{
-			Type:               "OperatorDegraded",
-			Status:             metav1.ConditionTrue,
-			Reason:             sdiv1alpha1.ReasonResourceNotAvailable,
-			LastTransitionTime: metav1.NewTime(time.Now()),
-			Message:            fmt.Sprintf("unable to get operand pod list: %s", err.Error()),
-		})
-		return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
-	}
-
-	if len(updateRevisionPodList.Items) > 0 {
-		a.logger.Info(fmt.Sprintf("The pod of the updated revision of statefulset %s exists already. Do nothing.", stsName))
+		a.logger.Info("StatefulSet current revision matches update revision")
 		return nil
 	}
 
-	a.logger.Info(fmt.Sprintf("The pod of the updated revision of statefulset %s does not exists. Clean up the pod of outdated revision.", stsName))
+	updateRevisionPodList := &corev1.PodList{}
+	updateRevisionSelector := labels.SelectorFromSet(labels.Set{"controller-revision-hash": ss.Status.UpdateRevision})
 
+	if err := a.Client.List(ctx, updateRevisionPodList, client.InNamespace(ns), client.MatchingLabelsSelector{Selector: updateRevisionSelector}); err != nil {
+		return fmt.Errorf("unable to get operand pod list: %w", err)
+	}
+
+	if len(updateRevisionPodList.Items) > 0 {
+		a.logger.Info("Pods for the updated revision exist; no action needed")
+		return nil
+	}
+
+	a.logger.Info("Cleaning up pods from outdated revisions")
 	podList := &corev1.PodList{}
-	err = a.Client.List(ctx, podList,
-		client.InNamespace(namespace),
-		client.MatchingLabels(ss.Spec.Selector.MatchLabels))
-
-	if err != nil {
-		if err := a.Client.Get(ctx, client.ObjectKey{Name: a.Name, Namespace: a.Namespace}, obs); err != nil {
-			a.Logger().Error(err, "Failed to re-fetch SDIObserver")
-			return err
-		}
-		meta.SetStatusCondition(&obs.Status.SDIConfigStatus.Conditions, metav1.Condition{
-			Type:               "OperatorDegraded",
-			Status:             metav1.ConditionTrue,
-			Reason:             sdiv1alpha1.ReasonResourceNotAvailable,
-			LastTransitionTime: metav1.NewTime(time.Now()),
-			Message:            fmt.Sprintf("unable to get operand pod list: %s", err.Error()),
-		})
-		return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
+	if err := a.Client.List(ctx, podList, client.InNamespace(ns), client.MatchingLabels(ss.Spec.Selector.MatchLabels)); err != nil {
+		return fmt.Errorf("unable to get operand pod list: %w", err)
 	}
 
 	for _, pod := range podList.Items {
 		if pod.Labels["controller-revision-hash"] != ss.Status.UpdateRevision {
-			a.logger.Info(fmt.Sprintf("Delete pod %s which has the outdated revision of statefulset %s.", pod.Name, stsName))
-			err := a.Client.Delete(ctx, &pod, client.GracePeriodSeconds(1))
-			if err != nil {
-				if err := a.Client.Get(ctx, client.ObjectKey{Name: a.Name, Namespace: a.Namespace}, obs); err != nil {
-					a.Logger().Error(err, "Failed to re-fetch SDIObserver")
-					return err
-				}
-				meta.SetStatusCondition(&obs.Status.SDIConfigStatus.Conditions, metav1.Condition{
-					Type:               "OperatorDegraded",
-					Status:             metav1.ConditionTrue,
-					Reason:             sdiv1alpha1.ReasonOperandResourceFailed,
-					LastTransitionTime: metav1.NewTime(time.Now()),
-					Message:            fmt.Sprintf("unable to delete operand pod: %s", err.Error()),
-				})
-				return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
+			a.logger.Info(fmt.Sprintf("Deleting pod %s with outdated revision", pod.Name))
+			if err := a.Client.Delete(ctx, &pod, client.GracePeriodSeconds(1)); err != nil {
+				return fmt.Errorf("unable to delete operand pod: %w", err)
 			}
 		}
 	}
 
 	return nil
-
 }
 
-func (a *Adjuster) AdjustNamespacesNodeSelectorAnnotation(obs *sdiv1alpha1.SDIObserver, ctx context.Context) error {
-	for _, n := range []string{a.Namespace, obs.Spec.SDINamespace, obs.Spec.SLCBNamespace, "datahub-system"} {
-		err := a.adjustNamespaceAnnotation(n, obs.Spec.SDINodeLabel, ctx)
-		if err != nil {
-			if err := a.Client.Get(ctx, client.ObjectKey{Name: a.Name, Namespace: a.Namespace}, obs); err != nil {
-				a.Logger().Error(err, "Failed to re-fetch SDIObserver")
-				return err
-			}
-			meta.SetStatusCondition(&obs.Status.SDIConfigStatus.Conditions, metav1.Condition{
-				Type:               "OperatorDegraded",
-				Status:             metav1.ConditionTrue,
-				Reason:             sdiv1alpha1.ReasonOperandResourceFailed,
-				LastTransitionTime: metav1.NewTime(time.Now()),
-				Message: fmt.Sprintf(
-					"unable to adjust operand namespace node selector annotation: %s",
-					err.Error(),
-				),
-			})
-			return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
-		}
-	}
-	return nil
-}
-
-func (a *Adjuster) adjustNamespaceAnnotation(ns, s string, ctx context.Context) error {
-	annotationKey := "openshift.io/node-selector"
-	annotationValue := s
-
+func (a *Adjuster) AdjustNamespaceAnnotation(ns, nodeSelector string, ctx context.Context) error {
 	namespace := &corev1.Namespace{}
-	err := a.Client.Get(ctx, types.NamespacedName{Name: ns}, namespace)
-	if err != nil {
-		return err
+	if err := a.Client.Get(ctx, types.NamespacedName{Name: ns}, namespace); err != nil {
+		return fmt.Errorf("unable to get namespace %s: %w", ns, err)
 	}
-	annotations := namespace.GetAnnotations()
-	if annotations == nil {
-		annotations = map[string]string{}
+
+	if namespace.Annotations == nil {
+		namespace.Annotations = map[string]string{}
 	}
-	_, ok := annotations[annotationKey]
-	if ok {
-		a.logger.Info(fmt.Sprintf("Annotation '%s' exists for namespace '%s'\n", annotationKey, ns))
-		if annotations[annotationKey] == annotationValue {
-			a.logger.Info(fmt.Sprintf("Annotation '%s' is unchanged for namespace '%s'\n", annotationKey, ns))
-			return nil
+
+	if currentSelector := namespace.Annotations[annotationKey]; currentSelector != nodeSelector {
+		a.logger.Info("Updating namespace annotation")
+		namespace.Annotations[annotationKey] = nodeSelector
+		if err := a.Client.Update(ctx, namespace); err != nil {
+			return fmt.Errorf("unable to update namespace annotation: %w", err)
 		}
-		annotations[annotationKey] = annotationValue
-		namespace.SetAnnotations(annotations)
-		err = a.Client.Update(context.Background(), namespace)
-		if err != nil {
-			return err
-		}
-		a.logger.Info(fmt.Sprintf("Annotation '%s' updated for namespace '%s'\n", annotationKey, ns))
 	} else {
-		a.logger.Info(fmt.Sprintf("Annotation '%s' does not exist for namespace '%s'\n", annotationKey, ns))
-		annotations[annotationKey] = annotationValue
-		namespace.SetAnnotations(annotations)
-		err = a.Client.Update(context.Background(), namespace)
-		if err != nil {
-			return err
-		}
-		a.logger.Info(fmt.Sprintf("Annotation '%s' created for namespace '%s'\n", annotationKey, ns))
+		a.logger.Info("Namespace annotation is already set")
 	}
 	return nil
 }
 
 func (a *Adjuster) AdjustSDIRbac(ns string, obs *sdiv1alpha1.SDIObserver, ctx context.Context) error {
+	// Define role and role binding names
+	const (
+		privilegedRoleName        = "sdi-privileged"
+		anyuidRoleName            = "sdi-anyuid"
+		privilegedRoleBindingName = "sdi-privileged"
+		anyuidRoleBindingName     = "sdi-anyuid"
+	)
 
-	privilegedRole := &rbacv1.RoleBinding{}
-	privilegedRoleName := "sdi-privileged"
-	err := a.Client.Get(ctx, client.ObjectKey{Name: privilegedRoleName, Namespace: ns}, privilegedRole)
-	if err != nil && errors.IsNotFound(err) {
-		a.logger.Info(fmt.Sprintf(
-			"Privileged role %s does not exist in namespace %s. Create a new one",
-			privilegedRoleName,
-			ns,
-		))
-		privilegedRoleAsset := assets.GetRoleFromFile("manifests/role-rolebinding-config-for-sdi/privileged-role.yaml")
-		privilegedRoleAsset.Namespace = ns
-		if err := a.Client.Create(ctx, privilegedRoleAsset); err != nil {
-			if err := a.Client.Get(ctx, client.ObjectKey{Name: a.Name, Namespace: a.Namespace}, obs); err != nil {
-				a.Logger().Error(err, "Failed to re-fetch SDIObserver")
-				return err
-			}
-			meta.SetStatusCondition(&obs.Status.SDINodeConfigStatus.Conditions, metav1.Condition{
-				Type:               "OperatorDegraded",
-				Status:             metav1.ConditionTrue,
-				Reason:             sdiv1alpha1.ReasonOperandResourceFailed,
-				LastTransitionTime: metav1.NewTime(time.Now()),
-				Message:            fmt.Sprintf("unable to get operand role binding: %s", err.Error()),
-			})
-			return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
-		}
-		a.logger.Info(fmt.Sprintf(
-			"Privileged role %s is created in namespace %s",
-			privilegedRoleName,
-			ns,
-		))
-		ctrl.SetControllerReference(obs, privilegedRoleAsset, a.Scheme)
-	} else if err != nil {
-		if err := a.Client.Get(ctx, client.ObjectKey{Name: a.Name, Namespace: a.Namespace}, obs); err != nil {
-			a.Logger().Error(err, "Failed to re-fetch SDIObserver")
-			return err
-		}
-		meta.SetStatusCondition(&obs.Status.SDINodeConfigStatus.Conditions, metav1.Condition{
-			Type:               "OperatorDegraded",
-			Status:             metav1.ConditionTrue,
-			Reason:             sdiv1alpha1.ReasonResourceNotAvailable,
-			LastTransitionTime: metav1.NewTime(time.Now()),
-			Message:            fmt.Sprintf("unable to get operand role binding: %s", err.Error()),
-		})
-		return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
-	} else {
-		a.logger.Info(fmt.Sprintf(
-			"Privileged role %s already exists in namespace %s. Do nothing",
-			privilegedRoleName,
-			ns,
-		))
+	// Ensure roles exist
+	if err := a.ensureRole(ns, privilegedRoleName, a.getPrivilegedRole(), ctx); err != nil {
+		return fmt.Errorf("unable to ensure privileged role: %w", err)
+	}
+	if err := a.ensureRole(ns, anyuidRoleName, a.getAnyuidRole(), ctx); err != nil {
+		return fmt.Errorf("unable to ensure anyuid role: %w", err)
 	}
 
-	privilegedRoleBinding := &rbacv1.RoleBinding{}
-	privilegedRoleBindingName := "sdi-privileged"
-	err = a.Client.Get(ctx, client.ObjectKey{Name: privilegedRoleBindingName, Namespace: ns}, privilegedRoleBinding)
-	if err != nil && errors.IsNotFound(err) {
-		privilegedRoleBindingAsset := assets.GetRoleBindingFromFile("manifests/role-rolebinding-config-for-sdi/privileged-rolebinding.yaml")
-		privilegedRoleBindingAsset.Namespace = ns
+	// Ensure role bindings exist
+	if err := a.ensureRoleBinding(ns, privilegedRoleBindingName, a.getPrivilegedRoleBinding(), ctx); err != nil {
+		return fmt.Errorf("unable to ensure privileged role binding: %w", err)
+	}
+	if err := a.ensureRoleBinding(ns, anyuidRoleBindingName, a.getAnyuidRoleBinding(), ctx); err != nil {
+		return fmt.Errorf("unable to ensure anyuid role binding: %w", err)
+	}
 
-		privilegedRoleBindingAsset.Subjects = []rbacv1.Subject{
+	a.logger.Info("Successfully adjusted RBAC settings")
+	return nil
+}
+
+func (a *Adjuster) ensureRole(ns, name string, getRoleFunc func() client.Object, ctx context.Context) error {
+	role := getRoleFunc().(*rbacv1.Role)
+	role.Name = name
+	role.Namespace = ns
+
+	if err := a.Client.Get(ctx, client.ObjectKeyFromObject(role), role); err != nil {
+		if errors.IsNotFound(err) {
+			a.logger.Info(fmt.Sprintf("Creating role %s", name))
+			if err := a.Client.Create(ctx, role); err != nil {
+				return fmt.Errorf("unable to create role %s: %w", name, err)
+			}
+		} else {
+			return fmt.Errorf("unable to get role %s: %w", name, err)
+		}
+	}
+	return nil
+}
+
+func (a *Adjuster) ensureRoleBinding(ns, name string, getRoleBindingFunc func() client.Object, ctx context.Context) error {
+	desiredRoleBinding := getRoleBindingFunc().(*rbacv1.RoleBinding)
+	desiredRoleBinding.Name = name
+	desiredRoleBinding.Namespace = ns
+
+	// Modify the subjects based on the role binding name
+	switch name {
+	case "sdi-privileged":
+		desiredRoleBinding.Subjects = []rbacv1.Subject{
 			{
 				Kind:      "ServiceAccount",
 				Name:      "default",
@@ -562,170 +335,54 @@ func (a *Adjuster) AdjustSDIRbac(ns string, obs *sdiv1alpha1.SDIObserver, ctx co
 				Namespace: ns,
 			},
 		}
-
-		a.logger.Info(fmt.Sprintf(
-			"Privileged roleBinding %s does not exist in namespace %s. Create a new one",
-			privilegedRoleBindingName,
-			ns,
-		))
-		if err := a.Client.Create(ctx, privilegedRoleBindingAsset); err != nil {
-			if err := a.Client.Get(ctx, client.ObjectKey{Name: a.Name, Namespace: a.Namespace}, obs); err != nil {
-				a.Logger().Error(err, "Failed to re-fetch SDIObserver")
-				return err
-			}
-			meta.SetStatusCondition(&obs.Status.SDIConfigStatus.Conditions, metav1.Condition{
-				Type:               "OperatorDegraded",
-				Status:             metav1.ConditionTrue,
-				Reason:             sdiv1alpha1.ReasonOperandResourceFailed,
-				LastTransitionTime: metav1.NewTime(time.Now()),
-				Message:            fmt.Sprintf("unable to get operand role binding: %s", err.Error()),
-			})
-			return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
-		}
-
-		a.logger.Info(fmt.Sprintf(
-			"Privileged roleBinding %s is created in namespace %s",
-			privilegedRoleBindingName,
-			ns,
-		))
-		ctrl.SetControllerReference(obs, privilegedRoleBindingAsset, a.Scheme)
-
-	} else if err != nil {
-		if err := a.Client.Get(ctx, client.ObjectKey{Name: a.Name, Namespace: a.Namespace}, obs); err != nil {
-			a.Logger().Error(err, "Failed to re-fetch SDIObserver")
-			return err
-		}
-		meta.SetStatusCondition(&obs.Status.SDIConfigStatus.Conditions, metav1.Condition{
-			Type:               "OperatorDegraded",
-			Status:             metav1.ConditionTrue,
-			Reason:             sdiv1alpha1.ReasonResourceNotAvailable,
-			LastTransitionTime: metav1.NewTime(time.Now()),
-			Message:            fmt.Sprintf("unable to get operand role binding: %s", err.Error()),
-		})
-		return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
-	} else {
-		a.logger.Info(fmt.Sprintf(
-			"Privileged roleBinding %s already exists in namespace %s. Do nothing",
-			privilegedRoleBindingName,
-			ns,
-		))
-	}
-
-	// Handle anyuid role, rolebinding
-	anyuidRole := &rbacv1.RoleBinding{}
-	anyuidRoleName := "sdi-anyuid"
-	err = a.Client.Get(ctx, client.ObjectKey{Name: anyuidRoleName, Namespace: ns}, anyuidRole)
-	if err != nil && errors.IsNotFound(err) {
-		anyuidRoleAsset := assets.GetRoleFromFile("manifests/role-rolebinding-config-for-sdi/anyuid-role.yaml")
-		anyuidRoleAsset.Namespace = ns
-		a.logger.Info(fmt.Sprintf(
-			"Anyuid role %s does not exist in namespace %s. Create a new one",
-			anyuidRoleName,
-			ns,
-		))
-		if err := a.Client.Create(ctx, anyuidRoleAsset); err != nil {
-			if err := a.Client.Get(ctx, client.ObjectKey{Name: a.Name, Namespace: a.Namespace}, obs); err != nil {
-				a.Logger().Error(err, "Failed to re-fetch SDIObserver")
-				return err
-			}
-			meta.SetStatusCondition(&obs.Status.SDIConfigStatus.Conditions, metav1.Condition{
-				Type:               "OperatorDegraded",
-				Status:             metav1.ConditionTrue,
-				Reason:             sdiv1alpha1.ReasonOperandResourceFailed,
-				LastTransitionTime: metav1.NewTime(time.Now()),
-				Message:            fmt.Sprintf("unable to get operand role binding: %s", err.Error()),
-			})
-			return err
-		}
-		a.logger.Info(fmt.Sprintf(
-			"Anyuid role %s is created in namespace %s",
-			anyuidRoleName,
-			ns,
-		))
-		ctrl.SetControllerReference(obs, anyuidRoleAsset, a.Scheme)
-	} else if err != nil {
-		if err := a.Client.Get(ctx, client.ObjectKey{Name: a.Name, Namespace: a.Namespace}, obs); err != nil {
-			a.Logger().Error(err, "Failed to re-fetch SDIObserver")
-			return err
-		}
-		meta.SetStatusCondition(&obs.Status.SDIConfigStatus.Conditions, metav1.Condition{
-			Type:               "OperatorDegraded",
-			Status:             metav1.ConditionTrue,
-			Reason:             sdiv1alpha1.ReasonResourceNotAvailable,
-			LastTransitionTime: metav1.NewTime(time.Now()),
-			Message:            fmt.Sprintf("unable to get operand role binding: %s", err.Error()),
-		})
-		return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
-	} else {
-		a.logger.Info(fmt.Sprintf(
-			"Anyuid role %s already exists in namespace %s. Do nothing",
-			anyuidRoleName,
-			ns,
-		))
-	}
-
-	anyuidRoleBinding := &rbacv1.RoleBinding{}
-	anyuidRoleBindingName := "sdi-anyuid"
-	err = a.Client.Get(ctx, client.ObjectKey{Name: anyuidRoleBindingName, Namespace: ns}, anyuidRoleBinding)
-	if err != nil && errors.IsNotFound(err) {
-		anyuidRoleBindingAsset := assets.GetRoleBindingFromFile("manifests/role-rolebinding-config-for-sdi/anyuid-rolebinding.yaml")
-		anyuidRoleBindingAsset.Namespace = ns
-
-		anyuidRoleBindingAsset.Subjects = []rbacv1.Subject{
+	case "sdi-anyuid":
+		desiredRoleBinding.Subjects = []rbacv1.Subject{
 			{
-				Kind: "Group",
-				Name: "system:serviceaccounts:" + ns,
+				Kind:     "Group",
+				Name:     "system:serviceaccounts:" + ns,
+				APIGroup: "rbac.authorization.k8s.io",
 			},
 		}
-
-		a.logger.Info(fmt.Sprintf(
-			"Anyuid roleBinding %s does not exist in namespace %s. Create a new one",
-			anyuidRoleBindingName,
-			ns,
-		))
-
-		if err := a.Client.Create(ctx, anyuidRoleBindingAsset); err != nil {
-			if err := a.Client.Get(ctx, client.ObjectKey{Name: a.Name, Namespace: a.Namespace}, obs); err != nil {
-				a.Logger().Error(err, "Failed to re-fetch SDIObserver")
-				return err
-			}
-			meta.SetStatusCondition(&obs.Status.SDIConfigStatus.Conditions, metav1.Condition{
-				Type:               "OperatorDegraded",
-				Status:             metav1.ConditionTrue,
-				Reason:             sdiv1alpha1.ReasonOperandResourceFailed,
-				LastTransitionTime: metav1.NewTime(time.Now()),
-				Message:            fmt.Sprintf("unable to get operand role binding: %s", err.Error()),
-			})
-			return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
-		}
-
-		a.logger.Info(fmt.Sprintf(
-			"Anyuid roleBinding %s is created in namespace %s",
-			anyuidRoleBindingName,
-			ns,
-		))
-		ctrl.SetControllerReference(obs, anyuidRoleBindingAsset, a.Scheme)
-
-	} else if err != nil {
-		if err := a.Client.Get(ctx, client.ObjectKey{Name: a.Name, Namespace: a.Namespace}, obs); err != nil {
-			a.Logger().Error(err, "Failed to re-fetch SDIObserver")
-			return err
-		}
-		meta.SetStatusCondition(&obs.Status.SDIConfigStatus.Conditions, metav1.Condition{
-			Type:               "OperatorDegraded",
-			Status:             metav1.ConditionTrue,
-			Reason:             sdiv1alpha1.ReasonResourceNotAvailable,
-			LastTransitionTime: metav1.NewTime(time.Now()),
-			Message:            fmt.Sprintf("unable to get operand role binding: %s", err.Error()),
-		})
-		return utilerrors.NewAggregate([]error{err, a.Client.Status().Update(ctx, obs)})
-	} else {
-		a.logger.Info(fmt.Sprintf(
-			"Anyuid roleBinding %s already exists in namespace %s. Do nothing",
-			anyuidRoleBindingName,
-			ns,
-		))
+	default:
+		return fmt.Errorf("unknown role binding name: %s", name)
 	}
 
+	// Check if the role binding already exists
+	existingRoleBinding := &rbacv1.RoleBinding{}
+	if err := a.Client.Get(ctx, client.ObjectKeyFromObject(desiredRoleBinding), existingRoleBinding); err != nil {
+		if errors.IsNotFound(err) {
+			a.logger.Info(fmt.Sprintf("Creating role binding %s", name))
+			if err := a.Client.Create(ctx, desiredRoleBinding); err != nil {
+				return fmt.Errorf("unable to create role binding %s: %w", name, err)
+			}
+		} else {
+			return fmt.Errorf("unable to get role binding %s: %w", name, err)
+		}
+	} else {
+		// Compare using reflect.DeepEqual
+		if !reflect.DeepEqual(existingRoleBinding.Subjects, desiredRoleBinding.Subjects) {
+			a.logger.Info(fmt.Sprintf("Updating role binding %s", name))
+			// Update the existing role binding with the desired subjects
+			existingRoleBinding.Subjects = desiredRoleBinding.Subjects
+			if err := a.Client.Update(ctx, existingRoleBinding); err != nil {
+				return fmt.Errorf("unable to update role binding %s: %w", name, err)
+			}
+		}
+	}
 	return nil
+}
+func (a *Adjuster) getPrivilegedRole() func() client.Object {
+	return assets.GetRoleFromFile("manifests/role-rolebinding-config-for-sdi/privileged-role.yaml")
+}
+
+func (a *Adjuster) getAnyuidRole() func() client.Object {
+	return assets.GetRoleFromFile("manifests/role-rolebinding-config-for-sdi/anyuid-role.yaml")
+}
+
+func (a *Adjuster) getPrivilegedRoleBinding() func() client.Object {
+	return assets.GetRoleBindingFromFile("manifests/role-rolebinding-config-for-sdi/privileged-rolebinding.yaml")
+}
+
+func (a *Adjuster) getAnyuidRoleBinding() func() client.Object {
+	return assets.GetRoleBindingFromFile("manifests/role-rolebinding-config-for-sdi/anyuid-rolebinding.yaml")
 }
