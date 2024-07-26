@@ -87,7 +87,7 @@ func (a *Adjuster) AdjustSDIDiagnosticsFluentdDaemonsetContainerPrivilege(ns str
 			return fmt.Errorf("unable to update operand daemonset: %w", err)
 		}
 	} else {
-		a.logger.Info("Daemonset is already using privileged security context")
+		a.logger.Info(fmt.Sprintf("Daemonset %s is already using privileged security context", diagnosticFluentdName))
 	}
 	return nil
 }
@@ -119,10 +119,10 @@ func (a *Adjuster) AdjustSDIVSystemVrepStatefulSets(ns string, obs *sdiv1alpha1.
 	}
 
 	if volumePatched && volumeMountPatched {
-		a.logger.Info("StatefulSet volumes and mounts are already patched")
+		a.logger.Info(fmt.Sprintf("StatefulSet %s volumes and mounts are already patched", vsystemVrepStsName))
 	} else {
 		if !volumePatched {
-			a.logger.Info("Patching StatefulSet with new volume")
+			a.logger.Info(fmt.Sprintf("Patching StatefulSet %s with new volume", vsystemVrepStsName))
 			ss.Spec.Template.Spec.Volumes = append(ss.Spec.Template.Spec.Volumes, corev1.Volume{
 				Name: volumeName,
 				VolumeSource: corev1.VolumeSource{
@@ -132,7 +132,7 @@ func (a *Adjuster) AdjustSDIVSystemVrepStatefulSets(ns string, obs *sdiv1alpha1.
 		}
 
 		if !volumeMountPatched {
-			a.logger.Info("Patching StatefulSet containers with new volume mount")
+			a.logger.Info(fmt.Sprintf("Patching StatefulSet %s with new volume mount", vsystemVrepStsName))
 			for i, c := range ss.Spec.Template.Spec.Containers {
 				if c.Name == vsystemVrepStsName {
 					ss.Spec.Template.Spec.Containers[i].VolumeMounts = append(c.VolumeMounts, corev1.VolumeMount{
@@ -166,7 +166,7 @@ func (a *Adjuster) pruneStatefulSetOldRevision(ns string, obs *sdiv1alpha1.SDIOb
 	}
 
 	if ss.Status.UpdateRevision == ss.Status.CurrentRevision {
-		a.logger.Info("StatefulSet current revision matches update revision")
+		a.logger.Info(fmt.Sprintf("StatefulSet %s current revision matches update revision", vsystemVrepStsName))
 		return nil
 	}
 
@@ -247,7 +247,7 @@ func (a *Adjuster) AdjustSDIRbac(ns string, obs *sdiv1alpha1.SDIObserver, ctx co
 		return fmt.Errorf("unable to ensure anyuid role binding: %w", err)
 	}
 
-	a.logger.Info("Successfully adjusted RBAC settings")
+	a.logger.Info("RBAC settings adjustment is done")
 	return nil
 }
 
