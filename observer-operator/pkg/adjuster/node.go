@@ -2,6 +2,7 @@ package adjuster
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	operatorv1 "github.com/openshift/api/config/v1"
 	configv1 "github.com/openshift/machine-config-operator/pkg/apis/machineconfiguration.openshift.io/v1"
@@ -36,7 +37,6 @@ func (a *Adjuster) AdjustSDINodes(obs *sdiv1alpha1.SDIObserver, ctx context.Cont
 		return err
 	}
 
-	a.logger.Info("Operator successfully reconciling")
 	return nil
 }
 
@@ -106,17 +106,54 @@ func (a *Adjuster) ensureSpecificMachineConfig(ctx context.Context, name string,
 	return nil
 }
 
+// Define a struct to unmarshal the Kubelet configuration from the RawExtension
+type KubeletConfigData struct {
+	PodPidsLimit int32 `json:"podPidsLimit"`
+}
+
+// ensureSpecificKubeletConfig checks if the KubeletConfig exists and if it needs updating.
 func (a *Adjuster) ensureSpecificKubeletConfig(ctx context.Context, name string, getAsset func() client.Object) error {
-	config := &configv1.KubeletConfig{}
-	err := a.Client.Get(ctx, client.ObjectKey{Name: name}, config)
-	if err != nil && errors.IsNotFound(err) {
-		a.logger.Info(fmt.Sprintf("%s %s does not exist, creating it.", config.GetObjectKind().GroupVersionKind().Kind, name))
-		if err := a.Client.Create(ctx, getAsset()); err != nil {
-			return fmt.Errorf("unable to create operand %s: %w", name, err)
+	desiredConfig := getAsset().(*configv1.KubeletConfig)
+
+	// Retrieve the existing KubeletConfig
+	existingConfig := &configv1.KubeletConfig{}
+	err := a.Client.Get(ctx, client.ObjectKey{Name: name}, existingConfig)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			// If the KubeletConfig does not exist, create it
+			a.logger.Info(fmt.Sprintf("%s %s does not exist, creating it.", desiredConfig.GetObjectKind().GroupVersionKind().Kind, name))
+			if err := a.Client.Create(ctx, desiredConfig); err != nil {
+				return fmt.Errorf("unable to create operand %s: %w", name, err)
+			}
+			return nil
 		}
-	} else if err != nil {
 		return fmt.Errorf("unable to get operand %s: %w", name, err)
 	}
+
+	// Unmarshal the existing KubeletConfig data
+	var existingConfigData KubeletConfigData
+	if err := json.Unmarshal(existingConfig.Spec.KubeletConfig.Raw, &existingConfigData); err != nil {
+		return fmt.Errorf("unable to unmarshal existing KubeletConfig data: %w", err)
+	}
+
+	// Unmarshal the desired KubeletConfig data
+	var desiredConfigData KubeletConfigData
+	if err := json.Unmarshal(desiredConfig.Spec.KubeletConfig.Raw, &desiredConfigData); err != nil {
+		return fmt.Errorf("unable to unmarshal desired KubeletConfig data: %w", err)
+	}
+
+	// Compare podPidsLimit values
+	if existingConfigData.PodPidsLimit != desiredConfigData.PodPidsLimit {
+		a.logger.Info(fmt.Sprintf("%s %s exists but podPidsLimit differs. Updating it.", existingConfig.GetObjectKind().GroupVersionKind().Kind, name))
+		existingConfig.Spec.KubeletConfig = desiredConfig.Spec.KubeletConfig
+
+		if err := a.Client.Update(ctx, existingConfig); err != nil {
+			return fmt.Errorf("unable to update operand %s: %w", name, err)
+		}
+	} else {
+		a.logger.Info(fmt.Sprintf("%s %s exists and podPidsLimit is up to date.", existingConfig.GetObjectKind().GroupVersionKind().Kind, name))
+	}
+
 	return nil
 }
 

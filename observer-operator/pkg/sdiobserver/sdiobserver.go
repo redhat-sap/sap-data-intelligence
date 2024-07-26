@@ -28,12 +28,14 @@ func (so *SDIObserver) AdjustNodes(a *adjuster.Adjuster, ctx context.Context) er
 	if err := a.AdjustSDINodes(so.obs, ctx); err != nil {
 		return fmt.Errorf("failed to adjust SDI nodes: %w", err)
 	}
+
+	a.Logger().Info("Successfully adjusted SDI Nodes.")
 	return nil
 }
 
 // AdjustStorage currently does nothing; needs implementation.
 func (so *SDIObserver) AdjustStorage(a *adjuster.Adjuster, ctx context.Context) error {
-	a.Logger().V(0).Info("Storage adjustment is not yet implemented.")
+	a.Logger().V(0).Info("Storage adjustment is currently making no changes.")
 	return nil
 }
 
@@ -54,25 +56,29 @@ func (so *SDIObserver) AdjustSDIConfig(a *adjuster.Adjuster, ctx context.Context
 		return fmt.Errorf("failed to adjust SDI VSystem Vrep StatefulSets: %w", err)
 	}
 
+	a.Logger().Info("Successfully adjusted SDI configuration.")
+
 	return nil
 }
 
 // AdjustSLCBNetwork adjusts the SLCB network configuration.
 func (so *SDIObserver) AdjustSLCBNetwork(a *adjuster.Adjuster, ctx context.Context) error {
-	a.Logger().V(0).Info("Adjusting SLCB network.")
+	a.Logger().V(0).Info("Adjusting SLCB route.")
 
 	if err := a.AdjustSLCBRoute(so.obs.Spec.SLCBNamespace, so.obs, ctx); err != nil {
 		return fmt.Errorf("failed to adjust SLCB route: %w", err)
 	}
+	a.Logger().Info("Successfully adjusted SLCB route.")
 	return nil
 }
 
 // AdjustSDINetwork adjusts the SDI network configuration.
 func (so *SDIObserver) AdjustSDINetwork(a *adjuster.Adjuster, ctx context.Context) error {
-	a.Logger().V(0).Info("Adjusting SDI network.")
+	a.Logger().V(0).Info("Adjusting SDI route.")
 
 	if err := a.AdjustSDIVsystemRoute(so.obs.Spec.SDINamespace, so.obs, ctx); err != nil {
 		return fmt.Errorf("failed to adjust SDI VSystem route: %w", err)
 	}
+	a.Logger().Info("Successfully adjusted SDI route.")
 	return nil
 }
