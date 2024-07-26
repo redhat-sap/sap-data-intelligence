@@ -39,7 +39,7 @@ func (a *Adjuster) adjustSDIDataHub(ns string, obs *sdiv1alpha1.SDIObserver, ctx
 	})
 
 	if err := a.Client.Get(ctx, client.ObjectKeyFromObject(obj), obj); err != nil {
-		return fmt.Errorf("unable to get operand SDI DataHub: %w", err)
+		return err
 	}
 
 	spec := obj.Object["spec"].(map[string]interface{})
@@ -50,7 +50,7 @@ func (a *Adjuster) adjustSDIDataHub(ns string, obs *sdiv1alpha1.SDIObserver, ctx
 		a.logger.Info("Patching DataHub vRep to set exportsMask to true")
 		vRep["exportsMask"] = true
 		if err := a.Client.Update(ctx, obj); err != nil {
-			return fmt.Errorf("unable to update operand DataHub vRep: %w", err)
+			return err
 		}
 	} else {
 		a.logger.Info("DataHub vRep is already patched")
@@ -67,7 +67,7 @@ func (a *Adjuster) AdjustSDIDiagnosticsFluentdDaemonsetContainerPrivilege(ns str
 	}
 
 	if err := a.Client.Get(ctx, client.ObjectKeyFromObject(ds), ds); err != nil {
-		return fmt.Errorf("unable to get operand daemonset: %w", err)
+		return err
 	}
 
 	updated := false
@@ -84,7 +84,7 @@ func (a *Adjuster) AdjustSDIDiagnosticsFluentdDaemonsetContainerPrivilege(ns str
 	if updated {
 		a.logger.Info("Patching daemonset with privileged security context")
 		if err := a.Client.Update(ctx, ds); err != nil {
-			return fmt.Errorf("unable to update operand daemonset: %w", err)
+			return err
 		}
 	} else {
 		a.logger.Info(fmt.Sprintf("Daemonset %s is already using privileged security context", diagnosticFluentdName))
@@ -95,7 +95,7 @@ func (a *Adjuster) AdjustSDIDiagnosticsFluentdDaemonsetContainerPrivilege(ns str
 func (a *Adjuster) AdjustSDIVSystemVrepStatefulSets(ns string, obs *sdiv1alpha1.SDIObserver, ctx context.Context) error {
 	ss := &appsv1.StatefulSet{}
 	if err := a.Client.Get(ctx, client.ObjectKey{Name: vsystemVrepStsName, Namespace: ns}, ss); err != nil {
-		return fmt.Errorf("unable to get operand statefulset: %w", err)
+		return err
 	}
 
 	volumePatched, volumeMountPatched := false, false
@@ -162,7 +162,7 @@ func (a *Adjuster) AdjustSDIVSystemVrepStatefulSets(ns string, obs *sdiv1alpha1.
 func (a *Adjuster) pruneStatefulSetOldRevision(ns string, obs *sdiv1alpha1.SDIObserver, ctx context.Context) error {
 	ss := &appsv1.StatefulSet{}
 	if err := a.Client.Get(ctx, client.ObjectKey{Name: vsystemVrepStsName, Namespace: ns}, ss); err != nil {
-		return fmt.Errorf("unable to get operand statefulset: %w", err)
+		return err
 	}
 
 	if ss.Status.UpdateRevision == ss.Status.CurrentRevision {
@@ -174,7 +174,7 @@ func (a *Adjuster) pruneStatefulSetOldRevision(ns string, obs *sdiv1alpha1.SDIOb
 	updateRevisionSelector := labels.SelectorFromSet(labels.Set{"controller-revision-hash": ss.Status.UpdateRevision})
 
 	if err := a.Client.List(ctx, updateRevisionPodList, client.InNamespace(ns), client.MatchingLabelsSelector{Selector: updateRevisionSelector}); err != nil {
-		return fmt.Errorf("unable to get operand pod list: %w", err)
+		return err
 	}
 
 	if len(updateRevisionPodList.Items) > 0 {
@@ -217,7 +217,7 @@ func (a *Adjuster) AdjustNamespaceAnnotation(ns, nodeSelector string, ctx contex
 			return fmt.Errorf("unable to update namespace annotation: %w", err)
 		}
 	} else {
-		a.logger.Info("Namespace annotation is already set")
+		a.logger.Info(fmt.Sprintf("Namespace %s annotation is already set", ns))
 	}
 	return nil
 }
@@ -247,7 +247,7 @@ func (a *Adjuster) AdjustSDIRbac(ns string, obs *sdiv1alpha1.SDIObserver, ctx co
 		return fmt.Errorf("unable to ensure anyuid role binding: %w", err)
 	}
 
-	a.logger.Info("RBAC settings adjustment is done")
+	a.logger.Info("SDI RBAC settings adjustment is done")
 	return nil
 }
 

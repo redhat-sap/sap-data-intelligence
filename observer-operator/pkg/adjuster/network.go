@@ -74,7 +74,7 @@ func (a *Adjuster) handleManagedRoute(ns string, name string, routeFile string, 
 			route.Spec.TLS.DestinationCACertificate = caBundle
 		}
 	} else if err != nil {
-		return fmt.Errorf("unable to get operand route: %s", err.Error())
+		return err
 	} else if handleCA {
 		caBundleSecret := &corev1.Secret{}
 		if err := a.Client.Get(ctx, types.NamespacedName{Namespace: ns, Name: vsystemCaBundleSecretName}, caBundleSecret); err != nil {
@@ -104,7 +104,7 @@ func (a *Adjuster) handleManagedRoute(ns string, name string, routeFile string, 
 	}
 
 	if err != nil {
-		return fmt.Errorf("unable to create or update operand route: %s", err.Error())
+		return err
 	}
 
 	return nil
@@ -116,11 +116,11 @@ func (a *Adjuster) handleRemovedRoute(ns string, name string, route *routev1.Rou
 		a.logger.Info(fmt.Sprintf("Operand route does not exist: %s", err.Error()))
 		return nil
 	} else if err != nil {
-		return fmt.Errorf("unable to get operand route: %s", err.Error())
+		return err
 	}
 
 	if err := a.Client.Delete(ctx, route); err != nil {
-		return fmt.Errorf("unable to delete operand route: %s", err.Error())
+		return err
 	}
 
 	return nil
@@ -133,7 +133,7 @@ func (a *Adjuster) AdjustSDIVsystemRoute(ns string, obs *sdiv1alpha1.SDIObserver
 
 // AdjustSLCBRoute adjusts the SLCB route.
 func (a *Adjuster) AdjustSLCBRoute(ns string, obs *sdiv1alpha1.SDIObserver, ctx context.Context) error {
-	return a.AdjustRoute(ns, "slcb", obs.Spec.SLCBRoute.ManagementState, "manifests/route-management/route-sap-slcbridge.yaml", "slcb-service", obs, ctx, false)
+	return a.AdjustRoute(ns, "sap-slcbridge", obs.Spec.SLCBRoute.ManagementState, "manifests/route-management/route-sap-slcbridge.yaml", "slcb-service", obs, ctx, false)
 }
 
 func getCertFromCaBundleSecret(secret *corev1.Secret) (string, error) {
