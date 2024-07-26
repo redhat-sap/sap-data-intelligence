@@ -26,7 +26,7 @@ func (so *SDIObserver) AdjustNodes(a *adjuster.Adjuster, ctx context.Context) er
 
 	a.Logger().V(0).Info("Adjusting SDI nodes.")
 	if err := a.AdjustSDINodes(so.obs, ctx); err != nil {
-		return fmt.Errorf("failed to adjust SDI nodes: %w", err)
+		return err
 	}
 
 	a.Logger().Info("Successfully adjusted SDI Nodes.")
@@ -43,17 +43,19 @@ func (so *SDIObserver) AdjustStorage(a *adjuster.Adjuster, ctx context.Context) 
 func (so *SDIObserver) AdjustSDIConfig(a *adjuster.Adjuster, ctx context.Context) error {
 	a.Logger().V(0).Info("Adjusting SDI configuration.")
 
-	if err := a.AdjustNamespaceAnnotation(so.obs.Namespace, so.obs.Spec.SDINodeLabel, ctx); err != nil {
-		return fmt.Errorf("failed to adjust namespace node selector annotation: %w", err)
+	for _, ns := range []string{a.Namespace, so.obs.Spec.SDINamespace, so.obs.Spec.SLCBNamespace, "datahub-system"} {
+		if err := a.AdjustNamespaceAnnotation(ns, so.obs.Spec.SDINodeLabel, ctx); err != nil {
+			return err
+		}
 	}
 	if err := a.AdjustSDIRbac(so.obs.Spec.SDINamespace, so.obs, ctx); err != nil {
-		return fmt.Errorf("failed to adjust SDI RBAC: %w", err)
+		return err
 	}
 	if err := a.AdjustSDIDiagnosticsFluentdDaemonsetContainerPrivilege(so.obs.Spec.SDINamespace, so.obs, ctx); err != nil {
-		return fmt.Errorf("failed to adjust SDI diagnostics fluentd daemonset container privilege: %w", err)
+		return err
 	}
 	if err := a.AdjustSDIVSystemVrepStatefulSets(so.obs.Spec.SDINamespace, so.obs, ctx); err != nil {
-		return fmt.Errorf("failed to adjust SDI VSystem Vrep StatefulSets: %w", err)
+		return err
 	}
 
 	a.Logger().Info("Successfully adjusted SDI configuration.")
@@ -66,7 +68,7 @@ func (so *SDIObserver) AdjustSLCBNetwork(a *adjuster.Adjuster, ctx context.Conte
 	a.Logger().V(0).Info("Adjusting SLCB route.")
 
 	if err := a.AdjustSLCBRoute(so.obs.Spec.SLCBNamespace, so.obs, ctx); err != nil {
-		return fmt.Errorf("failed to adjust SLCB route: %w", err)
+		return err
 	}
 	a.Logger().Info("Successfully adjusted SLCB route.")
 	return nil

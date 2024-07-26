@@ -2,7 +2,6 @@ package adjuster
 
 import (
 	"context"
-	"fmt"
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -51,8 +50,7 @@ func (a *Adjuster) Adjust(ac Actioner, ctx context.Context) error {
 
 	for _, adjustment := range adjustments {
 		if err := adjustment.action(); err != nil {
-			a.logger.Error(err, fmt.Sprintf("Adjustment of %s failed", adjustment.name))
-			return fmt.Errorf("adjustment of %s failed: %w", adjustment.name, err)
+			return err
 		}
 	}
 

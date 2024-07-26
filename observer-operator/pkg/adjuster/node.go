@@ -20,7 +20,7 @@ func (a *Adjuster) AdjustSDINodes(obs *sdiv1alpha1.SDIObserver, ctx context.Cont
 			a.logger.Info("ClusterOperator machine-config does not exist. Using daemonset for the node configuration.")
 			return a.createDaemonSetResources(ctx, obs)
 		}
-		return fmt.Errorf("unable to get operand machine config cluster operator: %w", err)
+		return err
 	}
 	a.logger.Info("ClusterOperator machine-config exists. Using MachineConfig and KubeletConfig.")
 
@@ -42,7 +42,7 @@ func (a *Adjuster) AdjustSDINodes(obs *sdiv1alpha1.SDIObserver, ctx context.Cont
 
 func (a *Adjuster) checkClusterOperator(ctx context.Context, name string) error {
 	if err := a.Client.Get(ctx, client.ObjectKey{Name: name}, &operatorv1.ClusterOperator{}); err != nil {
-		return fmt.Errorf("failed to get ClusterOperator %s: %w", name, err)
+		return err
 	}
 	return nil
 }
@@ -75,11 +75,11 @@ func (a *Adjuster) ensureResource(ctx context.Context, obs *sdiv1alpha1.SDIObser
 	if err != nil && errors.IsNotFound(err) {
 		a.logger.Info(fmt.Sprintf("%s %s does not exist, creating it.", resourceGVK, name))
 		if err := a.Client.Create(ctx, resource); err != nil {
-			return fmt.Errorf("unable to create operand resource %s: %w", name, err)
+			return err
 		}
 		ctrl.SetControllerReference(obs, resource, a.Scheme)
 	} else if err != nil {
-		return fmt.Errorf("unable to get operand resource %s: %w", name, err)
+		return err
 	}
 	return nil
 }

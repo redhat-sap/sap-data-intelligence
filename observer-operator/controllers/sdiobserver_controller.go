@@ -18,7 +18,6 @@ package controllers
 
 import (
 	"context"
-	"fmt"
 	"github.com/redhat-sap/sap-data-intelligence/observer-operator/pkg/adjuster"
 	"github.com/redhat-sap/sap-data-intelligence/observer-operator/pkg/sdiobserver"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -105,6 +104,8 @@ func (r *SDIObserverReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		if client.IgnoreNotFound(err) != nil {
 			return r.handleError(ctx, operatorCR, err, "Couldn't reconcile SDI observer")
 		}
+		logger.Info("Components missing, will continue to try in the next reconciliation (in 1 min): " + err.Error())
+		return ctrl.Result{RequeueAfter: r.Interval}, nil
 	}
 
 	if err := r.Get(ctx, req.NamespacedName, operatorCR); err != nil {
@@ -115,15 +116,15 @@ func (r *SDIObserverReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		Type:               "OperatorDegraded",
 		Status:             metav1.ConditionFalse,
 		Reason:             sdiv1alpha1.ReasonSucceeded,
-		LastTransitionTime: metav1.NewTime(time.Now()),
-		Message:            fmt.Sprintf("The reconcilation is done successfuly"),
+		LastTransitionTime: metav1.Now(),
+		Message:            "Reconciliation successful",
 	})
 
 	if err = r.Status().Update(ctx, operatorCR); err != nil {
 		return r.handleError(ctx, operatorCR, err, "Failed to update SDIObserver status")
 	}
 
-	logger.Info("Reconciled successfully. Requeueing", "nextRequeue", time.Now().Add(r.Interval).Format(time.Stamp))
+	logger.Info("Reconciliation complete. Requeueing", "nextRequeue", time.Now().Add(r.Interval).Format(time.Stamp))
 	return ctrl.Result{RequeueAfter: r.Interval}, nil
 }
 
@@ -146,7 +147,6 @@ func (r *SDIObserverReconciler) ensureStatusConditions(cr *sdiv1alpha1.SDIObserv
 }
 
 func (r *SDIObserverReconciler) handleError(ctx context.Context, cr *sdiv1alpha1.SDIObserver, err error, msg string) (ctrl.Result, error) {
-	logger := log.FromContext(ctx).WithValues("sdiobserver", cr.Name)
 	meta.SetStatusCondition(&cr.Status.Conditions, metav1.Condition{
 		Type:               "OperatorDegraded",
 		Status:             metav1.ConditionTrue,
@@ -155,10 +155,11 @@ func (r *SDIObserverReconciler) handleError(ctx context.Context, cr *sdiv1alpha1
 		Message:            msg,
 	})
 	if updateErr := r.Status().Update(ctx, cr); updateErr != nil {
-		return ctrl.Result{RequeueAfter: 20 * time.Second}, utilerrors.NewAggregate([]error{err, updateErr})
+		return ctrl.Result{RequeueAfter: 1 * time.Minute}, utilerrors.NewAggregate([]error{err, updateErr})
 	}
-	logger.Error(err, msg)
-	return ctrl.Result{RequeueAfter: 20 * time.Second}, err
+	logger := log.FromContext(ctx)
+	logger.Error(err, "Returning error with RequeueAfter", "RequeueAfter", 1*time.Minute)
+	return ctrl.Result{RequeueAfter: 1 * time.Minute}, err
 }
 
 // ConditionHolder is a helper struct to hold conditions
