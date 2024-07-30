@@ -2,7 +2,7 @@ local is = import 'imagestream.libsonnet';
 
 is {
   local ubiis = self,
-  resourceName: 'ubi8',
+  resourceName: 'ubi9',
   createdBy:: error 'createdBy must be overridden by a child!',
 
   spec: {
@@ -13,7 +13,7 @@ is {
       {
         from: {
           kind: 'DockerImage',
-          name: 'registry.redhat.io/ubi8/ubi:latest',
+          name: 'registry.redhat.io/ubi9/ubi:latest',
         },
         name: 'latest',
         referencePolicy: {

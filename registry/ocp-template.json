@@ -8,7 +8,7 @@
          "openshift.io/display-name": "Docker's Container Image Registry",
          "openshift.io/documentation-url": "https://access.redhat.com/articles/4324391",
          "openshift.io/provider-display-name": "Red Hat, Inc.",
-         "sdi-observer/version": "0.1.26"
+         "sdi-observer/version": "0.1.27"
       },
       "name": "container-image-registry"
    },
@@ -34,7 +34,7 @@
                "app": "container-image-registry",
                "created-by": "registry-template",
                "deploymentconfig": "container-image-registry",
-               "sdi-observer/version": "0.1.26"
+               "sdi-observer/version": "0.1.27"
             },
             "name": "container-image-registry",
             "namespace": "${NAMESPACE}"
@@ -62,7 +62,7 @@
                         "env": [
                            {
                               "name": "SDI_OBSERVER_VERSION",
-                              "value": "0.1.26"
+                              "value": "0.1.27"
                            },
                            {
                               "name": "REGISTRY_AUTH_HTPASSWD_REALM",
@@ -178,7 +178,7 @@
             "labels": {
                "created-by": "registry-template",
                "deploymentconfig": "container-image-registry",
-               "sdi-observer/version": "0.1.26"
+               "sdi-observer/version": "0.1.27"
             },
             "name": "container-image-registry",
             "namespace": "${NAMESPACE}"
@@ -192,13 +192,13 @@
             },
             "runPolicy": "Serial",
             "source": {
-               "dockerfile": "FROM openshift/ubi8:latest\nLABEL maintainer=\"Michal Minář <miminar@redhat.com>\"\n# docker-distribution is not yet available on UBI - install from fedora repo\n# RHEL8 / UBI8 is based on fedora 28\nENV FEDORA_BASE_RELEASE=28\nRUN curl -L -o /etc/pki/rpms-fedora.gpg \\\n  https://getfedora.org/static/fedora.gpg\nRUN /bin/bash -c 'for repo in base updates; do printf \"%s\\n\" \\\n    \"[fedora-$repo]\" \\\n    \"name=Fedora $FEDORA_BASE_RELEASE - $(uname -m) - ${repo^}\" \\\n    \"metalink=https://mirrors.fedoraproject.org/metalink?repo=fedora-$FEDORA_BASE_RELEASE&arch=$(uname -m)\" \\\n    \"enabled=0\" \\\n    \"countme=1\" \\\n    \"type=rpm\" \\\n    \"gpgcheck=0\" \\\n    \"priority=99\" \\\n    \"gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-$FEDORA_BASE_RELEASE-$(uname -m)\" \\\n    \"skip_if_unavailable=False\" >/etc/yum.repos.d/fedora-$repo.repo; \\\n  done'\nRUN dnf update -y --skip-broken --nobest --disableplugin=subscription-manager ||:\n# install the GPG keys first, so we can enable GPG keys checking for\n# the package in question\nRUN dnf install -y \\\n  --enablerepo=fedora-base \\\n  --enablerepo=fedora-updates \\\n  --disableplugin=subscription-manager \\\n  fedora-gpg-keys\nRUN sed -i 's/^\\(gpgcheck=\\)0/\\11/' /etc/yum.repos.d/fedora-*.repo\nRUN dnf install -y --disableplugin=subscription-manager \\\n  --enablerepo=fedora-base \\\n  --enablerepo=fedora-updates \\\n  docker-distribution && dnf clean all -y && rm -rf /var/cache/yum /var/cache/dnf\nEXPOSE 5000\nENTRYPOINT [ \\\n  \"/usr/bin/registry\", \\\n  \"serve\", \"/etc/docker-distribution/registry/config.yml\"]\n"
+               "dockerfile": "FROM openshift/ubi9:latest\nLABEL maintainer=\"Michal Minář <miminar@redhat.com>\"\n# docker-distribution is not yet available on UBI - install from fedora repo\n# RHEL8 / UBI8 is based on fedora 28\nENV FEDORA_BASE_RELEASE=28\nRUN curl -L -o /etc/pki/rpms-fedora.gpg \\\n  https://getfedora.org/static/fedora.gpg\nRUN /bin/bash -c 'for repo in base updates; do printf \"%s\\n\" \\\n    \"[fedora-$repo]\" \\\n    \"name=Fedora $FEDORA_BASE_RELEASE - $(uname -m) - ${repo^}\" \\\n    \"metalink=https://mirrors.fedoraproject.org/metalink?repo=fedora-$FEDORA_BASE_RELEASE&arch=$(uname -m)\" \\\n    \"enabled=0\" \\\n    \"countme=1\" \\\n    \"type=rpm\" \\\n    \"gpgcheck=0\" \\\n    \"priority=99\" \\\n    \"gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-$FEDORA_BASE_RELEASE-$(uname -m)\" \\\n    \"skip_if_unavailable=False\" >/etc/yum.repos.d/fedora-$repo.repo; \\\n  done'\nRUN dnf update -y --skip-broken --nobest --disableplugin=subscription-manager ||:\n# install the GPG keys first, so we can enable GPG keys checking for\n# the package in question\nRUN dnf install -y \\\n  --enablerepo=fedora-base \\\n  --enablerepo=fedora-updates \\\n  --disableplugin=subscription-manager \\\n  fedora-gpg-keys\nRUN sed -i 's/^\\(gpgcheck=\\)0/\\11/' /etc/yum.repos.d/fedora-*.repo\nRUN dnf install -y --disableplugin=subscription-manager \\\n  --enablerepo=fedora-base \\\n  --enablerepo=fedora-updates \\\n  docker-distribution && dnf clean all -y && rm -rf /var/cache/yum /var/cache/dnf\nEXPOSE 5000\nENTRYPOINT [ \\\n  \"/usr/bin/registry\", \\\n  \"serve\", \"/etc/docker-distribution/registry/config.yml\"]\n"
             },
             "strategy": {
                "dockerStrategy": {
                   "from": {
                      "kind": "ImageStreamTag",
-                     "name": "ubi8:latest"
+                     "name": "ubi9:latest"
                   },
                   "imageOptimizationPolicy": "SkipLayers",
                   "pullSecret": {
@@ -222,7 +222,7 @@
          "metadata": {
             "labels": {
                "created-by": "registry-template",
-               "sdi-observer/version": "0.1.26"
+               "sdi-observer/version": "0.1.27"
             },
             "name": "container-image-registry",
             "namespace": "${NAMESPACE}"
@@ -238,9 +238,9 @@
          "metadata": {
             "labels": {
                "created-by": "registry-template",
-               "sdi-observer/version": "0.1.26"
+               "sdi-observer/version": "0.1.27"
             },
-            "name": "ubi8",
+            "name": "ubi9",
             "namespace": "${NAMESPACE}"
          },
          "spec": {
@@ -251,7 +251,7 @@
                {
                   "from": {
                      "kind": "DockerImage",
-                     "name": "registry.redhat.io/ubi8/ubi:latest"
+                     "name": "registry.redhat.io/ubi9/ubi:latest"
                   },
                   "importPolicy": {
                      "scheduled": true

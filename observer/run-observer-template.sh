@@ -28,7 +28,7 @@ SDI_NODE_SELECTOR="node-role.kubernetes.io/sdi="
 FLAVOUR=ubi-prebuilt
 
 # Required parameters for each template flavour:
-# 1. ubi-build: set the following variable (use UBI8 for the base image)
+# 1. ubi-build: set the following variable (use UBI9 for the base image)
 #    Set either *_SECRET_PATH or *_SECRET_NAME
 #    - Path to the local secret file with credentials to registry.redhat.io
 #  REDHAT_REGISTRY_SECRET_PATH="$HOME/rht-registry-username-secret.yaml"

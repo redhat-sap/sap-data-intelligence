@@ -38,7 +38,7 @@ must for _disconnected_ clusters where the SDI Registry's image must be first mi
 registry (other than SDI Registry).
 
 |`ubi-build` | link:./ocp-template.json[] | (_connected_) To be used in connected OpenShift
-clusters. A local build of SDI Registry will be performed using UBI8 as the base image.
+clusters. A local build of SDI Registry will be performed using UBI9 as the base image.
 
 |`custom-build` | link:./ocp-custom-source-image-template.json[] | (_connected_) For
 non-production, it is possible to use a custom base image (e.g. CentOS). A very limited or no

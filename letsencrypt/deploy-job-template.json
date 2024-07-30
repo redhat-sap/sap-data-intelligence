@@ -8,7 +8,7 @@
          "openshift.io/display-name": "Job to deploy a letsencrypt controller.\n",
          "openshift.io/documentation-url": "https://access.redhat.com/articles/4324391",
          "openshift.io/provider-display-name": "Red Hat, Inc.",
-         "sdi-observer/version": "0.1.26"
+         "sdi-observer/version": "0.1.27"
       },
       "name": "deploy-letsencrypt"
    },
@@ -18,7 +18,7 @@
          "kind": "Job",
          "metadata": {
             "labels": {
-               "sdi-observer/version": "0.1.26"
+               "sdi-observer/version": "0.1.27"
             },
             "name": "deploy-letsencrypt",
             "namespace": "${NAMESPACE}"
@@ -194,7 +194,7 @@
             "labels": {
                "created-by": "letsencrypt-deploy",
                "deploymentconfig": "sdi-observer",
-               "sdi-observer/version": "0.1.26"
+               "sdi-observer/version": "0.1.27"
             },
             "name": "sdi-observer",
             "namespace": "${NAMESPACE}"
@@ -203,7 +203,7 @@
             "output": {
                "to": {
                   "kind": "ImageStreamTag",
-                  "name": "sdi-observer:0.1.26-ocp${OCP_MINOR_RELEASE}"
+                  "name": "sdi-observer:0.1.27-ocp${OCP_MINOR_RELEASE}"
                }
             },
             "runPolicy": "Serial",
@@ -214,7 +214,7 @@
                "dockerStrategy": {
                   "from": {
                      "kind": "ImageStreamTag",
-                     "name": "ubi8:latest"
+                     "name": "ubi9:latest"
                   },
                   "imageOptimizationPolicy": "SkipLayers",
                   "pullSecret": {
@@ -238,7 +238,7 @@
          "metadata": {
             "labels": {
                "created-by": "letsencrypt-deploy",
-               "sdi-observer/version": "0.1.26"
+               "sdi-observer/version": "0.1.27"
             },
             "name": "sdi-observer",
             "namespace": "${NAMESPACE}"
@@ -254,9 +254,9 @@
          "metadata": {
             "labels": {
                "created-by": "letsencrypt-deploy",
-               "sdi-observer/version": "0.1.26"
+               "sdi-observer/version": "0.1.27"
             },
-            "name": "ubi8",
+            "name": "ubi9",
             "namespace": "${NAMESPACE}"
          },
          "spec": {
@@ -267,7 +267,7 @@
                {
                   "from": {
                      "kind": "DockerImage",
-                     "name": "registry.redhat.io/ubi8/ubi:latest"
+                     "name": "registry.redhat.io/ubi9/ubi:latest"
                   },
                   "importPolicy": {
                      "scheduled": true

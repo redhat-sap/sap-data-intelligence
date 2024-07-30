@@ -33,10 +33,10 @@ Options:
                                  prebuilt SDI Registry image. The only option for disconnected
                                  clusters.
                   ubi-build    - (connected) Build registry image on OpenShift cluster using the
-                                 Red Hat UBI8, store it internally in the integrated image registry
+                                 Red Hat UBI9, store it internally in the integrated image registry
                                  and deploy it from there.
                   custom-build - (connected) Specify a custom base image to be used instead of
-                                 UBI8.
+                                 UBI9.
  (-o | --output-dir) OUTDIR
                 Output directory where to put htpasswd and .htpasswd.raw files. Defaults to
                 the working directory.
@@ -99,7 +99,7 @@ Flavour specific options:
 - custom-build flavour
     --custom-source-image SOURCE_IMAGE_PULL_SPEC
                 Custom source image for container-image-registry build instead of the default
-                ubi8. Overrides SOURCE_IMAGE_PULL_SPEC environment variable.
+                ubi9. Overrides SOURCE_IMAGE_PULL_SPEC environment variable.
                 Defaults to $DEFAULT_SOURCE_IMAGE
     --custom-source-imagestream-name SOURCE_IMAGESTREAM_NAME
                 Name of the image stream for the custom source image if SOURCE_IMAGE_PULL_SPEC

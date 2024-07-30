@@ -32,7 +32,7 @@ base {
     version:: regtmpl.version,
 
     dockerfile:: |||
-      FROM openshift/ubi8:latest
+      FROM openshift/ubi9:latest
       LABEL maintainer="Michal Minář <miminar@redhat.com>"
       # docker-distribution is not yet available on UBI - install from fedora repo
       # RHEL8 / UBI8 is based on fedora 28

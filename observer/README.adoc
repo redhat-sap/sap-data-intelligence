@@ -209,7 +209,7 @@ There are three different OCP templates designed for different scenarios:
 |===
 |Flavour | Template file| Description
 |`ubi-build` | link:./ocp-template.json[] | (_recommended_, _connected_, _default_) To be used in
-connected OCP clusters. A local build of SDI Observer image will be performed using UBI8 as the
+connected OCP clusters. A local build of SDI Observer image will be performed using UBI9 as the
 base image.
 
 |`ubi-prebuilt` | link:./ocp-prebuilt-image-template.json[] | (_disconnected_) To be used in
