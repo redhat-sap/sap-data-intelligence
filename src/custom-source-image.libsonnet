@@ -6,7 +6,7 @@ local useCustomSourceImage(tmpl, version, withSecret=false) = tmpl {
 
   objects: [
     (
-      if (o.kind == 'ImageStream') && (o.metadata.name == 'ubi8') then
+      if (o.kind == 'ImageStream') && (o.metadata.name == 'ubi9') then
         o {
           metadata+: {
             name: '${SOURCE_IMAGESTREAM_NAME}',

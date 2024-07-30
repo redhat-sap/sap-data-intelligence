@@ -96,7 +96,7 @@ local usePrebuiltImage(tmpl, version) = tmpl {
     )
 
     for o in tmpl.objects
-    if ((o.kind != 'ImageStream') || (o.metadata.name != 'ubi8')) && (o.kind != 'BuildConfig')
+    if ((o.kind != 'ImageStream') || (o.metadata.name != 'ubi9')) && (o.kind != 'BuildConfig')
   ],
 
   local tmplParams = super.parameters,

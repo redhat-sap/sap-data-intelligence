@@ -8,7 +8,7 @@
          "openshift.io/display-name": "OpenShift enabler and observer for SAP Data intelligence\n",
          "openshift.io/documentation-url": "https://access.redhat.com/articles/4324391",
          "openshift.io/provider-display-name": "Red Hat, Inc.",
-         "sdi-observer/version": "0.1.26"
+         "sdi-observer/version": "0.1.27"
       },
       "name": "sdi-observer"
    },
@@ -34,10 +34,10 @@
                "app": "sdi-observer",
                "created-by": "sdi-observer-template",
                "deployment": "sdi-observer",
-               "sdi-observer/version": "0.1.26"
+               "sdi-observer/version": "0.1.27"
             },
             "annotations": {
-               "image.openshift.io/triggers": "[{\"from\":{\"kind\":\"ImageStreamTag\",\"name\":\"sdi-observer:0.1.26-ocp${OCP_MINOR_RELEASE}\"},\"fieldPath\":\"spec.template.spec.containers[?(@.name==\\\"sdi-observer\\\")].image\"}]"
+               "image.openshift.io/triggers": "[{\"from\":{\"kind\":\"ImageStreamTag\",\"name\":\"sdi-observer:0.1.27-ocp${OCP_MINOR_RELEASE}\"},\"fieldPath\":\"spec.template.spec.containers[?(@.name==\\\"sdi-observer\\\")].image\"}]"
             },
             "name": "sdi-observer",
             "namespace": "${NAMESPACE}"
@@ -66,7 +66,7 @@
                         "env": [
                            {
                               "name": "SDI_OBSERVER_VERSION",
-                              "value": "0.1.26"
+                              "value": "0.1.27"
                            },
                            {
                               "name": "NAMESPACE",
@@ -197,7 +197,7 @@
                               "value": "${EXPOSE_WITH_LETSENCRYPT}"
                            }
                         ],
-                        "image": "sdi-observer:0.1.26-ocp${OCP_MINOR_RELEASE}",
+                        "image": "sdi-observer:0.1.27-ocp${OCP_MINOR_RELEASE}",
                         "name": "sdi-observer",
                         "resources": {
                            "limits": {
@@ -228,7 +228,7 @@
                      ],
                      "from": {
                         "kind": "ImageStreamTag",
-                        "name": "sdi-observer:0.1.26-ocp${OCP_MINOR_RELEASE}"
+                        "name": "sdi-observer:0.1.27-ocp${OCP_MINOR_RELEASE}"
                      }
                   },
                   "type": "ImageChange"
@@ -812,7 +812,7 @@
             "labels": {
                "created-by": "sdi-observer-template",
                "deployment": "sdi-observer",
-               "sdi-observer/version": "0.1.26"
+               "sdi-observer/version": "0.1.27"
             },
             "name": "sdi-observer",
             "namespace": "${NAMESPACE}"
@@ -821,7 +821,7 @@
             "output": {
                "to": {
                   "kind": "ImageStreamTag",
-                  "name": "sdi-observer:0.1.26-ocp${OCP_MINOR_RELEASE}"
+                  "name": "sdi-observer:0.1.27-ocp${OCP_MINOR_RELEASE}"
                }
             },
             "runPolicy": "Serial",
@@ -832,7 +832,7 @@
                "dockerStrategy": {
                   "from": {
                      "kind": "ImageStreamTag",
-                     "name": "ubi8:latest"
+                     "name": "ubi9:latest"
                   },
                   "imageOptimizationPolicy": "SkipLayers",
                   "pullSecret": {
@@ -856,7 +856,7 @@
          "metadata": {
             "labels": {
                "created-by": "sdi-observer-template",
-               "sdi-observer/version": "0.1.26"
+               "sdi-observer/version": "0.1.27"
             },
             "name": "sdi-observer",
             "namespace": "${NAMESPACE}"
@@ -872,9 +872,9 @@
          "metadata": {
             "labels": {
                "created-by": "sdi-observer-template",
-               "sdi-observer/version": "0.1.26"
+               "sdi-observer/version": "0.1.27"
             },
-            "name": "ubi8",
+            "name": "ubi9",
             "namespace": "${NAMESPACE}"
          },
          "spec": {
@@ -885,7 +885,7 @@
                {
                   "from": {
                      "kind": "DockerImage",
-                     "name": "registry.redhat.io/ubi8/ubi:latest"
+                     "name": "registry.redhat.io/ubi9/ubi:latest"
                   },
                   "importPolicy": {
                      "scheduled": true

@@ -10,7 +10,7 @@ metadata:
   labels:
     app: sdi-node-configurator
     daemonset: sdi-node-configurator
-    sdi-observer/version: 0.1.26
+    sdi-observer/version: 0.1.27
   name: sdi-node-configurator
 spec:
   revisionHistoryLimit: 7
@@ -59,7 +59,7 @@ spec:
               done
           env:
             - name: SDI_OBSERVER_VERSION
-              value: 0.1.26
+              value: 0.1.27
             - name: DRY_RUN
               value: 'false'
           image: ocp-tools:latest
