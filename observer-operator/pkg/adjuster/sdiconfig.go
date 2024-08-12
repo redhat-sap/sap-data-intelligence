@@ -120,6 +120,9 @@ func (a *Adjuster) AdjustSDIVSystemVrepStatefulSets(ns string, obs *sdiv1alpha1.
 
 	if volumePatched && volumeMountPatched {
 		a.logger.Info(fmt.Sprintf("StatefulSet %s volumes and mounts are already patched", vsystemVrepStsName))
+		if err := a.pruneStatefulSetOldRevision(ns, obs, ctx); err != nil {
+			return err
+		}
 	} else {
 		if !volumePatched {
 			a.logger.Info(fmt.Sprintf("Patching StatefulSet %s with new volume", vsystemVrepStsName))
