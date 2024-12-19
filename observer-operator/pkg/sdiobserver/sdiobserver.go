@@ -55,19 +55,14 @@ func (so *SDIObserver) AdjustSDIConfig(a *adjuster.Adjuster, ctx context.Context
 	var errs []error
 
 	if err := a.AdjustSDIDiagnosticsFluentdDaemonsetContainerPrivilege(so.obs.Spec.SDINamespace, so.obs, ctx); err != nil {
-		a.Logger().Error(err, "Failed to adjust SDI diagnostics Fluentd DaemonSet container privilege")
 		errs = append(errs, err)
 	}
 	if err := a.AdjustSDIVSystemVrepStatefulSets(so.obs.Spec.SDINamespace, so.obs, ctx); err != nil {
-		a.Logger().Error(err, "Failed to adjust SDI VSystem Vrep StatefulSets")
 		errs = append(errs, err)
 	}
 
 	if len(errs) > 0 {
-		for _, err := range errs {
-			a.Logger().Error(err, "Error encountered while adjusting SDI configuration")
-		}
-		return fmt.Errorf("adjust SDI configuration completed with errors")
+		return errs[0]
 	}
 
 	a.Logger().Info("Successfully adjusted SDI configuration.")
