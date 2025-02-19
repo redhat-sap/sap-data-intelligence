@@ -17,7 +17,7 @@ bctmpl {
     # TODO: jq is not yet available in EPEL-8
     # make sure to use epel (jq 1.6) instead of rhel repository (jq 1.5)
     RUN dnf install -y --disableplugin=subscription-manager \
-      https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm && \
+      https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm && \
       dnf install --disableplugin=subscription-manager --disablerepo=\* --enablerepo=epel -y jq
     RUN dnf install -y --disableplugin=subscription-manager \
         https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm && \
