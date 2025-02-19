@@ -19,7 +19,7 @@ bctmpl {
     RUN dnf install -y --disableplugin=subscription-manager \
       https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm && \
       /usr/bin/crb enable && \
-      dnf install --disableplugin=subscription-manager --disablerepo=\* --enablerepo=epel -y jq
+      dnf install --disableplugin=subscription-manager --enablerepo=epel -y jq
     RUN dnf install -y --disableplugin=subscription-manager \
         https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm && \
       dnf install -y --disableplugin=subscription-manager \
