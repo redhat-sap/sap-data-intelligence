@@ -99,7 +99,7 @@ function _observe() {
     else
         args+=( --quiet --output=go-template --template )
     fi
-    args+=(  '{{.metadata.namespace}} {{.kind}}/{{.metadata.name}}' -- echo )
+    args+=( '{{.kind}}/{{.metadata.name}}' -- echo )
     exec oc observe "${args[@]}"
 }
 export -f _observe
