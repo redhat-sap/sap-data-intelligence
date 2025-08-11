@@ -18,13 +18,14 @@ package controllers
 
 import (
 	"context"
+	"time"
+
 	"github.com/redhat-sap/sap-data-intelligence/observer-operator/pkg/adjuster"
 	"github.com/redhat-sap/sap-data-intelligence/observer-operator/pkg/sdiobserver"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
-	"time"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -153,23 +154,23 @@ func (r *SDIObserverReconciler) ensureStatusConditions(cr *sdiv1alpha1.SDIObserv
 		})
 	}
 
-	if cr.Status.Conditions == nil || len(cr.Status.Conditions) == 0 {
+	if len(cr.Status.Conditions) == 0 {
 		setInitialCondition(&cr.Status.Conditions)
 		updateStatus = true
 	}
-	if cr.Status.SDIConfigStatus.Conditions == nil || len(cr.Status.SDIConfigStatus.Conditions) == 0 {
+	if len(cr.Status.SDIConfigStatus.Conditions) == 0 {
 		setInitialCondition(&cr.Status.SDIConfigStatus.Conditions)
 		updateStatus = true
 	}
-	if cr.Status.SLCBRouteStatus.Conditions == nil || len(cr.Status.SLCBRouteStatus.Conditions) == 0 {
+	if len(cr.Status.SLCBRouteStatus.Conditions) == 0 {
 		setInitialCondition(&cr.Status.SLCBRouteStatus.Conditions)
 		updateStatus = true
 	}
-	if cr.Status.VSystemRouteStatus.Conditions == nil || len(cr.Status.VSystemRouteStatus.Conditions) == 0 {
+	if len(cr.Status.VSystemRouteStatus.Conditions) == 0 {
 		setInitialCondition(&cr.Status.VSystemRouteStatus.Conditions)
 		updateStatus = true
 	}
-	if cr.Status.SDINodeConfigStatus.Conditions == nil || len(cr.Status.SDINodeConfigStatus.Conditions) == 0 {
+	if len(cr.Status.SDINodeConfigStatus.Conditions) == 0 {
 		setInitialCondition(&cr.Status.SDINodeConfigStatus.Conditions)
 		updateStatus = true
 	}

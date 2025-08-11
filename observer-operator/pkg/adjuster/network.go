@@ -3,6 +3,8 @@ package adjuster
 import (
 	"context"
 	"fmt"
+	"strings"
+
 	routev1 "github.com/openshift/api/route/v1"
 	sdiv1alpha1 "github.com/redhat-sap/sap-data-intelligence/observer-operator/api/v1alpha1"
 	"github.com/redhat-sap/sap-data-intelligence/observer-operator/assets"
@@ -11,12 +13,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"strings"
 )
 
 const (
-	vsystemCaBundleSecretName = "ca-bundle.pem"
-	vsystemCaBundleSecretKey  = "ca-bundle.pem"
+	// These are configuration file names, not actual credentials
+	vsystemCaBundleSecretName = "ca-bundle.pem" // #nosec G101
+	vsystemCaBundleSecretKey  = "ca-bundle.pem" // #nosec G101
 )
 
 // AdjustRoute manages the route based on its management state.

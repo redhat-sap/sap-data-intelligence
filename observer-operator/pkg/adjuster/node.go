@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+
 	operatorv1 "github.com/openshift/api/config/v1"
 	configv1 "github.com/openshift/machine-config-operator/pkg/apis/machineconfiguration.openshift.io/v1"
 	sdiv1alpha1 "github.com/redhat-sap/sap-data-intelligence/observer-operator/api/v1alpha1"
@@ -77,7 +78,9 @@ func (a *Adjuster) ensureResource(ctx context.Context, obs *sdiv1alpha1.SDIObser
 		if err := a.Client.Create(ctx, resource); err != nil {
 			return err
 		}
-		ctrl.SetControllerReference(obs, resource, a.Scheme)
+		if err := ctrl.SetControllerReference(obs, resource, a.Scheme); err != nil {
+			return err
+		}
 	} else if err != nil {
 		return err
 	}

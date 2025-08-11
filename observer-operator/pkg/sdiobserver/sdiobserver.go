@@ -3,6 +3,7 @@ package sdiobserver
 import (
 	"context"
 	"fmt"
+
 	sdiv1alpha1 "github.com/redhat-sap/sap-data-intelligence/observer-operator/api/v1alpha1"
 	"github.com/redhat-sap/sap-data-intelligence/observer-operator/pkg/adjuster"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"

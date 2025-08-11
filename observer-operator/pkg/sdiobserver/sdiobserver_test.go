@@ -40,10 +40,10 @@ func TestSDIObserver_AdjustNodes_Managed(t *testing.T) {
 	}
 
 	sdiObserver := New(obs)
-	
+
 	// For now, we'll test the basic functionality without mocking the adjuster
 	// since that would require more complex interface setup
-	
+
 	if sdiObserver.obs.Spec.ManageSDINodeConfig != true {
 		t.Error("Expected ManageSDINodeConfig to be true")
 	}
@@ -63,7 +63,7 @@ func TestSDIObserver_AdjustNodes_Unmanaged(t *testing.T) {
 	}
 
 	sdiObserver := New(obs)
-	
+
 	if sdiObserver.obs.Spec.ManageSDINodeConfig != false {
 		t.Error("Expected ManageSDINodeConfig to be false")
 	}
