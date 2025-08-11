@@ -1,0 +1,88 @@
+name: Observer Operator Release
+
+on:
+  push:
+    branches: [ master, main ]
+    paths:
+      - 'observer-operator/**'
+
+defaults:
+  run:
+    working-directory: observer-operator
+
+jobs:
+  test:
+    name: Test Observer Operator
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.23'
+        cache-dependency-path: observer-operator/go.sum
+
+    - name: Cache Go modules
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('observer-operator/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
+
+    - name: Download dependencies
+      run: go mod download
+
+    - name: Verify dependencies
+      run: go mod verify
+
+    - name: Run quality checks
+      run: make quality-check
+
+    - name: Run unit tests
+      run: make test-unit
+
+  build-and-push:
+    name: Build and Push to Quay
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.23'
+        cache-dependency-path: observer-operator/go.sum
+
+    - name: Build binary
+      run: make build
+
+    - name: Log in to Quay.io
+      uses: docker/login-action@v3
+      with:
+        registry: quay.io
+        username: ${{ secrets.QUAY_USERNAME }}
+        password: ${{ secrets.QUAY_PASSWORD }}
+
+    - name: Build and push Docker image
+      run: |
+        IMAGE_TAG="quay.io/redhat-sap-cop/sdi-observer-operator:${{ github.sha }}"
+        LATEST_TAG="quay.io/redhat-sap-cop/sdi-observer-operator:latest"
+        
+        make docker-build IMG="$IMAGE_TAG"
+        docker push "$IMAGE_TAG"
+        
+        docker tag "$IMAGE_TAG" "$LATEST_TAG"
+        docker push "$LATEST_TAG"
+        
+        echo "✅ Pushed images:"
+        echo "  - $IMAGE_TAG"
+        echo "  - $LATEST_TAG"
