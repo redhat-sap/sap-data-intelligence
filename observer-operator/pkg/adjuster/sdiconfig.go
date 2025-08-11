@@ -3,6 +3,8 @@ package adjuster
 import (
 	"context"
 	"fmt"
+	"reflect"
+
 	sdiv1alpha1 "github.com/redhat-sap/sap-data-intelligence/observer-operator/api/v1alpha1"
 	"github.com/redhat-sap/sap-data-intelligence/observer-operator/assets"
 	appsv1 "k8s.io/api/apps/v1"
@@ -14,11 +16,9 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/pointer"
-	"reflect"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
-
 
 func (a *Adjuster) adjustSDIDataHub(ns string, obs *sdiv1alpha1.SDIObserver, ctx context.Context) error {
 	if ns == "" {
@@ -45,12 +45,12 @@ func (a *Adjuster) adjustSDIDataHub(ns string, obs *sdiv1alpha1.SDIObserver, ctx
 	if !ok {
 		return fmt.Errorf("DataHub spec is not a map")
 	}
-	
+
 	vsystem, ok := spec["vsystem"].(map[string]interface{})
 	if !ok {
 		return fmt.Errorf("DataHub vsystem is not a map")
 	}
-	
+
 	vRep, ok := vsystem["vRep"].(map[string]interface{})
 	if !ok {
 		// Initialize vRep if it doesn't exist
@@ -92,7 +92,7 @@ func (a *Adjuster) AdjustSDIDiagnosticsFluentdDaemonsetContainerPrivilege(ns str
 	for i, c := range ds.Spec.Template.Spec.Containers {
 		if c.Name == DiagnosticFluentdName {
 			if c.SecurityContext.Privileged == nil || !*c.SecurityContext.Privileged {
-				ds.Spec.Template.Spec.Containers[i].SecurityContext.Privileged = pointer.Bool(true)
+				ds.Spec.Template.Spec.Containers[i].SecurityContext.Privileged = ptr.To(true)
 				updated = true
 				break
 			}

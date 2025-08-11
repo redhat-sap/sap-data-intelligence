@@ -19,11 +19,12 @@ package main
 import (
 	"flag"
 	"fmt"
+	"os"
+	"time"
+
 	operatorv1 "github.com/openshift/api/config/v1"
 	openshiftv1 "github.com/openshift/api/image/v1"
 	routev1 "github.com/openshift/api/route/v1"
-	"os"
-	"time"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -69,7 +70,7 @@ func main() {
 	cfg := parseFlags()
 	setupLogger()
 
-	if len(cfg.Namespace) == 0 {
+	if cfg.Namespace == "" {
 		setupLog.Error(fmt.Errorf("missing namespace argument, please set at least the NAMESPACE variable"), "fatal")
 		os.Exit(1)
 	}
@@ -126,7 +127,7 @@ func parseFlags() config {
 
 func createManager(cfg config) (ctrl.Manager, error) {
 	return ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Scheme:                 scheme,
+		Scheme: scheme,
 		Metrics: metricsserver.Options{
 			BindAddress: cfg.MetricsAddr,
 		},

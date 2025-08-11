@@ -21,7 +21,7 @@ func TestSDIObserverReconciler_Reconcile_NotFound(t *testing.T) {
 	}
 
 	client := fake.NewClientBuilder().WithScheme(scheme).Build()
-	
+
 	reconciler := &SDIObserverReconciler{
 		Client:            client,
 		Scheme:            scheme,
@@ -72,7 +72,7 @@ func TestSDIObserverReconciler_Reconcile_Success(t *testing.T) {
 	}
 
 	client := fake.NewClientBuilder().WithScheme(scheme).WithObjects(obs).Build()
-	
+
 	reconciler := &SDIObserverReconciler{
 		Client:            client,
 		Scheme:            scheme,
@@ -110,7 +110,7 @@ func TestSDIObserverReconciler_ensureStatusConditions(t *testing.T) {
 	}
 
 	client := fake.NewClientBuilder().WithScheme(scheme).Build()
-	
+
 	reconciler := &SDIObserverReconciler{
 		Client:            client,
 		Scheme:            scheme,
@@ -165,7 +165,7 @@ func TestSDIObserverReconciler_handleError(t *testing.T) {
 	}
 
 	client := fake.NewClientBuilder().WithScheme(scheme).WithObjects(obs).Build()
-	
+
 	reconciler := &SDIObserverReconciler{
 		Client:            client,
 		Scheme:            scheme,

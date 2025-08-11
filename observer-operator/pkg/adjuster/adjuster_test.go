@@ -11,11 +11,11 @@ import (
 
 // MockActioner implements the Actioner interface for testing
 type MockActioner struct {
-	AdjustNodesFunc        func(a *Adjuster, ctx context.Context) error
-	AdjustSDINetworkFunc   func(a *Adjuster, ctx context.Context) error
-	AdjustSLCBNetworkFunc  func(a *Adjuster, ctx context.Context) error
-	AdjustStorageFunc      func(a *Adjuster, ctx context.Context) error
-	AdjustSDIConfigFunc    func(a *Adjuster, ctx context.Context) error
+	AdjustNodesFunc       func(a *Adjuster, ctx context.Context) error
+	AdjustSDINetworkFunc  func(a *Adjuster, ctx context.Context) error
+	AdjustSLCBNetworkFunc func(a *Adjuster, ctx context.Context) error
+	AdjustStorageFunc     func(a *Adjuster, ctx context.Context) error
+	AdjustSDIConfigFunc   func(a *Adjuster, ctx context.Context) error
 }
 
 func (m *MockActioner) AdjustNodes(a *Adjuster, ctx context.Context) error {
@@ -78,13 +78,13 @@ func TestAdjuster_Adjust_Success(t *testing.T) {
 	scheme := runtime.NewScheme()
 	client := fake.NewClientBuilder().WithScheme(scheme).Build()
 	logger := logr.Discard()
-	
+
 	adjuster := New("test-name", "test-namespace", client, scheme, logger)
 	mockActioner := &MockActioner{}
-	
+
 	ctx := context.Background()
 	err := adjuster.Adjust(mockActioner, ctx)
-	
+
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}
@@ -94,9 +94,9 @@ func TestAdjuster_Adjust_ErrorPropagation(t *testing.T) {
 	scheme := runtime.NewScheme()
 	client := fake.NewClientBuilder().WithScheme(scheme).Build()
 	logger := logr.Discard()
-	
+
 	adjuster := New("test-name", "test-namespace", client, scheme, logger)
-	
+
 	expectedError := "test error"
 	mockActioner := &MockActioner{
 		AdjustNodesFunc: func(a *Adjuster, ctx context.Context) error {
@@ -106,10 +106,10 @@ func TestAdjuster_Adjust_ErrorPropagation(t *testing.T) {
 			return &MockError{message: expectedError}
 		},
 	}
-	
+
 	ctx := context.Background()
 	err := adjuster.Adjust(mockActioner, ctx)
-	
+
 	if err == nil {
 		t.Error("Expected error, got nil")
 	}
@@ -122,9 +122,9 @@ func TestAdjuster_Logger(t *testing.T) {
 	scheme := runtime.NewScheme()
 	client := fake.NewClientBuilder().WithScheme(scheme).Build()
 	logger := logr.Discard()
-	
+
 	adjuster := New("test-name", "test-namespace", client, scheme, logger)
-	
+
 	returnedLogger := adjuster.Logger()
 	if returnedLogger != logger {
 		t.Error("Logger not returned correctly")

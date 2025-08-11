@@ -2,6 +2,7 @@ package adjuster
 
 import (
 	"context"
+
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -24,11 +25,11 @@ type Adjuster struct {
 }
 
 // New creates a new Adjuster with the provided parameters.
-func New(name, namespace string, client client.Client, scheme *runtime.Scheme, logger logr.Logger) *Adjuster {
+func New(name, namespace string, c client.Client, scheme *runtime.Scheme, logger logr.Logger) *Adjuster {
 	return &Adjuster{
 		Name:      name,
 		Namespace: namespace,
-		Client:    client,
+		Client:    c,
 		Scheme:    scheme,
 		logger:    logger,
 	}
