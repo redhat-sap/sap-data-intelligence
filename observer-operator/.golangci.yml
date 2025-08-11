@@ -1,0 +1,68 @@
+run:
+  timeout: 5m
+  go: "1.23"
+
+linters:
+  enable:
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - typecheck
+    - unused
+    - goimports
+    - misspell
+    - unconvert
+    - unparam
+    - gocyclo
+    - gofmt
+    - revive
+    - gosec
+    - gocritic
+
+linters-settings:
+  gocyclo:
+    min-complexity: 15
+  gosec:
+    # Exclude rules that are too strict for our use case
+    excludes:
+      - G301 # Expect directory permissions to be 0750 or less
+      - G302 # Expect file permissions to be 0600 or less
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - style
+      - performance
+    disabled-checks:
+      - unnamedResult
+      - hugeParam
+
+issues:
+  exclude-rules:
+    # Exclude some linters from running on tests files
+    - path: _test\.go
+      linters:
+        - gosec
+        - unparam
+    # Exclude some static analysis issues in generated files
+    - path: zz_generated\.deepcopy\.go
+      linters:
+        - gosimple
+        - unused
+    # Exclude some specific issues that are false positives
+    - text: "weak cryptographic primitive"
+      linters:
+        - gosec
+    # Allow the use of unkeyed fields in tests
+    - path: _test\.go
+      text: "composite literal uses unkeyed fields"
+      linters:
+        - govet
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+output:
+  format: colored-line-number
+  print-issued-lines: true
+  print-linter-name: true

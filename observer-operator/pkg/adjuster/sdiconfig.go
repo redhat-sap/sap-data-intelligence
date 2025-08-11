@@ -19,35 +19,47 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-const (
-	diagnosticFluentdName = "diagnostics-fluentd"
-	vsystemVrepStsName    = "vsystem-vrep"
-	volumeName            = "exports-mask"
-	annotationKey         = "openshift.io/node-selector"
-)
-
-var fluentdDockerVolumeName = "varlibdockercontainers"
 
 func (a *Adjuster) adjustSDIDataHub(ns string, obs *sdiv1alpha1.SDIObserver, ctx context.Context) error {
+	if ns == "" {
+		return fmt.Errorf("namespace cannot be empty")
+	}
+	if obs == nil {
+		return fmt.Errorf("SDIObserver cannot be nil")
+	}
+
 	obj := &unstructured.Unstructured{}
 	obj.SetName("default")
 	obj.SetNamespace(ns)
 	obj.SetGroupVersionKind(schema.GroupVersionKind{
-		Group:   "installers.datahub.sap.com",
-		Version: "v1alpha1",
-		Kind:    "DataHub",
+		Group:   DataHubAPIGroup,
+		Version: DataHubAPIVersion,
+		Kind:    DataHubKind,
 	})
 
 	if err := a.Client.Get(ctx, client.ObjectKeyFromObject(obj), obj); err != nil {
-		return err
+		return fmt.Errorf("failed to get DataHub object: %w", err)
 	}
 
-	spec := obj.Object["spec"].(map[string]interface{})
-	vsystem := spec["vsystem"].(map[string]interface{})
-	vRep := vsystem["vRep"].(map[string]interface{})
+	spec, ok := obj.Object["spec"].(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("DataHub spec is not a map")
+	}
+	
+	vsystem, ok := spec["vsystem"].(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("DataHub vsystem is not a map")
+	}
+	
+	vRep, ok := vsystem["vRep"].(map[string]interface{})
+	if !ok {
+		// Initialize vRep if it doesn't exist
+		vRep = make(map[string]interface{})
+		vsystem["vRep"] = vRep
+	}
 
 	if len(vRep) == 0 {
-		a.logger.Info("Patching DataHub vRep to set exportsMask to true")
+		a.logger.Info("Patching DataHub vRep to set exportsMask to true", "namespace", ns)
 		vRep["exportsMask"] = true
 		if err := a.Client.Update(ctx, obj); err != nil {
 			return err
@@ -59,9 +71,15 @@ func (a *Adjuster) adjustSDIDataHub(ns string, obs *sdiv1alpha1.SDIObserver, ctx
 }
 
 func (a *Adjuster) AdjustSDIDiagnosticsFluentdDaemonsetContainerPrivilege(ns string, obs *sdiv1alpha1.SDIObserver, ctx context.Context) error {
+	if ns == "" {
+		return fmt.Errorf("namespace cannot be empty")
+	}
+	if obs == nil {
+		return fmt.Errorf("SDIObserver cannot be nil")
+	}
 	ds := &appsv1.DaemonSet{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      diagnosticFluentdName,
+			Name:      DiagnosticFluentdName,
 			Namespace: ns,
 		},
 	}
@@ -72,7 +90,7 @@ func (a *Adjuster) AdjustSDIDiagnosticsFluentdDaemonsetContainerPrivilege(ns str
 
 	updated := false
 	for i, c := range ds.Spec.Template.Spec.Containers {
-		if c.Name == diagnosticFluentdName {
+		if c.Name == DiagnosticFluentdName {
 			if c.SecurityContext.Privileged == nil || !*c.SecurityContext.Privileged {
 				ds.Spec.Template.Spec.Containers[i].SecurityContext.Privileged = pointer.Bool(true)
 				updated = true
@@ -87,29 +105,29 @@ func (a *Adjuster) AdjustSDIDiagnosticsFluentdDaemonsetContainerPrivilege(ns str
 			return err
 		}
 	} else {
-		a.logger.Info(fmt.Sprintf("Daemonset %s is already using privileged security context", diagnosticFluentdName))
+		a.logger.Info(fmt.Sprintf("Daemonset %s is already using privileged security context", DiagnosticFluentdName))
 	}
 	return nil
 }
 
 func (a *Adjuster) AdjustSDIVSystemVrepStatefulSets(ns string, obs *sdiv1alpha1.SDIObserver, ctx context.Context) error {
 	ss := &appsv1.StatefulSet{}
-	if err := a.Client.Get(ctx, client.ObjectKey{Name: vsystemVrepStsName, Namespace: ns}, ss); err != nil {
+	if err := a.Client.Get(ctx, client.ObjectKey{Name: VSystemVrepStsName, Namespace: ns}, ss); err != nil {
 		return err
 	}
 
 	volumePatched, volumeMountPatched := false, false
 	for _, v := range ss.Spec.Template.Spec.Volumes {
-		if v.Name == volumeName {
+		if v.Name == VolumeName {
 			volumePatched = true
 			break
 		}
 	}
 
 	for _, c := range ss.Spec.Template.Spec.Containers {
-		if c.Name == vsystemVrepStsName {
+		if c.Name == VSystemVrepStsName {
 			for _, vm := range c.VolumeMounts {
-				if vm.Name == volumeName {
+				if vm.Name == VolumeName {
 					volumeMountPatched = true
 					break
 				}
@@ -119,15 +137,15 @@ func (a *Adjuster) AdjustSDIVSystemVrepStatefulSets(ns string, obs *sdiv1alpha1.
 	}
 
 	if volumePatched && volumeMountPatched {
-		a.logger.Info(fmt.Sprintf("StatefulSet %s volumes and mounts are already patched", vsystemVrepStsName))
+		a.logger.Info(fmt.Sprintf("StatefulSet %s volumes and mounts are already patched", VSystemVrepStsName))
 		if err := a.pruneStatefulSetOldRevision(ns, obs, ctx); err != nil {
 			return err
 		}
 	} else {
 		if !volumePatched {
-			a.logger.Info(fmt.Sprintf("Patching StatefulSet %s with new volume", vsystemVrepStsName))
+			a.logger.Info(fmt.Sprintf("Patching StatefulSet %s with new volume", VSystemVrepStsName))
 			ss.Spec.Template.Spec.Volumes = append(ss.Spec.Template.Spec.Volumes, corev1.Volume{
-				Name: volumeName,
+				Name: VolumeName,
 				VolumeSource: corev1.VolumeSource{
 					EmptyDir: &corev1.EmptyDirVolumeSource{},
 				},
@@ -135,11 +153,11 @@ func (a *Adjuster) AdjustSDIVSystemVrepStatefulSets(ns string, obs *sdiv1alpha1.
 		}
 
 		if !volumeMountPatched {
-			a.logger.Info(fmt.Sprintf("Patching StatefulSet %s with new volume mount", vsystemVrepStsName))
+			a.logger.Info(fmt.Sprintf("Patching StatefulSet %s with new volume mount", VSystemVrepStsName))
 			for i, c := range ss.Spec.Template.Spec.Containers {
-				if c.Name == vsystemVrepStsName {
+				if c.Name == VSystemVrepStsName {
 					ss.Spec.Template.Spec.Containers[i].VolumeMounts = append(c.VolumeMounts, corev1.VolumeMount{
-						Name:      volumeName,
+						Name:      VolumeName,
 						MountPath: "/exports",
 					})
 				}
@@ -164,17 +182,17 @@ func (a *Adjuster) AdjustSDIVSystemVrepStatefulSets(ns string, obs *sdiv1alpha1.
 
 func (a *Adjuster) pruneStatefulSetOldRevision(ns string, obs *sdiv1alpha1.SDIObserver, ctx context.Context) error {
 	ss := &appsv1.StatefulSet{}
-	if err := a.Client.Get(ctx, client.ObjectKey{Name: vsystemVrepStsName, Namespace: ns}, ss); err != nil {
+	if err := a.Client.Get(ctx, client.ObjectKey{Name: VSystemVrepStsName, Namespace: ns}, ss); err != nil {
 		return err
 	}
 
 	if ss.Status.UpdateRevision == ss.Status.CurrentRevision {
-		a.logger.Info(fmt.Sprintf("StatefulSet %s current revision matches update revision", vsystemVrepStsName))
+		a.logger.Info(fmt.Sprintf("StatefulSet %s current revision matches update revision", VSystemVrepStsName))
 		return nil
 	}
 
 	updateRevisionPodList := &corev1.PodList{}
-	updateRevisionSelector := labels.SelectorFromSet(labels.Set{"controller-revision-hash": ss.Status.UpdateRevision})
+	updateRevisionSelector := labels.SelectorFromSet(labels.Set{ControllerRevisionHashLabel: ss.Status.UpdateRevision})
 
 	if err := a.Client.List(ctx, updateRevisionPodList, client.InNamespace(ns), client.MatchingLabelsSelector{Selector: updateRevisionSelector}); err != nil {
 		return err
@@ -192,9 +210,9 @@ func (a *Adjuster) pruneStatefulSetOldRevision(ns string, obs *sdiv1alpha1.SDIOb
 	}
 
 	for _, pod := range podList.Items {
-		if pod.Labels["controller-revision-hash"] != ss.Status.UpdateRevision {
+		if pod.Labels[ControllerRevisionHashLabel] != ss.Status.UpdateRevision {
 			a.logger.Info(fmt.Sprintf("Deleting pod %s with outdated revision", pod.Name))
-			if err := a.Client.Delete(ctx, &pod, client.GracePeriodSeconds(1)); err != nil {
+			if err := a.Client.Delete(ctx, &pod, client.GracePeriodSeconds(DefaultGracePeriodSeconds)); err != nil {
 				return fmt.Errorf("unable to delete operand pod: %w", err)
 			}
 		}
@@ -213,9 +231,9 @@ func (a *Adjuster) AdjustNamespaceAnnotation(ns, nodeSelector string, ctx contex
 		namespace.Annotations = map[string]string{}
 	}
 
-	if currentSelector := namespace.Annotations[annotationKey]; currentSelector != nodeSelector {
+	if currentSelector := namespace.Annotations[AnnotationKey]; currentSelector != nodeSelector {
 		a.logger.Info("Updating namespace annotation")
-		namespace.Annotations[annotationKey] = nodeSelector
+		namespace.Annotations[AnnotationKey] = nodeSelector
 		if err := a.Client.Update(ctx, namespace); err != nil {
 			return fmt.Errorf("unable to update namespace annotation: %w", err)
 		}
