@@ -116,68 +116,76 @@ func (a *Adjuster) AdjustSDIVSystemVrepStatefulSets(ns string, obs *sdiv1alpha1.
 		return err
 	}
 
-	volumePatched, volumeMountPatched := false, false
-	for i := range ss.Spec.Template.Spec.Volumes {
-		if ss.Spec.Template.Spec.Volumes[i].Name == VolumeName {
-			volumePatched = true
-			break
-		}
+	volumePatched := a.isVolumePatched(ss)
+	volumeMountPatched := a.isVolumeMountPatched(ss)
+
+	if volumePatched && volumeMountPatched {
+		a.logger.Info(fmt.Sprintf("StatefulSet %s volumes and mounts are already patched", VSystemVrepStsName))
+		return a.pruneStatefulSetOldRevision(ns, obs, ctx)
 	}
 
+	return a.patchStatefulSet(ss, ns, obs, ctx, volumePatched, volumeMountPatched)
+}
+
+// isVolumePatched checks if the required volume is already present in the StatefulSet
+func (a *Adjuster) isVolumePatched(ss *appsv1.StatefulSet) bool {
+	for i := range ss.Spec.Template.Spec.Volumes {
+		if ss.Spec.Template.Spec.Volumes[i].Name == VolumeName {
+			return true
+		}
+	}
+	return false
+}
+
+// isVolumeMountPatched checks if the required volume mount is already present in the StatefulSet
+func (a *Adjuster) isVolumeMountPatched(ss *appsv1.StatefulSet) bool {
 	for i := range ss.Spec.Template.Spec.Containers {
 		if ss.Spec.Template.Spec.Containers[i].Name == VSystemVrepStsName {
 			for j := range ss.Spec.Template.Spec.Containers[i].VolumeMounts {
 				if ss.Spec.Template.Spec.Containers[i].VolumeMounts[j].Name == VolumeName {
-					volumeMountPatched = true
-					break
+					return true
 				}
 			}
 			break
 		}
 	}
+	return false
+}
 
-	if volumePatched && volumeMountPatched {
-		a.logger.Info(fmt.Sprintf("StatefulSet %s volumes and mounts are already patched", VSystemVrepStsName))
-		if err := a.pruneStatefulSetOldRevision(ns, obs, ctx); err != nil {
-			return err
-		}
-	} else {
-		if !volumePatched {
-			a.logger.Info(fmt.Sprintf("Patching StatefulSet %s with new volume", VSystemVrepStsName))
-			ss.Spec.Template.Spec.Volumes = append(ss.Spec.Template.Spec.Volumes, corev1.Volume{
-				Name: VolumeName,
-				VolumeSource: corev1.VolumeSource{
-					EmptyDir: &corev1.EmptyDirVolumeSource{},
-				},
-			})
-		}
+// patchStatefulSet applies the required volume and volume mount patches to the StatefulSet
+func (a *Adjuster) patchStatefulSet(ss *appsv1.StatefulSet, ns string, obs *sdiv1alpha1.SDIObserver, ctx context.Context, volumePatched, volumeMountPatched bool) error {
+	if !volumePatched {
+		a.logger.Info(fmt.Sprintf("Patching StatefulSet %s with new volume", VSystemVrepStsName))
+		ss.Spec.Template.Spec.Volumes = append(ss.Spec.Template.Spec.Volumes, corev1.Volume{
+			Name: VolumeName,
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &corev1.EmptyDirVolumeSource{},
+			},
+		})
+	}
 
-		if !volumeMountPatched {
-			a.logger.Info(fmt.Sprintf("Patching StatefulSet %s with new volume mount", VSystemVrepStsName))
-			for i := range ss.Spec.Template.Spec.Containers {
-				if ss.Spec.Template.Spec.Containers[i].Name == VSystemVrepStsName {
-					ss.Spec.Template.Spec.Containers[i].VolumeMounts = append(ss.Spec.Template.Spec.Containers[i].VolumeMounts, corev1.VolumeMount{
-						Name:      VolumeName,
-						MountPath: "/exports",
-					})
-				}
+	if !volumeMountPatched {
+		a.logger.Info(fmt.Sprintf("Patching StatefulSet %s with new volume mount", VSystemVrepStsName))
+		for i := range ss.Spec.Template.Spec.Containers {
+			if ss.Spec.Template.Spec.Containers[i].Name == VSystemVrepStsName {
+				ss.Spec.Template.Spec.Containers[i].VolumeMounts = append(ss.Spec.Template.Spec.Containers[i].VolumeMounts, corev1.VolumeMount{
+					Name:      VolumeName,
+					MountPath: "/exports",
+				})
+				break
 			}
-		}
-
-		if err := a.Client.Update(ctx, ss); err != nil {
-			return fmt.Errorf("unable to update operand statefulset: %w", err)
-		}
-
-		if err := a.adjustSDIDataHub(ns, obs, ctx); err != nil {
-			return err
-		}
-
-		if err := a.pruneStatefulSetOldRevision(ns, obs, ctx); err != nil {
-			return err
 		}
 	}
 
-	return nil
+	if err := a.Client.Update(ctx, ss); err != nil {
+		return fmt.Errorf("unable to update operand statefulset: %w", err)
+	}
+
+	if err := a.adjustSDIDataHub(ns, obs, ctx); err != nil {
+		return err
+	}
+
+	return a.pruneStatefulSetOldRevision(ns, obs, ctx)
 }
 
 func (a *Adjuster) pruneStatefulSetOldRevision(ns string, _ *sdiv1alpha1.SDIObserver, ctx context.Context) error {

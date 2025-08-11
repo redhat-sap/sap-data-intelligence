@@ -43,7 +43,7 @@ func (a *Adjuster) AdjustRoute(ns, name string, managementState sdiv1alpha1.Rout
 	}
 }
 
-func (a *Adjuster) handleManagedRoute(ns, name, routeFile, svcName string, route *routev1.Route, obs *sdiv1alpha1.SDIObserver, ctx context.Context, handleCA bool) error {
+func (a *Adjuster) handleManagedRoute(ns, name, routeFile, svcName string, route *routev1.Route, _ *sdiv1alpha1.SDIObserver, ctx context.Context, handleCA bool) error {
 	create := false
 	err := a.Client.Get(ctx, client.ObjectKey{Name: name, Namespace: ns}, route)
 
@@ -54,45 +54,14 @@ func (a *Adjuster) handleManagedRoute(ns, name, routeFile, svcName string, route
 		route.Namespace = ns
 		route.Name = name
 		if handleCA {
-			svc := &corev1.Service{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      svcName,
-					Namespace: ns,
-				},
-			}
-
-			if err := a.Client.Get(ctx, types.NamespacedName{Namespace: ns, Name: svcName}, svc); err != nil && !errors.IsNotFound(err) {
+			if err := a.setRouteCAForNewRoute(ctx, ns, svcName, route); err != nil {
 				return err
 			}
-
-			caBundleSecret := &corev1.Secret{}
-			if err := a.Client.Get(ctx, types.NamespacedName{Namespace: ns, Name: vsystemCaBundleSecretName}, caBundleSecret); err != nil {
-				return err
-			}
-
-			caBundle, err := getCertFromCaBundleSecret(caBundleSecret)
-			if err != nil {
-				return err
-			}
-			route.Spec.TLS.DestinationCACertificate = caBundle
 		}
 	case err != nil:
 		return err
 	case handleCA:
-		caBundleSecret := &corev1.Secret{}
-		if err := a.Client.Get(ctx, types.NamespacedName{Namespace: ns, Name: vsystemCaBundleSecretName}, caBundleSecret); err != nil {
-			return err
-		}
-
-		caBundle, err := getCertFromCaBundleSecret(caBundleSecret)
-		if err != nil {
-			return err
-		}
-		if route.Spec.TLS.DestinationCACertificate == caBundle {
-			a.logger.Info(fmt.Sprintf("Route %s destination CA certificate is unchanged", name))
-			return nil
-		}
-		route.Spec.TLS.DestinationCACertificate = caBundle
+		return a.updateExistingRouteCA(ctx, ns, name, route)
 	}
 
 	if create {
@@ -112,8 +81,55 @@ func (a *Adjuster) handleManagedRoute(ns, name, routeFile, svcName string, route
 	return nil
 }
 
+// setRouteCAForNewRoute sets the CA certificate for a new route
+func (a *Adjuster) setRouteCAForNewRoute(ctx context.Context, ns, svcName string, route *routev1.Route) error {
+	svc := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      svcName,
+			Namespace: ns,
+		},
+	}
+
+	if err := a.Client.Get(ctx, types.NamespacedName{Namespace: ns, Name: svcName}, svc); err != nil && !errors.IsNotFound(err) {
+		return err
+	}
+
+	caBundleSecret := &corev1.Secret{}
+	if err := a.Client.Get(ctx, types.NamespacedName{Namespace: ns, Name: vsystemCaBundleSecretName}, caBundleSecret); err != nil {
+		return err
+	}
+
+	caBundle, err := getCertFromCaBundleSecret(caBundleSecret)
+	if err != nil {
+		return err
+	}
+	route.Spec.TLS.DestinationCACertificate = caBundle
+	return nil
+}
+
+// updateExistingRouteCA updates the CA certificate for an existing route
+func (a *Adjuster) updateExistingRouteCA(ctx context.Context, ns, name string, route *routev1.Route) error {
+	caBundleSecret := &corev1.Secret{}
+	if err := a.Client.Get(ctx, types.NamespacedName{Namespace: ns, Name: vsystemCaBundleSecretName}, caBundleSecret); err != nil {
+		return err
+	}
+
+	caBundle, err := getCertFromCaBundleSecret(caBundleSecret)
+	if err != nil {
+		return err
+	}
+
+	if route.Spec.TLS.DestinationCACertificate == caBundle {
+		a.logger.Info(fmt.Sprintf("Route %s destination CA certificate is unchanged", name))
+		return nil
+	}
+
+	route.Spec.TLS.DestinationCACertificate = caBundle
+	return nil
+}
+
 // handleRemovedRoute handles routes that are in a removed state.
-func (a *Adjuster) handleRemovedRoute(ns, name string, route *routev1.Route, obs *sdiv1alpha1.SDIObserver, ctx context.Context) error {
+func (a *Adjuster) handleRemovedRoute(ns, name string, route *routev1.Route, _ *sdiv1alpha1.SDIObserver, ctx context.Context) error {
 	if err := a.Client.Get(ctx, client.ObjectKey{Name: name, Namespace: ns}, route); err != nil && errors.IsNotFound(err) {
 		a.logger.Info(fmt.Sprintf("Operand route does not exist: %s", err.Error()))
 		return nil
