@@ -89,9 +89,9 @@ func (a *Adjuster) AdjustSDIDiagnosticsFluentdDaemonsetContainerPrivilege(ns str
 	}
 
 	updated := false
-	for i, c := range ds.Spec.Template.Spec.Containers {
-		if c.Name == DiagnosticFluentdName {
-			if c.SecurityContext.Privileged == nil || !*c.SecurityContext.Privileged {
+	for i := range ds.Spec.Template.Spec.Containers {
+		if ds.Spec.Template.Spec.Containers[i].Name == DiagnosticFluentdName {
+			if ds.Spec.Template.Spec.Containers[i].SecurityContext.Privileged == nil || !*ds.Spec.Template.Spec.Containers[i].SecurityContext.Privileged {
 				ds.Spec.Template.Spec.Containers[i].SecurityContext.Privileged = ptr.To(true)
 				updated = true
 				break
@@ -117,17 +117,17 @@ func (a *Adjuster) AdjustSDIVSystemVrepStatefulSets(ns string, obs *sdiv1alpha1.
 	}
 
 	volumePatched, volumeMountPatched := false, false
-	for _, v := range ss.Spec.Template.Spec.Volumes {
-		if v.Name == VolumeName {
+	for i := range ss.Spec.Template.Spec.Volumes {
+		if ss.Spec.Template.Spec.Volumes[i].Name == VolumeName {
 			volumePatched = true
 			break
 		}
 	}
 
-	for _, c := range ss.Spec.Template.Spec.Containers {
-		if c.Name == VSystemVrepStsName {
-			for _, vm := range c.VolumeMounts {
-				if vm.Name == VolumeName {
+	for i := range ss.Spec.Template.Spec.Containers {
+		if ss.Spec.Template.Spec.Containers[i].Name == VSystemVrepStsName {
+			for j := range ss.Spec.Template.Spec.Containers[i].VolumeMounts {
+				if ss.Spec.Template.Spec.Containers[i].VolumeMounts[j].Name == VolumeName {
 					volumeMountPatched = true
 					break
 				}
@@ -154,9 +154,9 @@ func (a *Adjuster) AdjustSDIVSystemVrepStatefulSets(ns string, obs *sdiv1alpha1.
 
 		if !volumeMountPatched {
 			a.logger.Info(fmt.Sprintf("Patching StatefulSet %s with new volume mount", VSystemVrepStsName))
-			for i, c := range ss.Spec.Template.Spec.Containers {
-				if c.Name == VSystemVrepStsName {
-					ss.Spec.Template.Spec.Containers[i].VolumeMounts = append(c.VolumeMounts, corev1.VolumeMount{
+			for i := range ss.Spec.Template.Spec.Containers {
+				if ss.Spec.Template.Spec.Containers[i].Name == VSystemVrepStsName {
+					ss.Spec.Template.Spec.Containers[i].VolumeMounts = append(ss.Spec.Template.Spec.Containers[i].VolumeMounts, corev1.VolumeMount{
 						Name:      VolumeName,
 						MountPath: "/exports",
 					})
@@ -180,7 +180,7 @@ func (a *Adjuster) AdjustSDIVSystemVrepStatefulSets(ns string, obs *sdiv1alpha1.
 	return nil
 }
 
-func (a *Adjuster) pruneStatefulSetOldRevision(ns string, obs *sdiv1alpha1.SDIObserver, ctx context.Context) error {
+func (a *Adjuster) pruneStatefulSetOldRevision(ns string, _ *sdiv1alpha1.SDIObserver, ctx context.Context) error {
 	ss := &appsv1.StatefulSet{}
 	if err := a.Client.Get(ctx, client.ObjectKey{Name: VSystemVrepStsName, Namespace: ns}, ss); err != nil {
 		return err
@@ -209,10 +209,10 @@ func (a *Adjuster) pruneStatefulSetOldRevision(ns string, obs *sdiv1alpha1.SDIOb
 		return fmt.Errorf("unable to get operand pod list: %w", err)
 	}
 
-	for _, pod := range podList.Items {
-		if pod.Labels[ControllerRevisionHashLabel] != ss.Status.UpdateRevision {
-			a.logger.Info(fmt.Sprintf("Deleting pod %s with outdated revision", pod.Name))
-			if err := a.Client.Delete(ctx, &pod, client.GracePeriodSeconds(DefaultGracePeriodSeconds)); err != nil {
+	for i := range podList.Items {
+		if podList.Items[i].Labels[ControllerRevisionHashLabel] != ss.Status.UpdateRevision {
+			a.logger.Info(fmt.Sprintf("Deleting pod %s with outdated revision", podList.Items[i].Name))
+			if err := a.Client.Delete(ctx, &podList.Items[i], client.GracePeriodSeconds(DefaultGracePeriodSeconds)); err != nil {
 				return fmt.Errorf("unable to delete operand pod: %w", err)
 			}
 		}
@@ -243,7 +243,7 @@ func (a *Adjuster) AdjustNamespaceAnnotation(ns, nodeSelector string, ctx contex
 	return nil
 }
 
-func (a *Adjuster) AdjustSDIRbac(ns string, obs *sdiv1alpha1.SDIObserver, ctx context.Context) error {
+func (a *Adjuster) AdjustSDIRbac(ns string, _ *sdiv1alpha1.SDIObserver, ctx context.Context) error {
 	// Define role and role binding names
 	const (
 		privilegedRoleName        = "sdi-privileged"

@@ -99,10 +99,10 @@ func TestAdjuster_Adjust_ErrorPropagation(t *testing.T) {
 
 	expectedError := "test error"
 	mockActioner := &MockActioner{
-		AdjustNodesFunc: func(a *Adjuster, ctx context.Context) error {
+		AdjustNodesFunc: func(_ *Adjuster, _ context.Context) error {
 			return nil
 		},
-		AdjustSLCBNetworkFunc: func(a *Adjuster, ctx context.Context) error {
+		AdjustSLCBNetworkFunc: func(_ *Adjuster, _ context.Context) error {
 			return &MockError{message: expectedError}
 		},
 	}
