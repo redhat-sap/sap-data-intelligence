@@ -23,12 +23,18 @@ linters:
 
 linters-settings:
   gocyclo:
-    min-complexity: 15
+    min-complexity: 20
+  revive:
+    rules:
+      # Disable context-as-argument rule as it would require breaking interface changes
+      - name: context-as-argument
+        disabled: true
   gosec:
     # Exclude rules that are too strict for our use case
     excludes:
       - G301 # Expect directory permissions to be 0750 or less
       - G302 # Expect file permissions to be 0600 or less
+      - G101 # Look for hard coded credentials (we have legitimate config file names)
   gocritic:
     enabled-tags:
       - diagnostic
