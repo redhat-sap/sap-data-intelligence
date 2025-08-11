@@ -22,7 +22,7 @@ const (
 )
 
 // AdjustRoute manages the route based on its management state.
-func (a *Adjuster) AdjustRoute(ns string, name string, managementState sdiv1alpha1.RouteManagementState, routeFile string, svcName string, obs *sdiv1alpha1.SDIObserver, ctx context.Context, handleCA bool) error {
+func (a *Adjuster) AdjustRoute(ns, name string, managementState sdiv1alpha1.RouteManagementState, routeFile, svcName string, obs *sdiv1alpha1.SDIObserver, ctx context.Context, handleCA bool) error {
 	route := &routev1.Route{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -43,11 +43,12 @@ func (a *Adjuster) AdjustRoute(ns string, name string, managementState sdiv1alph
 	}
 }
 
-func (a *Adjuster) handleManagedRoute(ns string, name string, routeFile string, svcName string, route *routev1.Route, obs *sdiv1alpha1.SDIObserver, ctx context.Context, handleCA bool) error {
+func (a *Adjuster) handleManagedRoute(ns, name, routeFile, svcName string, route *routev1.Route, obs *sdiv1alpha1.SDIObserver, ctx context.Context, handleCA bool) error {
 	create := false
 	err := a.Client.Get(ctx, client.ObjectKey{Name: name, Namespace: ns}, route)
 
-	if err != nil && errors.IsNotFound(err) {
+	switch {
+	case err != nil && errors.IsNotFound(err):
 		create = true
 		route = assets.GetRouteFromFile(routeFile)
 		route.Namespace = ns
@@ -75,9 +76,9 @@ func (a *Adjuster) handleManagedRoute(ns string, name string, routeFile string, 
 			}
 			route.Spec.TLS.DestinationCACertificate = caBundle
 		}
-	} else if err != nil {
+	case err != nil:
 		return err
-	} else if handleCA {
+	case handleCA:
 		caBundleSecret := &corev1.Secret{}
 		if err := a.Client.Get(ctx, types.NamespacedName{Namespace: ns, Name: vsystemCaBundleSecretName}, caBundleSecret); err != nil {
 			return err
@@ -90,9 +91,8 @@ func (a *Adjuster) handleManagedRoute(ns string, name string, routeFile string, 
 		if route.Spec.TLS.DestinationCACertificate == caBundle {
 			a.logger.Info(fmt.Sprintf("Route %s destination CA certificate is unchanged", name))
 			return nil
-		} else {
-			route.Spec.TLS.DestinationCACertificate = caBundle
 		}
+		route.Spec.TLS.DestinationCACertificate = caBundle
 	}
 
 	if create {
@@ -113,7 +113,7 @@ func (a *Adjuster) handleManagedRoute(ns string, name string, routeFile string, 
 }
 
 // handleRemovedRoute handles routes that are in a removed state.
-func (a *Adjuster) handleRemovedRoute(ns string, name string, route *routev1.Route, obs *sdiv1alpha1.SDIObserver, ctx context.Context) error {
+func (a *Adjuster) handleRemovedRoute(ns, name string, route *routev1.Route, obs *sdiv1alpha1.SDIObserver, ctx context.Context) error {
 	if err := a.Client.Get(ctx, client.ObjectKey{Name: name, Namespace: ns}, route); err != nil && errors.IsNotFound(err) {
 		a.logger.Info(fmt.Sprintf("Operand route does not exist: %s", err.Error()))
 		return nil

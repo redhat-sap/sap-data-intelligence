@@ -36,7 +36,7 @@ func (so *SDIObserver) AdjustNodes(a *adjuster.Adjuster, ctx context.Context) er
 }
 
 // AdjustStorage currently does nothing; needs implementation.
-func (so *SDIObserver) AdjustStorage(a *adjuster.Adjuster, ctx context.Context) error {
+func (so *SDIObserver) AdjustStorage(a *adjuster.Adjuster, _ context.Context) error {
 	a.Logger().V(0).Info("Storage adjustment is currently making no changes.")
 	return nil
 }
