@@ -1,0 +1,87 @@
+name: Observer Operator CI
+
+on:
+  push:
+    branches: [ master, main ]
+    paths:
+      - 'observer-operator/**'
+      - '.github/workflows/observer-operator-ci.yml'
+  pull_request:
+    branches: [ master, main ]
+    paths:
+      - 'observer-operator/**'
+      - '.github/workflows/observer-operator-ci.yml'
+
+defaults:
+  run:
+    working-directory: observer-operator
+
+jobs:
+  test:
+    name: Test Observer Operator
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        go-version: ['1.23']
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ matrix.go-version }}
+        cache-dependency-path: observer-operator/go.sum
+
+    - name: Cache Go modules
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('observer-operator/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
+
+    - name: Download dependencies
+      run: go mod download
+
+    - name: Verify dependencies
+      run: go mod verify
+
+    - name: Run quality checks
+      run: make quality-check
+
+    - name: Run unit tests
+      run: make test-unit
+
+    - name: Upload coverage reports to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        file: observer-operator/cover.out
+        flags: observer-operator
+        name: observer-operator-coverage
+        fail_ci_if_error: false
+
+  build:
+    name: Build Observer Operator
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.23'
+        cache-dependency-path: observer-operator/go.sum
+
+    - name: Build binary
+      run: make build
+
+    - name: Build Docker image
+      run: make docker-build IMG=observer-operator:${{ github.sha }}
