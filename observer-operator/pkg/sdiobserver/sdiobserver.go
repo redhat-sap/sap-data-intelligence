@@ -5,6 +5,7 @@ import (
 	"fmt"
 	sdiv1alpha1 "github.com/redhat-sap/sap-data-intelligence/observer-operator/api/v1alpha1"
 	"github.com/redhat-sap/sap-data-intelligence/observer-operator/pkg/adjuster"
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 )
 
 // SDIObserver encapsulates operations to adjust SDIObserver resources.
@@ -43,7 +44,7 @@ func (so *SDIObserver) AdjustStorage(a *adjuster.Adjuster, ctx context.Context) 
 func (so *SDIObserver) AdjustSDIConfig(a *adjuster.Adjuster, ctx context.Context) error {
 	a.Logger().V(0).Info("Adjusting SDI configuration.")
 
-	for _, ns := range []string{a.Namespace, so.obs.Spec.SDINamespace, so.obs.Spec.SLCBNamespace, "datahub-system"} {
+	for _, ns := range []string{a.Namespace, so.obs.Spec.SDINamespace, so.obs.Spec.SLCBNamespace, adjuster.DataHubSystemNamespace} {
 		if err := a.AdjustNamespaceAnnotation(ns, so.obs.Spec.SDINodeLabel, ctx); err != nil {
 			return err
 		}
@@ -62,7 +63,7 @@ func (so *SDIObserver) AdjustSDIConfig(a *adjuster.Adjuster, ctx context.Context
 	}
 
 	if len(errs) > 0 {
-		return errs[0]
+		return utilerrors.NewAggregate(errs)
 	}
 
 	a.Logger().Info("Successfully adjusted SDI configuration.")

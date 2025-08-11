@@ -69,7 +69,11 @@ type SDIObserverReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.13.0/pkg/reconcile
 func (r *SDIObserverReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	logger := log.FromContext(ctx).WithValues("sdiobserver", req.NamespacedName)
+	logger := log.FromContext(ctx).WithValues(
+		"sdiobserver", req.NamespacedName,
+		"namespace", req.Namespace,
+		"name", req.Name,
+	)
 
 	operatorCR := &sdiv1alpha1.SDIObserver{}
 	err := r.Get(ctx, req.NamespacedName, operatorCR)
@@ -113,7 +117,7 @@ func (r *SDIObserverReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	}
 
 	meta.SetStatusCondition(&operatorCR.Status.Conditions, metav1.Condition{
-		Type:               "OperatorDegraded",
+		Type:               sdiv1alpha1.ConditionTypeDegraded,
 		Status:             metav1.ConditionFalse,
 		Reason:             sdiv1alpha1.ReasonSucceeded,
 		LastTransitionTime: metav1.Now(),
@@ -138,28 +142,35 @@ func (r *SDIObserverReconciler) SetupWithManager(mgr ctrl.Manager) error {
 func (r *SDIObserverReconciler) ensureStatusConditions(cr *sdiv1alpha1.SDIObserver) bool {
 	updateStatus := false
 
+	// Helper function to set initial condition
+	setInitialCondition := func(conditions *[]metav1.Condition) {
+		meta.SetStatusCondition(conditions, metav1.Condition{
+			Type:               sdiv1alpha1.ConditionTypeReady,
+			Status:             metav1.ConditionUnknown,
+			Reason:             sdiv1alpha1.ReasonCRNotAvailable,
+			LastTransitionTime: metav1.Now(),
+			Message:            "Starting reconciliation",
+		})
+	}
+
 	if cr.Status.Conditions == nil || len(cr.Status.Conditions) == 0 {
-		meta.SetStatusCondition(&cr.Status.Conditions, metav1.Condition{Type: "Available", Status: metav1.ConditionUnknown, Reason: "Reconciling", Message: "Starting reconciliation"})
-		meta.SetStatusCondition(&cr.Status.SDIConfigStatus.Conditions, metav1.Condition{Type: "Available", Status: metav1.ConditionUnknown, Reason: "Reconciling", Message: "Starting reconciliation"})
-		meta.SetStatusCondition(&cr.Status.SLCBRouteStatus.Conditions, metav1.Condition{Type: "Available", Status: metav1.ConditionUnknown, Reason: "Reconciling", Message: "Starting reconciliation"})
-		meta.SetStatusCondition(&cr.Status.VSystemRouteStatus.Conditions, metav1.Condition{Type: "Available", Status: metav1.ConditionUnknown, Reason: "Reconciling", Message: "Starting reconciliation"})
-		meta.SetStatusCondition(&cr.Status.SDINodeConfigStatus.Conditions, metav1.Condition{Type: "Available", Status: metav1.ConditionUnknown, Reason: "Reconciling", Message: "Starting reconciliation"})
+		setInitialCondition(&cr.Status.Conditions)
 		updateStatus = true
 	}
 	if cr.Status.SDIConfigStatus.Conditions == nil || len(cr.Status.SDIConfigStatus.Conditions) == 0 {
-		meta.SetStatusCondition(&cr.Status.SDIConfigStatus.Conditions, metav1.Condition{Type: "Available", Status: metav1.ConditionUnknown, Reason: "Reconciling", Message: "Starting reconciliation"})
+		setInitialCondition(&cr.Status.SDIConfigStatus.Conditions)
 		updateStatus = true
 	}
 	if cr.Status.SLCBRouteStatus.Conditions == nil || len(cr.Status.SLCBRouteStatus.Conditions) == 0 {
-		meta.SetStatusCondition(&cr.Status.SLCBRouteStatus.Conditions, metav1.Condition{Type: "Available", Status: metav1.ConditionUnknown, Reason: "Reconciling", Message: "Starting reconciliation"})
+		setInitialCondition(&cr.Status.SLCBRouteStatus.Conditions)
 		updateStatus = true
 	}
 	if cr.Status.VSystemRouteStatus.Conditions == nil || len(cr.Status.VSystemRouteStatus.Conditions) == 0 {
-		meta.SetStatusCondition(&cr.Status.VSystemRouteStatus.Conditions, metav1.Condition{Type: "Available", Status: metav1.ConditionUnknown, Reason: "Reconciling", Message: "Starting reconciliation"})
+		setInitialCondition(&cr.Status.VSystemRouteStatus.Conditions)
 		updateStatus = true
 	}
 	if cr.Status.SDINodeConfigStatus.Conditions == nil || len(cr.Status.SDINodeConfigStatus.Conditions) == 0 {
-		meta.SetStatusCondition(&cr.Status.SDINodeConfigStatus.Conditions, metav1.Condition{Type: "Available", Status: metav1.ConditionUnknown, Reason: "Reconciling", Message: "Starting reconciliation"})
+		setInitialCondition(&cr.Status.SDINodeConfigStatus.Conditions)
 		updateStatus = true
 	}
 	return updateStatus
@@ -167,10 +178,10 @@ func (r *SDIObserverReconciler) ensureStatusConditions(cr *sdiv1alpha1.SDIObserv
 
 func (r *SDIObserverReconciler) handleError(ctx context.Context, cr *sdiv1alpha1.SDIObserver, err error, msg string) (ctrl.Result, error) {
 	meta.SetStatusCondition(&cr.Status.Conditions, metav1.Condition{
-		Type:               "OperatorDegraded",
+		Type:               sdiv1alpha1.ConditionTypeDegraded,
 		Status:             metav1.ConditionTrue,
-		Reason:             sdiv1alpha1.ReasonCRNotAvailable,
-		LastTransitionTime: metav1.NewTime(time.Now()),
+		Reason:             sdiv1alpha1.ReasonFailed,
+		LastTransitionTime: metav1.Now(),
 		Message:            msg,
 	})
 	if updateErr := r.Status().Update(ctx, cr); updateErr != nil {
