@@ -93,6 +93,7 @@ func (a *Adjuster) AdjustSDIDiagnosticsFluentdDaemonsetContainerPrivilege(ns str
 		if ds.Spec.Template.Spec.Containers[i].Name == DiagnosticFluentdName {
 			if ds.Spec.Template.Spec.Containers[i].SecurityContext.Privileged == nil || !*ds.Spec.Template.Spec.Containers[i].SecurityContext.Privileged {
 				ds.Spec.Template.Spec.Containers[i].SecurityContext.Privileged = ptr.To(true)
+				ds.Spec.Template.Spec.Containers[i].SecurityContext.AllowPrivilegeEscalation = ptr.To(true)
 				updated = true
 				break
 			}
