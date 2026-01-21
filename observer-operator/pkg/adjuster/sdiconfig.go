@@ -59,13 +59,13 @@ func (a *Adjuster) adjustSDIDataHub(ns string, obs *sdiv1alpha1.SDIObserver, ctx
 	}
 
 	if len(vRep) == 0 {
-		a.logger.Info("Patching DataHub vRep to set exportsMask to true", "namespace", ns)
+		a.logger.Info("DataHub vRep: patching exportsMask", "namespace", ns)
 		vRep["exportsMask"] = true
 		if err := a.Client.Update(ctx, obj); err != nil {
 			return err
 		}
 	} else {
-		a.logger.Info("DataHub vRep is already patched")
+		a.logger.V(1).Info("DataHub vRep: already configured")
 	}
 	return nil
 }
@@ -89,24 +89,53 @@ func (a *Adjuster) AdjustSDIDiagnosticsFluentdDaemonsetContainerPrivilege(ns str
 	}
 
 	updated := false
+
+	// Patch pod-level securityContext to allow running as root
+	podSecCtx := ds.Spec.Template.Spec.SecurityContext
+	if podSecCtx == nil {
+		ds.Spec.Template.Spec.SecurityContext = &corev1.PodSecurityContext{}
+		podSecCtx = ds.Spec.Template.Spec.SecurityContext
+	}
+	if podSecCtx.RunAsNonRoot == nil || *podSecCtx.RunAsNonRoot {
+		podSecCtx.RunAsNonRoot = ptr.To(false)
+		updated = true
+	}
+	if podSecCtx.RunAsUser == nil || *podSecCtx.RunAsUser != 0 {
+		podSecCtx.RunAsUser = ptr.To(int64(0))
+		updated = true
+	}
+
+	// Patch container-level securityContext
 	for i := range ds.Spec.Template.Spec.Containers {
 		if ds.Spec.Template.Spec.Containers[i].Name == DiagnosticFluentdName {
-			if ds.Spec.Template.Spec.Containers[i].SecurityContext.Privileged == nil || !*ds.Spec.Template.Spec.Containers[i].SecurityContext.Privileged {
-				ds.Spec.Template.Spec.Containers[i].SecurityContext.Privileged = ptr.To(true)
-				ds.Spec.Template.Spec.Containers[i].SecurityContext.AllowPrivilegeEscalation = ptr.To(true)
-				updated = true
-				break
+			containerSecCtx := ds.Spec.Template.Spec.Containers[i].SecurityContext
+			if containerSecCtx == nil {
+				ds.Spec.Template.Spec.Containers[i].SecurityContext = &corev1.SecurityContext{}
+				containerSecCtx = ds.Spec.Template.Spec.Containers[i].SecurityContext
 			}
+			if containerSecCtx.Privileged == nil || !*containerSecCtx.Privileged {
+				containerSecCtx.Privileged = ptr.To(true)
+				updated = true
+			}
+			if containerSecCtx.AllowPrivilegeEscalation == nil || !*containerSecCtx.AllowPrivilegeEscalation {
+				containerSecCtx.AllowPrivilegeEscalation = ptr.To(true)
+				updated = true
+			}
+			if containerSecCtx.RunAsNonRoot == nil || *containerSecCtx.RunAsNonRoot {
+				containerSecCtx.RunAsNonRoot = ptr.To(false)
+				updated = true
+			}
+			break
 		}
 	}
 
 	if updated {
-		a.logger.Info("Patching daemonset with privileged security context")
+		a.logger.Info("DaemonSet: patching security context", "name", DiagnosticFluentdName)
 		if err := a.Client.Update(ctx, ds); err != nil {
 			return err
 		}
 	} else {
-		a.logger.Info(fmt.Sprintf("Daemonset %s is already using privileged security context", DiagnosticFluentdName))
+		a.logger.V(1).Info("DaemonSet: already configured", "name", DiagnosticFluentdName)
 	}
 	return nil
 }
@@ -121,7 +150,7 @@ func (a *Adjuster) AdjustSDIVSystemVrepStatefulSets(ns string, obs *sdiv1alpha1.
 	volumeMountPatched := a.isVolumeMountPatched(ss)
 
 	if volumePatched && volumeMountPatched {
-		a.logger.Info(fmt.Sprintf("StatefulSet %s volumes and mounts are already patched", VSystemVrepStsName))
+		a.logger.V(1).Info("StatefulSet: already configured", "name", VSystemVrepStsName)
 		return a.pruneStatefulSetOldRevision(ns, obs, ctx)
 	}
 
@@ -156,7 +185,7 @@ func (a *Adjuster) isVolumeMountPatched(ss *appsv1.StatefulSet) bool {
 // patchStatefulSet applies the required volume and volume mount patches to the StatefulSet
 func (a *Adjuster) patchStatefulSet(ss *appsv1.StatefulSet, ns string, obs *sdiv1alpha1.SDIObserver, ctx context.Context, volumePatched, volumeMountPatched bool) error {
 	if !volumePatched {
-		a.logger.Info(fmt.Sprintf("Patching StatefulSet %s with new volume", VSystemVrepStsName))
+		a.logger.Info("StatefulSet: adding volume", "name", VSystemVrepStsName, "volume", VolumeName)
 		ss.Spec.Template.Spec.Volumes = append(ss.Spec.Template.Spec.Volumes, corev1.Volume{
 			Name: VolumeName,
 			VolumeSource: corev1.VolumeSource{
@@ -166,7 +195,7 @@ func (a *Adjuster) patchStatefulSet(ss *appsv1.StatefulSet, ns string, obs *sdiv
 	}
 
 	if !volumeMountPatched {
-		a.logger.Info(fmt.Sprintf("Patching StatefulSet %s with new volume mount", VSystemVrepStsName))
+		a.logger.Info("StatefulSet: adding volume mount", "name", VSystemVrepStsName, "mount", "/exports")
 		for i := range ss.Spec.Template.Spec.Containers {
 			if ss.Spec.Template.Spec.Containers[i].Name == VSystemVrepStsName {
 				ss.Spec.Template.Spec.Containers[i].VolumeMounts = append(ss.Spec.Template.Spec.Containers[i].VolumeMounts, corev1.VolumeMount{
@@ -196,7 +225,7 @@ func (a *Adjuster) pruneStatefulSetOldRevision(ns string, _ *sdiv1alpha1.SDIObse
 	}
 
 	if ss.Status.UpdateRevision == ss.Status.CurrentRevision {
-		a.logger.Info(fmt.Sprintf("StatefulSet %s current revision matches update revision", VSystemVrepStsName))
+		a.logger.V(1).Info("StatefulSet: revision already current", "name", VSystemVrepStsName)
 		return nil
 	}
 
@@ -208,11 +237,11 @@ func (a *Adjuster) pruneStatefulSetOldRevision(ns string, _ *sdiv1alpha1.SDIObse
 	}
 
 	if len(updateRevisionPodList.Items) > 0 {
-		a.logger.Info("Pods for the updated revision exist; no action needed")
+		a.logger.V(1).Info("StatefulSet: pods already on current revision", "name", VSystemVrepStsName)
 		return nil
 	}
 
-	a.logger.Info("Cleaning up pods from outdated revisions")
+	a.logger.Info("StatefulSet: cleaning up outdated pods", "name", VSystemVrepStsName)
 	podList := &corev1.PodList{}
 	if err := a.Client.List(ctx, podList, client.InNamespace(ns), client.MatchingLabels(ss.Spec.Selector.MatchLabels)); err != nil {
 		return fmt.Errorf("unable to get operand pod list: %w", err)
@@ -220,7 +249,7 @@ func (a *Adjuster) pruneStatefulSetOldRevision(ns string, _ *sdiv1alpha1.SDIObse
 
 	for i := range podList.Items {
 		if podList.Items[i].Labels[ControllerRevisionHashLabel] != ss.Status.UpdateRevision {
-			a.logger.Info(fmt.Sprintf("Deleting pod %s with outdated revision", podList.Items[i].Name))
+			a.logger.Info("Pod: deleting outdated revision", "pod", podList.Items[i].Name)
 			if err := a.Client.Delete(ctx, &podList.Items[i], client.GracePeriodSeconds(DefaultGracePeriodSeconds)); err != nil {
 				return fmt.Errorf("unable to delete operand pod: %w", err)
 			}
@@ -241,13 +270,13 @@ func (a *Adjuster) AdjustNamespaceAnnotation(ns, nodeSelector string, ctx contex
 	}
 
 	if currentSelector := namespace.Annotations[AnnotationKey]; currentSelector != nodeSelector {
-		a.logger.Info("Updating namespace annotation")
+		a.logger.Info("Namespace: updating annotation", "namespace", ns)
 		namespace.Annotations[AnnotationKey] = nodeSelector
 		if err := a.Client.Update(ctx, namespace); err != nil {
 			return fmt.Errorf("unable to update namespace annotation: %w", err)
 		}
 	} else {
-		a.logger.Info(fmt.Sprintf("Namespace %s annotation is already set", ns))
+		a.logger.V(1).Info("Namespace: annotation already set", "namespace", ns)
 	}
 	return nil
 }
@@ -277,7 +306,7 @@ func (a *Adjuster) AdjustSDIRbac(ns string, _ *sdiv1alpha1.SDIObserver, ctx cont
 		return fmt.Errorf("unable to ensure anyuid role binding: %w", err)
 	}
 
-	a.logger.Info("SDI RBAC settings adjustment is done")
+	a.logger.V(1).Info("RBAC: adjustment complete")
 	return nil
 }
 
@@ -288,7 +317,7 @@ func (a *Adjuster) ensureRole(ns, name string, getRoleFunc func() client.Object,
 
 	if err := a.Client.Get(ctx, client.ObjectKeyFromObject(role), role); err != nil {
 		if errors.IsNotFound(err) {
-			a.logger.Info(fmt.Sprintf("Creating role %s", name))
+			a.logger.Info("Role: creating", "name", name)
 			if err := a.Client.Create(ctx, role); err != nil {
 				return fmt.Errorf("unable to create role %s: %w", name, err)
 			}
@@ -381,7 +410,7 @@ func (a *Adjuster) ensureRoleBinding(ns, name string, getRoleBindingFunc func() 
 	existingRoleBinding := &rbacv1.RoleBinding{}
 	if err := a.Client.Get(ctx, client.ObjectKeyFromObject(desiredRoleBinding), existingRoleBinding); err != nil {
 		if errors.IsNotFound(err) {
-			a.logger.Info(fmt.Sprintf("Creating role binding %s", name))
+			a.logger.Info("RoleBinding: creating", "name", name)
 			if err := a.Client.Create(ctx, desiredRoleBinding); err != nil {
 				return fmt.Errorf("unable to create role binding %s: %w", name, err)
 			}
@@ -391,7 +420,7 @@ func (a *Adjuster) ensureRoleBinding(ns, name string, getRoleBindingFunc func() 
 	} else {
 		// Compare using reflect.DeepEqual
 		if !reflect.DeepEqual(existingRoleBinding.Subjects, desiredRoleBinding.Subjects) {
-			a.logger.Info(fmt.Sprintf("Updating role binding %s", name))
+			a.logger.Info("RoleBinding: updating", "name", name)
 			// Update the existing role binding with the desired subjects
 			existingRoleBinding.Subjects = desiredRoleBinding.Subjects
 			if err := a.Client.Update(ctx, existingRoleBinding); err != nil {
