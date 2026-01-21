@@ -70,11 +70,8 @@ type SDIObserverReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.13.0/pkg/reconcile
 func (r *SDIObserverReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	logger := log.FromContext(ctx).WithValues(
-		"sdiobserver", req.NamespacedName,
-		"namespace", req.Namespace,
-		"name", req.Name,
-	)
+	// controller-runtime automatically adds controller, namespace, name, and reconcileID to the context
+	logger := log.FromContext(ctx)
 
 	operatorCR := &sdiv1alpha1.SDIObserver{}
 	err := r.Get(ctx, req.NamespacedName, operatorCR)

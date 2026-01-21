@@ -4,7 +4,9 @@ import (
 	"context"
 
 	"github.com/go-logr/logr"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -36,6 +38,9 @@ func New(name, namespace string, c client.Client, scheme *runtime.Scheme, logger
 }
 
 // Adjust performs a series of adjustments using the provided Actioner.
+// It continues processing all adjustments even if some fail, collecting errors.
+// NotFound errors are logged and skipped (component not yet available).
+// Other errors are aggregated and returned at the end.
 func (a *Adjuster) Adjust(ac Actioner, ctx context.Context) error {
 	// List of adjustment functions with their corresponding log messages
 	adjustments := []struct {
@@ -49,13 +54,19 @@ func (a *Adjuster) Adjust(ac Actioner, ctx context.Context) error {
 		{"SDI network", func() error { return ac.AdjustSDINetwork(a, ctx) }},
 	}
 
+	var errs []error
 	for _, adjustment := range adjustments {
 		if err := adjustment.action(); err != nil {
-			return err
+			if errors.IsNotFound(err) {
+				a.logger.Info("Component not found, skipping adjustment", "adjustment", adjustment.name, "error", err.Error())
+				continue
+			}
+			a.logger.Error(err, "Adjustment failed", "adjustment", adjustment.name)
+			errs = append(errs, err)
 		}
 	}
 
-	return nil
+	return utilerrors.NewAggregate(errs)
 }
 
 // Logger returns the logger instance associated with the Adjuster.
