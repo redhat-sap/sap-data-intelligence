@@ -13,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
@@ -151,7 +152,7 @@ func (a *Adjuster) AdjustSDIVSystemVrepStatefulSets(ns string, obs *sdiv1alpha1.
 
 	if volumePatched && volumeMountPatched {
 		a.logger.V(1).Info("StatefulSet: already configured", "name", VSystemVrepStsName)
-		return nil
+		return a.pruneStatefulSetOldRevision(ns, ctx)
 	}
 
 	return a.patchStatefulSet(ss, ns, obs, ctx, volumePatched, volumeMountPatched)
@@ -213,6 +214,53 @@ func (a *Adjuster) patchStatefulSet(ss *appsv1.StatefulSet, ns string, obs *sdiv
 
 	if err := a.adjustSDIDataHub(ns, obs, ctx); err != nil {
 		return err
+	}
+
+	return a.pruneStatefulSetOldRevision(ns, ctx)
+}
+
+// pruneStatefulSetOldRevision deletes pods running on old StatefulSet revisions.
+// This is needed because the StatefulSet controller may not automatically roll out
+// changes when the current pod is unhealthy (e.g., failing due to missing volume mounts).
+func (a *Adjuster) pruneStatefulSetOldRevision(ns string, ctx context.Context) error {
+	ss := &appsv1.StatefulSet{}
+	if err := a.Client.Get(ctx, client.ObjectKey{Name: VSystemVrepStsName, Namespace: ns}, ss); err != nil {
+		return err
+	}
+
+	// If revisions match, no pruning needed
+	if ss.Status.UpdateRevision == ss.Status.CurrentRevision {
+		a.logger.V(1).Info("StatefulSet: revision already current", "name", VSystemVrepStsName)
+		return nil
+	}
+
+	// Check if any pods are already on the update revision
+	updateRevisionPodList := &corev1.PodList{}
+	updateRevisionSelector := labels.SelectorFromSet(labels.Set{ControllerRevisionHashLabel: ss.Status.UpdateRevision})
+
+	if err := a.Client.List(ctx, updateRevisionPodList, client.InNamespace(ns), client.MatchingLabelsSelector{Selector: updateRevisionSelector}); err != nil {
+		return err
+	}
+
+	if len(updateRevisionPodList.Items) > 0 {
+		a.logger.V(1).Info("StatefulSet: pods already on current revision", "name", VSystemVrepStsName)
+		return nil
+	}
+
+	// Delete pods that are not on the update revision
+	a.logger.Info("StatefulSet: cleaning up outdated pods", "name", VSystemVrepStsName)
+	podList := &corev1.PodList{}
+	if err := a.Client.List(ctx, podList, client.InNamespace(ns), client.MatchingLabels(ss.Spec.Selector.MatchLabels)); err != nil {
+		return fmt.Errorf("unable to get operand pod list: %w", err)
+	}
+
+	for i := range podList.Items {
+		if podList.Items[i].Labels[ControllerRevisionHashLabel] != ss.Status.UpdateRevision {
+			a.logger.Info("Pod: deleting outdated revision", "pod", podList.Items[i].Name)
+			if err := a.Client.Delete(ctx, &podList.Items[i], client.GracePeriodSeconds(DefaultGracePeriodSeconds)); err != nil {
+				return fmt.Errorf("unable to delete operand pod: %w", err)
+			}
+		}
 	}
 
 	return nil
