@@ -13,7 +13,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
@@ -107,26 +106,27 @@ func (a *Adjuster) AdjustSDIDiagnosticsFluentdDaemonsetContainerPrivilege(ns str
 
 	// Patch container-level securityContext
 	for i := range ds.Spec.Template.Spec.Containers {
-		if ds.Spec.Template.Spec.Containers[i].Name == DiagnosticFluentdName {
-			containerSecCtx := ds.Spec.Template.Spec.Containers[i].SecurityContext
-			if containerSecCtx == nil {
-				ds.Spec.Template.Spec.Containers[i].SecurityContext = &corev1.SecurityContext{}
-				containerSecCtx = ds.Spec.Template.Spec.Containers[i].SecurityContext
-			}
-			if containerSecCtx.Privileged == nil || !*containerSecCtx.Privileged {
-				containerSecCtx.Privileged = ptr.To(true)
-				updated = true
-			}
-			if containerSecCtx.AllowPrivilegeEscalation == nil || !*containerSecCtx.AllowPrivilegeEscalation {
-				containerSecCtx.AllowPrivilegeEscalation = ptr.To(true)
-				updated = true
-			}
-			if containerSecCtx.RunAsNonRoot == nil || *containerSecCtx.RunAsNonRoot {
-				containerSecCtx.RunAsNonRoot = ptr.To(false)
-				updated = true
-			}
-			break
+		if ds.Spec.Template.Spec.Containers[i].Name != DiagnosticFluentdName {
+			continue
 		}
+		containerSecCtx := ds.Spec.Template.Spec.Containers[i].SecurityContext
+		if containerSecCtx == nil {
+			ds.Spec.Template.Spec.Containers[i].SecurityContext = &corev1.SecurityContext{}
+			containerSecCtx = ds.Spec.Template.Spec.Containers[i].SecurityContext
+		}
+		if containerSecCtx.Privileged == nil || !*containerSecCtx.Privileged {
+			containerSecCtx.Privileged = ptr.To(true)
+			updated = true
+		}
+		if containerSecCtx.AllowPrivilegeEscalation == nil || !*containerSecCtx.AllowPrivilegeEscalation {
+			containerSecCtx.AllowPrivilegeEscalation = ptr.To(true)
+			updated = true
+		}
+		if containerSecCtx.RunAsNonRoot == nil || *containerSecCtx.RunAsNonRoot {
+			containerSecCtx.RunAsNonRoot = ptr.To(false)
+			updated = true
+		}
+		break
 	}
 
 	if updated {
@@ -151,7 +151,7 @@ func (a *Adjuster) AdjustSDIVSystemVrepStatefulSets(ns string, obs *sdiv1alpha1.
 
 	if volumePatched && volumeMountPatched {
 		a.logger.V(1).Info("StatefulSet: already configured", "name", VSystemVrepStsName)
-		return a.pruneStatefulSetOldRevision(ns, obs, ctx)
+		return nil
 	}
 
 	return a.patchStatefulSet(ss, ns, obs, ctx, volumePatched, volumeMountPatched)
@@ -213,47 +213,6 @@ func (a *Adjuster) patchStatefulSet(ss *appsv1.StatefulSet, ns string, obs *sdiv
 
 	if err := a.adjustSDIDataHub(ns, obs, ctx); err != nil {
 		return err
-	}
-
-	return a.pruneStatefulSetOldRevision(ns, obs, ctx)
-}
-
-func (a *Adjuster) pruneStatefulSetOldRevision(ns string, _ *sdiv1alpha1.SDIObserver, ctx context.Context) error {
-	ss := &appsv1.StatefulSet{}
-	if err := a.Client.Get(ctx, client.ObjectKey{Name: VSystemVrepStsName, Namespace: ns}, ss); err != nil {
-		return err
-	}
-
-	if ss.Status.UpdateRevision == ss.Status.CurrentRevision {
-		a.logger.V(1).Info("StatefulSet: revision already current", "name", VSystemVrepStsName)
-		return nil
-	}
-
-	updateRevisionPodList := &corev1.PodList{}
-	updateRevisionSelector := labels.SelectorFromSet(labels.Set{ControllerRevisionHashLabel: ss.Status.UpdateRevision})
-
-	if err := a.Client.List(ctx, updateRevisionPodList, client.InNamespace(ns), client.MatchingLabelsSelector{Selector: updateRevisionSelector}); err != nil {
-		return err
-	}
-
-	if len(updateRevisionPodList.Items) > 0 {
-		a.logger.V(1).Info("StatefulSet: pods already on current revision", "name", VSystemVrepStsName)
-		return nil
-	}
-
-	a.logger.Info("StatefulSet: cleaning up outdated pods", "name", VSystemVrepStsName)
-	podList := &corev1.PodList{}
-	if err := a.Client.List(ctx, podList, client.InNamespace(ns), client.MatchingLabels(ss.Spec.Selector.MatchLabels)); err != nil {
-		return fmt.Errorf("unable to get operand pod list: %w", err)
-	}
-
-	for i := range podList.Items {
-		if podList.Items[i].Labels[ControllerRevisionHashLabel] != ss.Status.UpdateRevision {
-			a.logger.Info("Pod: deleting outdated revision", "pod", podList.Items[i].Name)
-			if err := a.Client.Delete(ctx, &podList.Items[i], client.GracePeriodSeconds(DefaultGracePeriodSeconds)); err != nil {
-				return fmt.Errorf("unable to delete operand pod: %w", err)
-			}
-		}
 	}
 
 	return nil
