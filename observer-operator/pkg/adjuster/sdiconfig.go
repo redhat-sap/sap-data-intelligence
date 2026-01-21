@@ -311,18 +311,28 @@ func (a *Adjuster) AdjustSDIRbac(ns string, _ *sdiv1alpha1.SDIObserver, ctx cont
 }
 
 func (a *Adjuster) ensureRole(ns, name string, getRoleFunc func() client.Object, ctx context.Context) error {
-	role := getRoleFunc().(*rbacv1.Role)
-	role.Name = name
-	role.Namespace = ns
+	desiredRole := getRoleFunc().(*rbacv1.Role)
+	desiredRole.Name = name
+	desiredRole.Namespace = ns
 
-	if err := a.Client.Get(ctx, client.ObjectKeyFromObject(role), role); err != nil {
+	existingRole := &rbacv1.Role{}
+	if err := a.Client.Get(ctx, client.ObjectKeyFromObject(desiredRole), existingRole); err != nil {
 		if errors.IsNotFound(err) {
 			a.logger.Info("Role: creating", "name", name)
-			if err := a.Client.Create(ctx, role); err != nil {
+			if err := a.Client.Create(ctx, desiredRole); err != nil {
 				return fmt.Errorf("unable to create role %s: %w", name, err)
 			}
 		} else {
 			return fmt.Errorf("unable to get role %s: %w", name, err)
+		}
+	} else {
+		// Compare rules and update if they differ
+		if !reflect.DeepEqual(existingRole.Rules, desiredRole.Rules) {
+			a.logger.Info("Role: updating", "name", name)
+			existingRole.Rules = desiredRole.Rules
+			if err := a.Client.Update(ctx, existingRole); err != nil {
+				return fmt.Errorf("unable to update role %s: %w", name, err)
+			}
 		}
 	}
 	return nil
