@@ -132,6 +132,28 @@ The commands for creating the domain and API:
 
     operator-sdk create api --group sdi --version v1alpha1 --kind SDIObserver --resource --controller 
 
+## Troubleshooting
+
+### TLS Handshake Errors After vsystem Pod Replacement
+
+After the vsystem pod is replaced (due to upgrade, restart, or redeployment), you may see TLS handshake errors in the vsystem logs:
+
+```
+vSystem main server http: TLS handshake error from 10.x.x.x: local error: tls: bad record MAC
+```
+
+**Cause**: The OpenShift router caches TLS session data. When the vsystem pod is replaced with new certificates, the router's cached sessions become invalid.
+
+**Resolution**: Delete the vsystem route and let the operator recreate it:
+
+```sh
+oc delete route vsystem -n <sdi-namespace>
+```
+
+The operator will automatically recreate the route (if `sdiVSystemRoute.managementState` is set to `Managed`), and the TLS errors will stop.
+
+**Note**: This issue is transient and will also resolve itself after a few minutes as the router's TLS session cache expires.
+
 ## License
 
 Copyright 2023.
