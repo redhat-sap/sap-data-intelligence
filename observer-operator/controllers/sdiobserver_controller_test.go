@@ -71,7 +71,7 @@ func TestSDIObserverReconciler_Reconcile_Success(t *testing.T) {
 		},
 	}
 
-	client := fake.NewClientBuilder().WithScheme(scheme).WithObjects(obs).Build()
+	client := fake.NewClientBuilder().WithScheme(scheme).WithObjects(obs).WithStatusSubresource(obs).Build()
 
 	reconciler := &SDIObserverReconciler{
 		Client:            client,
@@ -90,10 +90,10 @@ func TestSDIObserverReconciler_Reconcile_Success(t *testing.T) {
 	ctx := context.Background()
 	result, err := reconciler.Reconcile(ctx, req)
 
-	// We expect an error here because the test doesn't set up all the required resources
-	// But we're testing that the reconciler doesn't panic and handles the error gracefully
-	if err == nil {
-		t.Log("No error occurred - this might indicate missing test setup or successful reconciliation")
+	// We don't expect an error because handleError now returns nil error
+	// to use fixed requeue interval instead of exponential backoff
+	if err != nil {
+		t.Logf("Unexpected error: %v", err)
 	}
 
 	// The result should include a requeue after interval
@@ -164,7 +164,7 @@ func TestSDIObserverReconciler_handleError(t *testing.T) {
 		},
 	}
 
-	client := fake.NewClientBuilder().WithScheme(scheme).WithObjects(obs).Build()
+	client := fake.NewClientBuilder().WithScheme(scheme).WithObjects(obs).WithStatusSubresource(obs).Build()
 
 	reconciler := &SDIObserverReconciler{
 		Client:            client,
@@ -177,17 +177,17 @@ func TestSDIObserverReconciler_handleError(t *testing.T) {
 	testError := &TestError{message: "test error"}
 	result, err := reconciler.handleError(ctx, obs, testError, "Test error message")
 
-	// The handleError method may return an aggregate error including update errors
-	if err == nil {
-		t.Error("Expected an error to be returned")
+	// handleError returns nil error to use fixed requeue interval (avoids exponential backoff)
+	// This ensures predictable retry timing when components become available
+	if err != nil {
+		t.Errorf("Expected no error (to avoid exponential backoff), got %v", err)
 	}
 
 	if result.RequeueAfter != 1*time.Minute {
-		t.Error("Expected requeue after 1 minute")
+		t.Errorf("Expected requeue after 1 minute, got %v", result.RequeueAfter)
 	}
 
-	// Check that the status condition was set (may not persist due to fake client limitations)
-	// This is mainly testing that handleError doesn't panic and sets the appropriate requeue
+	// Check that the status condition was set
 	if len(obs.Status.Conditions) > 0 {
 		t.Log("Status conditions were set as expected")
 	}

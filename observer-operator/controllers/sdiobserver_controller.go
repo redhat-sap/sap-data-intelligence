@@ -175,6 +175,8 @@ func (r *SDIObserverReconciler) ensureStatusConditions(cr *sdiv1alpha1.SDIObserv
 }
 
 func (r *SDIObserverReconciler) handleError(ctx context.Context, cr *sdiv1alpha1.SDIObserver, err error, msg string) (ctrl.Result, error) {
+	logger := log.FromContext(ctx)
+
 	meta.SetStatusCondition(&cr.Status.Conditions, metav1.Condition{
 		Type:               sdiv1alpha1.ConditionTypeDegraded,
 		Status:             metav1.ConditionTrue,
@@ -183,11 +185,16 @@ func (r *SDIObserverReconciler) handleError(ctx context.Context, cr *sdiv1alpha1
 		Message:            msg,
 	})
 	if updateErr := r.Status().Update(ctx, cr); updateErr != nil {
-		return ctrl.Result{RequeueAfter: 1 * time.Minute}, utilerrors.NewAggregate([]error{err, updateErr})
+		// Return error to trigger exponential backoff when we can't even update status
+		logger.Error(utilerrors.NewAggregate([]error{err, updateErr}), "Failed to update status after error")
+		return ctrl.Result{}, utilerrors.NewAggregate([]error{err, updateErr})
 	}
-	logger := log.FromContext(ctx)
-	logger.Error(err, "Returning error with RequeueAfter", "RequeueAfter", 1*time.Minute)
-	return ctrl.Result{RequeueAfter: 1 * time.Minute}, err
+
+	// Log the error but return only Result (no error) to use fixed requeue interval
+	// instead of exponential backoff. This ensures we retry within a predictable time
+	// when components become available.
+	logger.Error(err, "Reconciliation failed, will retry", "retryAfter", r.Interval)
+	return ctrl.Result{RequeueAfter: r.Interval}, nil
 }
 
 // ConditionHolder is a helper struct to hold conditions
