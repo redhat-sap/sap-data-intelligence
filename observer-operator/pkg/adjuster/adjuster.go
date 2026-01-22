@@ -57,7 +57,7 @@ func (a *Adjuster) Adjust(ac Actioner, ctx context.Context) error {
 	var errs []error
 	for _, adjustment := range adjustments {
 		if err := adjustment.action(); err != nil {
-			if errors.IsNotFound(err) {
+			if isNotFoundError(err) {
 				a.logger.Info("Component not found, skipping adjustment", "adjustment", adjustment.name, "error", err.Error())
 				continue
 			}
@@ -67,6 +67,31 @@ func (a *Adjuster) Adjust(ac Actioner, ctx context.Context) error {
 	}
 
 	return utilerrors.NewAggregate(errs)
+}
+
+// isNotFoundError checks if an error (or all errors in an aggregate) are NotFound errors.
+// This handles both single errors and aggregate errors from utilerrors.NewAggregate.
+func isNotFoundError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	// Check if it's a single NotFound error
+	if errors.IsNotFound(err) {
+		return true
+	}
+
+	// Check if it's an aggregate where ALL errors are NotFound
+	if agg, ok := err.(utilerrors.Aggregate); ok {
+		for _, e := range agg.Errors() {
+			if !isNotFoundError(e) {
+				return false
+			}
+		}
+		return len(agg.Errors()) > 0
+	}
+
+	return false
 }
 
 // Logger returns the logger instance associated with the Adjuster.
