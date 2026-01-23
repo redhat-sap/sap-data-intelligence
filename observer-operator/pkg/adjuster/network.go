@@ -120,11 +120,15 @@ func (a *Adjuster) updateExistingRouteCA(ctx context.Context, ns, name string, r
 	}
 
 	if route.Spec.TLS.DestinationCACertificate == caBundle {
-		a.logger.Info(fmt.Sprintf("Route %s destination CA certificate is unchanged", name))
+		a.logger.V(1).Info("Route: CA certificate unchanged", "name", name)
 		return nil
 	}
 
+	a.logger.Info("Route: updating CA certificate", "name", name)
 	route.Spec.TLS.DestinationCACertificate = caBundle
+	if err := a.Client.Update(ctx, route); err != nil {
+		return fmt.Errorf("failed to update route %s CA certificate: %w", name, err)
+	}
 	return nil
 }
 
