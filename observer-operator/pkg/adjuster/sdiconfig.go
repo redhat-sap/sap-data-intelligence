@@ -11,6 +11,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -87,47 +88,10 @@ func (a *Adjuster) AdjustSDIDiagnosticsFluentdDaemonsetContainerPrivilege(ns str
 		return err
 	}
 
-	updated := false
-
-	// Patch pod-level securityContext to allow running as root
-	podSecCtx := ds.Spec.Template.Spec.SecurityContext
-	if podSecCtx == nil {
-		ds.Spec.Template.Spec.SecurityContext = &corev1.PodSecurityContext{}
-		podSecCtx = ds.Spec.Template.Spec.SecurityContext
-	}
-	if podSecCtx.RunAsNonRoot == nil || *podSecCtx.RunAsNonRoot {
-		podSecCtx.RunAsNonRoot = ptr.To(false)
-		updated = true
-	}
-	if podSecCtx.RunAsUser == nil || *podSecCtx.RunAsUser != 0 {
-		podSecCtx.RunAsUser = ptr.To(int64(0))
-		updated = true
-	}
-
-	// Patch container-level securityContext
-	for i := range ds.Spec.Template.Spec.Containers {
-		if ds.Spec.Template.Spec.Containers[i].Name != DiagnosticFluentdName {
-			continue
-		}
-		containerSecCtx := ds.Spec.Template.Spec.Containers[i].SecurityContext
-		if containerSecCtx == nil {
-			ds.Spec.Template.Spec.Containers[i].SecurityContext = &corev1.SecurityContext{}
-			containerSecCtx = ds.Spec.Template.Spec.Containers[i].SecurityContext
-		}
-		if containerSecCtx.Privileged == nil || !*containerSecCtx.Privileged {
-			containerSecCtx.Privileged = ptr.To(true)
-			updated = true
-		}
-		if containerSecCtx.AllowPrivilegeEscalation == nil || !*containerSecCtx.AllowPrivilegeEscalation {
-			containerSecCtx.AllowPrivilegeEscalation = ptr.To(true)
-			updated = true
-		}
-		if containerSecCtx.RunAsNonRoot == nil || *containerSecCtx.RunAsNonRoot {
-			containerSecCtx.RunAsNonRoot = ptr.To(false)
-			updated = true
-		}
-		break
-	}
+	podUpdated := a.patchPodSecurityContext(&ds.Spec.Template.Spec)
+	containerUpdated := a.patchContainerSecurityContext(&ds.Spec.Template.Spec, DiagnosticFluentdName)
+	initContainerUpdated := a.ensureFluentdInitContainer(&ds.Spec.Template.Spec)
+	updated := podUpdated || containerUpdated || initContainerUpdated
 
 	if updated {
 		a.logger.Info("DaemonSet: patching security context", "name", DiagnosticFluentdName)
@@ -138,6 +102,146 @@ func (a *Adjuster) AdjustSDIDiagnosticsFluentdDaemonsetContainerPrivilege(ns str
 		a.logger.V(1).Info("DaemonSet: already configured", "name", DiagnosticFluentdName)
 	}
 	return nil
+}
+
+// patchPodSecurityContext patches the pod-level security context.
+// Returns true if any changes were made.
+func (a *Adjuster) patchPodSecurityContext(podSpec *corev1.PodSpec) bool {
+	updated := false
+	if podSpec.SecurityContext == nil {
+		podSpec.SecurityContext = &corev1.PodSecurityContext{}
+	}
+	podSecCtx := podSpec.SecurityContext
+	// Allow running as any user (not restricted to non-root)
+	if podSecCtx.RunAsNonRoot == nil || *podSecCtx.RunAsNonRoot {
+		podSecCtx.RunAsNonRoot = ptr.To(false)
+		updated = true
+	}
+	// Remove runAsUser if it was previously set to 0 by this operator
+	// Let the container run as the original UID to maintain compatibility
+	// with files created by previous versions
+	if podSecCtx.RunAsUser != nil && *podSecCtx.RunAsUser == 0 {
+		podSecCtx.RunAsUser = nil
+		updated = true
+	}
+	return updated
+}
+
+// patchContainerSecurityContext patches the container-level security context for privileged execution.
+// Returns true if any changes were made.
+func (a *Adjuster) patchContainerSecurityContext(podSpec *corev1.PodSpec, containerName string) bool {
+	updated := false
+	for i := range podSpec.Containers {
+		if podSpec.Containers[i].Name != containerName {
+			continue
+		}
+		if podSpec.Containers[i].SecurityContext == nil {
+			podSpec.Containers[i].SecurityContext = &corev1.SecurityContext{}
+		}
+		secCtx := podSpec.Containers[i].SecurityContext
+		if secCtx.Privileged == nil || !*secCtx.Privileged {
+			secCtx.Privileged = ptr.To(true)
+			updated = true
+		}
+		if secCtx.AllowPrivilegeEscalation == nil || !*secCtx.AllowPrivilegeEscalation {
+			secCtx.AllowPrivilegeEscalation = ptr.To(true)
+			updated = true
+		}
+		if secCtx.RunAsNonRoot == nil || *secCtx.RunAsNonRoot {
+			secCtx.RunAsNonRoot = ptr.To(false)
+			updated = true
+		}
+		// Remove runAsUser if it was previously set to 0 by this operator
+		// Let the container run as the original UID to maintain compatibility
+		// with files created by previous versions
+		if secCtx.RunAsUser != nil && *secCtx.RunAsUser == 0 {
+			secCtx.RunAsUser = nil
+			updated = true
+		}
+		// Clear capabilities.drop when running privileged to avoid interference
+		if secCtx.Capabilities != nil && len(secCtx.Capabilities.Drop) > 0 {
+			secCtx.Capabilities.Drop = nil
+			updated = true
+		}
+		// Set SELinux type to spc_t (super privileged container) to bypass SELinux restrictions on host paths
+		if secCtx.SELinuxOptions == nil || secCtx.SELinuxOptions.Type != "spc_t" {
+			secCtx.SELinuxOptions = &corev1.SELinuxOptions{Type: "spc_t"}
+			updated = true
+		}
+		break
+	}
+	return updated
+}
+
+// ensureFluentdInitContainer adds an init container to fix permissions on the pos file.
+// This handles the upgrade case where the pos file was created by a previous version
+// running as a different UID. Returns true if any changes were made.
+func (a *Adjuster) ensureFluentdInitContainer(podSpec *corev1.PodSpec) bool {
+	expectedCommand := "if [ -f " + DiagnosticFluentdPosFile + " ]; then chmod 666 " + DiagnosticFluentdPosFile + " || true; fi"
+
+	// Check if init container already exists with correct command
+	for i := range podSpec.InitContainers {
+		if podSpec.InitContainers[i].Name == DiagnosticFluentdInitName {
+			// Check if command matches expected
+			if len(podSpec.InitContainers[i].Command) == 3 &&
+				podSpec.InitContainers[i].Command[2] == expectedCommand {
+				return false // Already configured correctly
+			}
+			// Update command to use chmod instead of chown
+			podSpec.InitContainers[i].Command = []string{"/bin/sh", "-c", expectedCommand}
+			return true
+		}
+	}
+
+	// Get the main container's image to use for the init container
+	var fluentdImage string
+	for i := range podSpec.Containers {
+		if podSpec.Containers[i].Name == DiagnosticFluentdName {
+			fluentdImage = podSpec.Containers[i].Image
+			break
+		}
+	}
+	if fluentdImage == "" {
+		return false
+	}
+
+	// Create init container that fixes file permissions
+	// Use chmod 666 to make the file writable by any UID, avoiding hardcoded UID dependencies
+	initContainer := corev1.Container{
+		Name:  DiagnosticFluentdInitName,
+		Image: fluentdImage,
+		Command: []string{
+			"/bin/sh",
+			"-c",
+			expectedCommand,
+		},
+		VolumeMounts: []corev1.VolumeMount{
+			{
+				Name:      DiagnosticFluentdVarTmpVolume,
+				MountPath: "/var/tmp",
+			},
+		},
+		SecurityContext: &corev1.SecurityContext{
+			RunAsUser:                ptr.To(int64(0)),
+			RunAsNonRoot:             ptr.To(false),
+			Privileged:               ptr.To(true),
+			AllowPrivilegeEscalation: ptr.To(true),
+			SELinuxOptions:           &corev1.SELinuxOptions{Type: "spc_t"},
+		},
+		Resources: corev1.ResourceRequirements{
+			Requests: corev1.ResourceList{
+				corev1.ResourceCPU:    resource.MustParse("10m"),
+				corev1.ResourceMemory: resource.MustParse("10Mi"),
+			},
+			Limits: corev1.ResourceList{
+				corev1.ResourceCPU:    resource.MustParse("50m"),
+				corev1.ResourceMemory: resource.MustParse("50Mi"),
+			},
+		},
+	}
+
+	podSpec.InitContainers = append(podSpec.InitContainers, initContainer)
+	return true
 }
 
 func (a *Adjuster) AdjustSDIVSystemVrepStatefulSets(ns string, obs *sdiv1alpha1.SDIObserver, ctx context.Context) error {

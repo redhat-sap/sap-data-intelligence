@@ -4,8 +4,11 @@ import "time"
 
 const (
 	// Component names
-	DiagnosticFluentdName = "diagnostics-fluentd"
-	VSystemVrepStsName    = "vsystem-vrep"
+	DiagnosticFluentdName         = "diagnostics-fluentd"
+	DiagnosticFluentdInitName     = "fix-permissions"
+	DiagnosticFluentdPosFile      = "/var/tmp/diagnostics-fluentd-sdi.log.pos"
+	DiagnosticFluentdVarTmpVolume = "vartmp"
+	VSystemVrepStsName            = "vsystem-vrep"
 
 	// Volume and mount names
 	VolumeName              = "exports-mask"
