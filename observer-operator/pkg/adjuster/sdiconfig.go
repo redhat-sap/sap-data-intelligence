@@ -88,13 +88,30 @@ func (a *Adjuster) AdjustSDIDiagnosticsFluentdDaemonsetContainerPrivilege(ns str
 		return err
 	}
 
+	// Check if vartmp volume uses hostPath - only apply patches in that case
+	// SDI 3.3.290+ uses emptyDir which doesn't have permission issues
+	if !a.isVartmpHostPath(&ds.Spec.Template.Spec) {
+		// emptyDir detected - clean up any previous patches we may have applied
+		cleaned := a.cleanupFluentdPatches(&ds.Spec.Template.Spec)
+		if cleaned {
+			a.logger.Info("DaemonSet: removing patches (emptyDir detected)", "name", DiagnosticFluentdName)
+			if err := a.Client.Update(ctx, ds); err != nil {
+				return err
+			}
+		} else {
+			a.logger.V(1).Info("DaemonSet: no patches needed (emptyDir)", "name", DiagnosticFluentdName)
+		}
+		return nil
+	}
+
+	// hostPath detected - apply security patches for permission fix
 	podUpdated := a.patchPodSecurityContext(&ds.Spec.Template.Spec)
 	containerUpdated := a.patchContainerSecurityContext(&ds.Spec.Template.Spec, DiagnosticFluentdName)
 	initContainerUpdated := a.ensureFluentdInitContainer(&ds.Spec.Template.Spec)
 	updated := podUpdated || containerUpdated || initContainerUpdated
 
 	if updated {
-		a.logger.Info("DaemonSet: patching security context", "name", DiagnosticFluentdName)
+		a.logger.Info("DaemonSet: patching security context (hostPath)", "name", DiagnosticFluentdName)
 		if err := a.Client.Update(ctx, ds); err != nil {
 			return err
 		}
@@ -102,6 +119,76 @@ func (a *Adjuster) AdjustSDIDiagnosticsFluentdDaemonsetContainerPrivilege(ns str
 		a.logger.V(1).Info("DaemonSet: already configured", "name", DiagnosticFluentdName)
 	}
 	return nil
+}
+
+// isVartmpHostPath checks if the vartmp volume uses hostPath.
+// Returns true if hostPath, false if emptyDir or not found.
+func (a *Adjuster) isVartmpHostPath(podSpec *corev1.PodSpec) bool {
+	for i := range podSpec.Volumes {
+		if podSpec.Volumes[i].Name == DiagnosticFluentdVarTmpVolume {
+			return podSpec.Volumes[i].HostPath != nil
+		}
+	}
+	return false
+}
+
+// cleanupFluentdPatches removes patches previously applied by this operator.
+// This is needed when upgrading from hostPath to emptyDir (SDI 3.3.290+).
+// Returns true if any changes were made.
+func (a *Adjuster) cleanupFluentdPatches(podSpec *corev1.PodSpec) bool {
+	updated := false
+
+	// Remove our init container if present
+	for i := range podSpec.InitContainers {
+		if podSpec.InitContainers[i].Name == DiagnosticFluentdInitName {
+			podSpec.InitContainers = append(podSpec.InitContainers[:i], podSpec.InitContainers[i+1:]...)
+			updated = true
+			break
+		}
+	}
+
+	// Revert container security context to non-privileged defaults
+	for i := range podSpec.Containers {
+		if podSpec.Containers[i].Name != DiagnosticFluentdName {
+			continue
+		}
+		secCtx := podSpec.Containers[i].SecurityContext
+		if secCtx == nil {
+			break
+		}
+		// Revert privileged mode if we set it
+		if secCtx.Privileged != nil && *secCtx.Privileged {
+			secCtx.Privileged = ptr.To(false)
+			updated = true
+		}
+		// Revert allowPrivilegeEscalation if we set it
+		if secCtx.AllowPrivilegeEscalation != nil && *secCtx.AllowPrivilegeEscalation {
+			secCtx.AllowPrivilegeEscalation = ptr.To(false)
+			updated = true
+		}
+		// Revert runAsNonRoot if we changed it
+		if secCtx.RunAsNonRoot != nil && !*secCtx.RunAsNonRoot {
+			secCtx.RunAsNonRoot = ptr.To(true)
+			updated = true
+		}
+		// Remove SELinux options if we set them
+		if secCtx.SELinuxOptions != nil && secCtx.SELinuxOptions.Type == "spc_t" {
+			secCtx.SELinuxOptions = nil
+			updated = true
+		}
+		break
+	}
+
+	// Revert pod security context
+	if podSpec.SecurityContext != nil {
+		podSecCtx := podSpec.SecurityContext
+		if podSecCtx.RunAsNonRoot != nil && !*podSecCtx.RunAsNonRoot {
+			podSecCtx.RunAsNonRoot = ptr.To(true)
+			updated = true
+		}
+	}
+
+	return updated
 }
 
 // patchPodSecurityContext patches the pod-level security context.
