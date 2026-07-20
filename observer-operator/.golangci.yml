@@ -1,6 +1,7 @@
 run:
   timeout: 5m
-  go: "1.23"
+  go: "1.25"
+  concurrency: 2
 
 linters:
   enable:
@@ -69,6 +70,7 @@ issues:
   max-same-issues: 0
 
 output:
-  format: colored-line-number
+  formats:
+    - format: colored-line-number
   print-issued-lines: true
   print-linter-name: true
