@@ -200,8 +200,8 @@ GOSEC ?= $(LOCALBIN)/gosec
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v5.4.3
 CONTROLLER_TOOLS_VERSION ?= v0.16.5
-GOLANGCI_LINT_VERSION ?= v1.62.2
-GOSEC_VERSION ?= v2.18.2
+GOLANGCI_LINT_VERSION ?= v1.64.8
+GOSEC_VERSION ?= v2.22.4
 
 KUSTOMIZE_INSTALL_SCRIPT ?= "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"
 .PHONY: kustomize
